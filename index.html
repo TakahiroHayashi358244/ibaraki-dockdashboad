@@ -348,6 +348,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
@@ -964,6 +965,22 @@ function initFirebase(){
   }
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
+    // 匿名認証 → 成功後にDB接続（ルールが auth != null のため必須）
+    firebase.auth().onAuthStateChanged(user=>{
+      if(user){ setupDB(); }   // ログイン済み
+    });
+    firebase.auth().signInAnonymously().catch(e=>{
+      console.error('匿名認証エラー:', e);
+      setSync('off');
+      warn('Firebase認証に失敗しました（匿名ログインが無効の可能性）');
+    });
+  }catch(e){ console.error(e); setSync('off'); }
+}
+let dbSetupDone=false;
+function setupDB(){
+  if(dbSetupDone) return;      // 二重初期化防止
+  dbSetupDone=true;
+  try{
     fbDB=firebase.database();
     const root=fbDB.ref(DOCK_ROOT);
 
