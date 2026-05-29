@@ -543,12 +543,13 @@ function cardHTML(c){
   });
   const cls = c.status==='arrive'?'s-arrive':c.status==='done'?'s-done':'';
   const od = isOverdue(c)?'overdue':'';
+  const showLate = od && c.status!=='arrive';   // 着車中はラベル非表示（色のみ）
   const hasDetail = state.detailFields.length>0;
   const detailBtn = hasDetail ? `<span class="c-detail" onclick="openDetail('${escAttr(c.id)}');event.stopPropagation();">詳細 ›</span>` : '';
   return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     ${detailBtn}
-    ${od?'<span class="c-late">時間超過</span>':''}
+    ${showLate?'<span class="c-late">時間超過</span>':''}
     <div class="c-id">${esc(c.id)}</div>
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
