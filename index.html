@@ -53,6 +53,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 }
 .btn:hover{background:#e2e8ef;border-color:#bcc8d4;}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.danger{background:#e05050;border-color:#e05050;color:#fff;}
+.btn.danger:hover{background:#c0392b;border-color:#c0392b;}
 .btn.primary:hover{background:#2785a3;}
 .stat{font-size:12px;color:var(--sub);text-align:center;line-height:1.3;padding:0 6px;}
 .stat b{display:block;font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums;}
@@ -197,6 +199,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .row-inp{display:flex;gap:8px;margin-top:8px;}
 .row-inp .inp{flex:1;}
 .note{font-size:11px;color:var(--sub);line-height:1.6;margin-top:8px;}
+.warn-note{color:#c0392b;font-weight:600;}
 .retain-row{display:flex;align-items:center;gap:10px;margin-top:8px;}
 .retain-row label{font-size:13px;min-width:72px;color:var(--ink);}
 .retain-row .inp{width:110px;flex:none;}
@@ -329,6 +332,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
         <span class="ru">件（上限2000件）</span>
       </div>
       <div class="note">指定した日数より古いログ、または最大件数を超えた古いログは自動的に削除されます（両方の条件を適用）。設定は全PCで共有されます。</div>
+      <div class="row-inp">
+        <button class="btn danger" onclick="resetLogs()">ログを全件リセット</button>
+      </div>
+      <div class="note warn-note">⚠ リセットすると保存されている操作ログ・着車/完了の記録がすべて削除され、元に戻せません。Firebase接続時は全PCのログが消えます。CSV出力が必要な場合は先に出力してください。</div>
 
       <div class="sec-title">アプリの更新</div>
       <div class="row-inp">
@@ -964,6 +971,20 @@ function recordCsvLoad(count){
 function cleanupLocalLogs(){
   const cutoff=Date.now()-state.logRetainDays*86400000;
   logs=logs.filter(l=>l.ts>=cutoff).slice(0,state.logRetainMax);
+}
+// ログ全件リセット（確認あり）
+function resetLogs(){
+  const msg='操作ログをすべて削除します。\n'
+    + '・着車/完了の記録も消え、元に戻せません。\n'
+    + (fbReady?'・Firebase接続中のため、全PCのログが削除されます。\n':'')
+    + '\n本当にリセットしますか？';
+  if(!confirm(msg)) return;
+  logs=[];
+  if(fbReady && fbDB){
+    fbDB.ref(DOCK_ROOT+'/logs').remove().catch(e=>console.error(e));
+  }
+  if(document.getElementById('logModal').classList.contains('show')) renderLogs();
+  toast('ログをリセットしました');
 }
 function openLogs(){buildLogDates();renderLogs();document.getElementById('logModal').classList.add('show');}
 function closeLogs(){document.getElementById('logModal').classList.remove('show');}
