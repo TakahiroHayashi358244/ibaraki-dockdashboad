@@ -247,6 +247,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .log-who{font-weight:700;color:var(--accent);word-break:break-word;}
 .log-act{color:var(--ink);}
 .log-act .mv{color:var(--sub);}
+.log-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;margin-right:4px;}
+.log-tag.csv{background:#e0a030;color:#fff;}
 .log-empty{color:#a4b1bd;text-align:center;padding:24px;}
 </style>
 </head>
@@ -480,6 +482,7 @@ function loadCSV(ev){
       fbDB.ref(DOCK_ROOT+'/master').set({headers,data});
       fbDB.ref(DOCK_ROOT+'/placement').set({});
     }
+    recordCsvLoad(data.length);
     toast(data.length+"件 読み込みました");
   };
   rd.readAsArrayBuffer(file);
@@ -897,14 +900,19 @@ function setOperator(v){
 }
 
 /* ============ 操作ログ ============ */
-function recordMove(c, from, to){
-  const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'') || c.id;
-  const entry={ ts:Date.now(), who:operator.trim(), cardId:c.id, carrier, from, to };
+function addLog(entry){
   pushLog(entry);            // Firebase接続時は送信（受信側でlogs更新）
   if(!fbReady){              // 未接続時はローカルにも積む
     logs.unshift(entry);
     cleanupLocalLogs();
   }
+}
+function recordMove(c, from, to){
+  const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'') || c.id;
+  addLog({ ts:Date.now(), who:operator.trim(), type:'move', cardId:c.id, carrier, from, to });
+}
+function recordCsvLoad(count){
+  addLog({ ts:Date.now(), who:operator.trim()||'-', type:'csv', count });
 }
 // ローカル保持ログのクリーンアップ（日数・件数）
 function cleanupLocalLogs(){
@@ -920,10 +928,16 @@ function renderLogs(){
   body.innerHTML=shown.map(l=>{
     const d=new Date(l.ts);
     const t=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    let act;
+    if(l.type==='csv'){
+      act=`<span class="log-tag csv">CSV読込</span> ${l.count!=null?l.count+'件 読み込み':''}`;
+    } else {
+      act=`${esc(l.carrier||l.cardId)} <span class="mv">${esc(l.from)} → ${esc(l.to)}</span>`;
+    }
     return `<div class="log-row">
       <div class="log-time">${t}</div>
       <div class="log-who">${esc(l.who||'-')}</div>
-      <div class="log-act">${esc(l.carrier||l.cardId)} <span class="mv">${esc(l.from)} → ${esc(l.to)}</span></div>
+      <div class="log-act">${act}</div>
     </div>`;
   }).join('');
 }
