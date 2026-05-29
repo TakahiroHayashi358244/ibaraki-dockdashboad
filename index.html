@@ -471,8 +471,14 @@ function loadCSV(ev){
     const data=rows.slice(1).map(r=>{
       const o={}; headers.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o;
     });
-    ingest(headers,data,{pushAll:true});
-    pushMaster(headers,data);
+    ingest(headers,data);
+    if(fbReady && fbDB){
+      // 新CSV = 新マスタ。配置はリセットして全PCへ反映
+      fbMaster={headers,data};
+      fbPlacement={};
+      fbDB.ref(DOCK_ROOT+'/master').set({headers,data});
+      fbDB.ref(DOCK_ROOT+'/placement').set({});
+    }
     toast(data.length+"件 読み込みました");
   };
   rd.readAsArrayBuffer(file);
@@ -922,10 +928,35 @@ function renderLogs(){
 
 /* ============ Firebase リアルタイム同期 ============ */
 let fbReady=false, fbDB=null, fbApplying=false;
+let fbMaster=null;          // 最新master {headers,data}
+let fbPlacement={};         // 最新placement
+let fbMasterLoaded=false;   // master受信済みフラグ（初回seed判定用）
 function setSync(stateStr){
   const el=document.getElementById('syncStatus');
   el.className='sync-status '+stateStr;
   el.title = stateStr==='on'?'リアルタイム同期中':stateStr==='off'?'同期切断':'ローカルのみ（未設定）';
+}
+// master + placement を統合してカードを再構築
+function rebuildFromFB(){
+  if(!fbMaster || !fbMaster.headers || !fbMaster.data) return;
+  fbApplying=true;
+  // masterからカード生成（status等は後でplacement適用）
+  state.headers = fbMaster.headers;
+  state.cards = fbMaster.data.map(obj=>({
+    id:obj[ID_FIELD]||("X"+Math.random().toString(36).slice(2,8)),
+    fields:obj, status:'plan', bay:null, arriveAt:null
+  }));
+  state.displayFields = state.displayFields.filter(f=>state.headers.includes(f));
+  if(!state.displayFields.length) state.displayFields = state.headers.filter(h=>h!==ID_FIELD).slice(0,4);
+  state.detailFields = state.detailFields.filter(f=>state.headers.includes(f));
+  if(!state.headers.includes(state.sortKey)) state.sortKey = state.headers.includes("Schedule Date")?"Schedule Date":state.headers[0];
+  // placement適用
+  state.cards.forEach(c=>{
+    const p=fbPlacement[c.id];
+    if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null; }
+  });
+  fbApplying=false;
+  render();
 }
 function initFirebase(){
   if(!FIREBASE_CONFIG.databaseURL || !FIREBASE_CONFIG.apiKey || typeof firebase==='undefined'){
@@ -941,18 +972,23 @@ function initFirebase(){
       const on=s.val()===true; fbReady=on; setSync(on?'on':'off');
     });
 
-    // マスタ（CSVデータ）受信 → カード再構築
+    // マスタ（CSVデータ）受信 → 統合再構築
     root.child('master').on('value', s=>{
       const m=s.val();
+      fbMasterLoaded=true;
       if(m && m.headers && m.data){
-        fbApplying=true;
-        ingest(m.headers, m.data);   // pushAllなし
-        fbApplying=false;
+        fbMaster=m;
+        rebuildFromFB();
+      } else {
+        // Firebaseにmasterが無い → 最初の1台が内蔵データを登録
+        if(!fbMaster){ pushMaster(state.headers, state.cards.map(c=>c.fields)); }
       }
     });
-    // 配置状態 受信
+    // 配置状態 受信 → placementキャッシュ更新して統合
     root.child('placement').on('value', s=>{
-      fbApplying=true; applyPlacement(s.val()||{}); fbApplying=false;
+      fbPlacement = s.val()||{};
+      if(fbMaster){ rebuildFromFB(); }
+      else { fbApplying=true; applyPlacement(fbPlacement); fbApplying=false; }
     });
     // バース構成（階層）受信
     root.child('floors').on('value', s=>{
