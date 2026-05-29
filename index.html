@@ -116,13 +116,15 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .bay-label .bay-time.alert{background:#e05050;color:#fff;}
 .bay-slot{
   flex:1;min-height:40px;padding:3px 5px 5px;display:flex;flex-direction:column;gap:5px;
-  overflow-y:auto;
+  overflow-y:auto;overflow-x:hidden;
 }
 .bay-slot::-webkit-scrollbar{width:5px;}
 .bay-slot::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:3px;}
 .bay-slot.dragover{background:rgba(255,255,255,.18);}
 .bay.occupied .bay-label{color:#fff;}
 .bay-slot.full.dragover{background:rgba(224,80,80,.30);cursor:not-allowed;}
+.bay-slot .card{width:100%;min-width:0;}
+.bay-slot .c-id,.bay-slot .c-main,.bay-slot .c-row span{word-break:break-word;overflow-wrap:anywhere;}
 
 /* ===== Card ===== */
 .card{
@@ -252,6 +254,9 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .log-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;margin-right:4px;}
 .log-tag.csv{background:#e0a030;color:#fff;}
 .log-empty{color:#a4b1bd;text-align:center;padding:24px;}
+.log-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 18px;border-bottom:1px solid var(--line);background:#fafbfc;}
+.log-toolbar .lt-label{font-size:13px;color:var(--sub);font-weight:600;}
 </style>
 </head>
 <body>
@@ -353,6 +358,11 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 <div class="overlay" id="logModal">
   <div class="modal log-modal">
     <h2>操作ログ<span class="x" onclick="closeLogs()">×</span></h2>
+    <div class="log-toolbar">
+      <span class="lt-label">CSV出力対象日</span>
+      <select class="inp" id="logExportDate" style="width:auto;flex:none;"></select>
+      <button class="btn primary" onclick="exportLogCsv()">車両別CSV出力</button>
+    </div>
     <div class="modal-body" id="log-body"></div>
   </div>
 </div>
@@ -464,8 +474,9 @@ function applyPlacement(placement){
   if(!placement) return;
   state.cards.forEach(c=>{
     const p=placement[c.id];
-    if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null; }
-    else { c.status='plan'; c.bay=null; c.arriveAt=null; }
+    if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
+      c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null; }
+    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; }
   });
   render();
 }
@@ -670,12 +681,12 @@ function drop(e){
     if(occupant){ warn('バース '+bay+' は使用中です（1バース1台）'); return; }
     // 別バースへの移動・新規着車のときに着車時刻を記録（同じバース内は維持）
     if(c.status!=='arrive' || c.bay!==bay || !c.arriveAt){
-      c.arriveAt=Date.now();
+      c.arriveAt=Date.now(); c.arriveBay=bay; c.arriveOp=operator.trim();
     }
     c.status='arrive'; c.bay=bay;
   }
   else if(zone==='plan'){ c.status='plan'; c.bay=null; c.arriveAt=null; }
-  else if(zone==='done'){ c.status='done'; }
+  else if(zone==='done'){ c.status='done'; c.doneAt=Date.now(); c.doneOp=operator.trim(); }
   const after=locLabel(c);
   if(before!==after) recordMove(c, before, after);
   render();
@@ -691,7 +702,9 @@ function drop(e){
     const c=state.cards.find(x=>x.id===dragId);if(!c)return;
     if(!requireOperator()) return;
     const before=locLabel(c);
-    c.status=el.dataset.zone; if(c.status!=='arrive'){c.bay=null;c.arriveAt=null;}
+    c.status=el.dataset.zone;
+    if(c.status==='done'){ c.doneAt=Date.now(); c.doneOp=operator.trim(); }
+    if(c.status!=='arrive'){c.bay=null;c.arriveAt=null;}
     const after=locLabel(c);
     if(before!==after) recordMove(c, before, after);
     render();
@@ -952,8 +965,58 @@ function cleanupLocalLogs(){
   const cutoff=Date.now()-state.logRetainDays*86400000;
   logs=logs.filter(l=>l.ts>=cutoff).slice(0,state.logRetainMax);
 }
-function openLogs(){renderLogs();document.getElementById('logModal').classList.add('show');}
+function openLogs(){buildLogDates();renderLogs();document.getElementById('logModal').classList.add('show');}
 function closeLogs(){document.getElementById('logModal').classList.remove('show');}
+// ローカル日付キー（YYYY-MM-DD）
+function dayKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dayLabel(k){const [y,m,d]=k.split('-');return `${y}/${m}/${d}`;}
+// ログが残っている日付を新しい順で列挙し、当日をデフォルト選択
+function buildLogDates(){
+  const sel=document.getElementById('logExportDate');
+  const days=[...new Set(logs.map(l=>dayKey(l.ts)))].sort().reverse();
+  const today=dayKey(Date.now());
+  if(!days.includes(today)) days.unshift(today);
+  sel.innerHTML=days.map(k=>`<option value="${k}">${dayLabel(k)}${k===today?'（当日）':''}</option>`).join('');
+  sel.value=today;
+}
+function hhmm(ts){const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function durMin(a,b){if(!a||!b)return'';const m=Math.round((b-a)/60000);return m>=0?m+'分':'';}
+// 車両ごとに着車/完了を集計してCSV出力
+function exportLogCsv(){
+  const day=document.getElementById('logExportDate').value;
+  // 当日分の移動ログを古い順に
+  const dayLogs=logs.filter(l=>l.type==='move'&&dayKey(l.ts)===day).slice().sort((a,b)=>a.ts-b.ts);
+  if(!dayLogs.length){ toast('対象日のログがありません'); return; }
+  // 車両ごとに集計
+  const rec={};  // cardId -> {carrier, bay, arriveTs, arriveOp, doneTs, doneOp}
+  dayLogs.forEach(l=>{
+    const r=rec[l.cardId]||(rec[l.cardId]={carrier:l.carrier||'', bay:'', arriveTs:null, arriveOp:'', doneTs:null, doneOp:''});
+    if(l.carrier) r.carrier=l.carrier;
+    if(/^着車/.test(l.to)){ r.arriveTs=l.ts; r.arriveOp=l.who||''; const m=l.to.match(/着車\s*(\S+)/); if(m)r.bay=m[1]; }
+    if(l.to==='完了'){ r.doneTs=l.ts; r.doneOp=l.who||''; }
+  });
+  // 現在のカード情報から予定時刻・荷量を補完
+  const byId={}; state.cards.forEach(c=>byId[c.id]=c);
+  const rows=[['送り状番号','荷主','バース','予定時刻','着車時刻','完了時刻','荷役所要時間','着車担当','完了担当']];
+  Object.keys(rec).forEach(id=>{
+    const r=rec[id]; const c=byId[id];
+    const sched=c?(c.fields['Schedule Date']||''):'';
+    rows.push([
+      id, r.carrier, r.bay||(c?(c.bay||''):''), sched,
+      r.arriveTs?hhmm(r.arriveTs):'', r.doneTs?hhmm(r.doneTs):'',
+      durMin(r.arriveTs,r.doneTs), r.arriveOp, r.doneOp
+    ]);
+  });
+  // CSV生成（UTF-8 BOM付き＝Excelで文字化けしない）
+  const csv='\uFEFF'+rows.map(row=>row.map(v=>{
+    const s=String(v==null?'':v);
+    return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='dock_log_'+day+'.csv';a.click();
+  toast(day+' の車両別ログを出力しました');
+}
 function renderLogs(){
   const body=document.getElementById('log-body');
   const shown=logs.slice(0,state.logRetainMax);
@@ -1002,7 +1065,8 @@ function rebuildFromFB(){
   // placement適用
   state.cards.forEach(c=>{
     const p=fbPlacement[c.id];
-    if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null; }
+    if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
+      c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null; }
   });
   fbApplying=false;
   render();
@@ -1086,7 +1150,11 @@ function setupDB(){
 function pushCards(){
   if(!fbReady || fbApplying || !fbDB) return;
   const placement={};
-  state.cards.forEach(c=>{ placement[c.id]={status:c.status,bay:c.bay||null,arriveAt:c.arriveAt||null}; });
+  state.cards.forEach(c=>{ placement[c.id]={
+    status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
+    arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
+    doneAt:c.doneAt||null, doneOp:c.doneOp||null
+  }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
 // マスタ（CSV）を送信
