@@ -618,8 +618,9 @@ function render(){
   const plan=sortPlan(state.cards.filter(c=>c.status==='plan'));
   document.getElementById('plan-list').innerHTML =
     plan.length?plan.map(cardHTML).join(''):'<div class="empty-hint">予定なし</div>';
-  // done
-  const done=state.cards.filter(c=>c.status==='done');
+  // done（完了時刻の昇順＝完了した順。doneAt無しは末尾）
+  const done=state.cards.filter(c=>c.status==='done')
+    .sort((a,b)=>(a.doneAt||Infinity)-(b.doneAt||Infinity));
   document.getElementById('done-list').innerHTML =
     done.length?done.map(cardHTML).join(''):'<div class="empty-hint">完了なし</div>';
   // floors
