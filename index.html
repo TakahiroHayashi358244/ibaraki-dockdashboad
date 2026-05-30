@@ -407,7 +407,7 @@ let state = {
   headers: INITIAL.headers.slice(),
   cards: [],        // {id, fields:{}, status:'plan'|'arrive'|'done', bay:null}
   displayFields: ["Carrier","Schedule Date","Pallets","Cartons","Units"],
-  detailFields: ["Appointment Id","Type","CRDD","Expected Arrival Date","Dock","Priority Score"],
+  detailFields: null,   // null = 全項目（初回に全headersで初期化）
   sortKey: "Schedule Date",
   doneSort: "done",     // 完了枠の並び順: done/arrive/schedule/carrier
   logRetainDays: 30,    // 保管日数（1-90）
@@ -486,7 +486,7 @@ function ingest(headers, dataRows, opts){
   // 表示項目の妥当性チェック
   state.displayFields = state.displayFields.filter(f=>headers.includes(f));
   if(!state.displayFields.length) state.displayFields = headers.filter(h=>h!==ID_FIELD).slice(0,4);
-  state.detailFields = state.detailFields.filter(f=>headers.includes(f));
+  state.detailFields = (state.detailFields===null) ? headers.slice() : state.detailFields.filter(f=>headers.includes(f));
   if(!headers.includes(state.sortKey)) state.sortKey = headers.includes("Schedule Date")?"Schedule Date":headers[0];
   render();
   // CSV新規読込時は配置を全PCへ反映（Firebase接続時のみ）
@@ -878,7 +878,19 @@ function bayTagDrop(e){
 function addBay(fi){
   const inp=document.getElementById('nb-'+fi);const v=inp.value.trim();
   if(!v)return; if(state.floors[fi].bays.includes(v)){toast('既に存在します');return;}
-  state.floors[fi].bays.push(v);inp.value='';buildFloorEditor();render();pushBays();
+  const bays=state.floors[fi].bays;
+  const num=parseInt(v.replace(/[^\d]/g,''),10);
+  // 数字の大小に応じて挿入（左ほど大きい＝降順）。既存の並びは保持。
+  // 新番号より小さい最初のバースの直前に入れる。該当なしは末尾。
+  let pos=bays.length;
+  if(!isNaN(num)){
+    for(let i=0;i<bays.length;i++){
+      const bn=parseInt(String(bays[i]).replace(/[^\d]/g,''),10);
+      if(!isNaN(bn) && bn<num){ pos=i; break; }
+    }
+  }
+  bays.splice(pos,0,v);
+  inp.value='';buildFloorEditor();render();pushBays();
 }
 function rmBay(fi,bi){
   const b=state.floors[fi].bays[bi];
@@ -1122,7 +1134,7 @@ function rebuildFromFB(){
   }));
   state.displayFields = state.displayFields.filter(f=>state.headers.includes(f));
   if(!state.displayFields.length) state.displayFields = state.headers.filter(h=>h!==ID_FIELD).slice(0,4);
-  state.detailFields = state.detailFields.filter(f=>state.headers.includes(f));
+  state.detailFields = (state.detailFields===null) ? state.headers.slice() : state.detailFields.filter(f=>state.headers.includes(f));
   if(!state.headers.includes(state.sortKey)) state.sortKey = state.headers.includes("Schedule Date")?"Schedule Date":state.headers[0];
   // placement適用
   state.cards.forEach(c=>{
