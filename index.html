@@ -164,6 +164,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.03em;
 }
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
+.c-done-time{margin-top:5px;font-size:12px;font-weight:700;color:var(--green);
+  background:#eafaf0;border-radius:5px;padding:2px 7px;display:inline-block;}
 
 /* ===== Modal ===== */
 .overlay{
@@ -595,6 +597,9 @@ function cardHTML(c){
   const showLate = od && c.status!=='arrive';   // 着車中はラベル非表示（色のみ）
   const hasDetail = state.detailFields.length>0;
   const detailBtn = hasDetail ? `<span class="c-detail" onclick="openDetail('${escAttr(c.id)}');event.stopPropagation();">詳細 ›</span>` : '';
+  // 完了枠のカードには完了時刻を表示
+  const doneRow = (c.status==='done' && c.doneAt)
+    ? `<div class="c-done-time">完了 ${hhmm(c.doneAt)}</div>` : '';
   return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     ${detailBtn}
@@ -602,6 +607,7 @@ function cardHTML(c){
     <div class="c-id">${esc(c.id)}</div>
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
+    ${doneRow}
   </div>`;
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
