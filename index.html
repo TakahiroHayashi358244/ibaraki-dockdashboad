@@ -743,7 +743,7 @@ function drop(e){
     }
     c.status='arrive'; c.bay=bay;
   }
-  else if(zone==='plan'){ c.status='plan'; c.bay=null; c.arriveAt=null; }
+  else if(zone==='plan'){ c.status='plan'; c.bay=null; c.arriveAt=null; c.doneAt=null; }
   else if(zone==='done'){ c.status='done'; c.doneAt=Date.now(); c.doneOp=operator.trim(); }
   const after=locLabel(c);
   if(before!==after) recordMove(c, before, after);
@@ -761,8 +761,8 @@ function drop(e){
     if(!requireOperator()) return;
     const before=locLabel(c);
     c.status=el.dataset.zone;
-    if(c.status==='done'){ c.doneAt=Date.now(); c.doneOp=operator.trim(); }
-    if(c.status!=='arrive'){c.bay=null;c.arriveAt=null;}
+    if(c.status==='done'){ c.doneAt=Date.now(); c.doneOp=operator.trim(); c.bay=null; }
+    else if(c.status==='plan'){ c.bay=null; c.arriveAt=null; c.doneAt=null; }  // 予定に戻すとリセット
     const after=locLabel(c);
     if(before!==after) recordMove(c, before, after);
     render();
