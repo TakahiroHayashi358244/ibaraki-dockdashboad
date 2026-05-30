@@ -148,10 +148,13 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .card .c-main{font-weight:700;font-size:13px;color:var(--ink);margin-bottom:3px;line-height:1.25;}
 .card .c-row{display:flex;justify-content:space-between;gap:6px;color:var(--sub);line-height:1.5;}
 .card .c-row span:last-child{color:var(--ink);text-align:right;}
+.card .c-topright{
+  position:absolute;top:7px;right:8px;display:flex;align-items:center;gap:5px;
+}
 .card .c-detail{
-  position:absolute;top:7px;right:8px;background:var(--accent);color:#fff;
+  background:var(--accent);color:#fff;
   font-weight:700;font-size:11px;padding:2px 9px;border-radius:6px;
-  cursor:pointer;line-height:1.4;
+  cursor:pointer;line-height:1.4;white-space:nowrap;
 }
 .card .c-detail:hover{background:#2785a3;}
 .card.overdue{
@@ -164,8 +167,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.03em;
 }
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
-.c-done-time{position:absolute;top:7px;right:66px;font-size:11px;font-weight:700;color:var(--green);
+.c-done-time{font-size:11px;font-weight:700;color:var(--green);
   background:#eafaf0;border-radius:5px;padding:2px 7px;white-space:nowrap;}
+.c-dur{font-size:11px;font-weight:700;color:#8a6508;
+  background:#fdf3dc;border-radius:5px;padding:2px 7px;white-space:nowrap;}
 
 /* ===== Modal ===== */
 .overlay{
@@ -600,10 +605,12 @@ function cardHTML(c){
   // 完了枠のカードは完了時刻を詳細ボタンの左に表示
   const doneRow = (c.status==='done' && c.doneAt)
     ? `<span class="c-done-time">完了 ${hhmm(c.doneAt)}</span>` : '';
+  // 着車→完了の所要時間
+  const dur = (c.status==='done' && c.arriveAt && c.doneAt)
+    ? `<span class="c-dur">所要 ${durMin(c.arriveAt,c.doneAt)}</span>` : '';
   return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
-    ${detailBtn}
-    ${doneRow}
+    <div class="c-topright">${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     <div class="c-id">${esc(c.id)}</div>
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
