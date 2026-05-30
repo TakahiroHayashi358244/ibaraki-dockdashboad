@@ -723,8 +723,9 @@ function drop(e){
     // 1バース1台制限：既に他のカードが在車していれば拒否
     const occupant=state.cards.find(x=>x.status==='arrive'&&x.bay===bay&&x.id!==c.id);
     if(occupant){ warn('バース '+bay+' は使用中です（1バース1台）'); return; }
-    // 別バースへの移動・新規着車のときに着車時刻を記録（同じバース内は維持）
-    if(c.status!=='arrive' || c.bay!==bay || !c.arriveAt){
+    // 初回着車（予定/完了→着車）のときのみ着車時刻を記録。
+    // バース間の移動では初回の着車時刻・担当・初回バースを引き継ぐ。
+    if(c.status!=='arrive' || !c.arriveAt){
       c.arriveAt=Date.now(); c.arriveBay=bay; c.arriveOp=operator.trim();
     }
     c.status='arrive'; c.bay=bay;
