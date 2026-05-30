@@ -75,6 +75,12 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   position:absolute;right:14px;top:50%;transform:translateY(-50%);
   font-size:12px;color:var(--sub);font-weight:500;
 }
+.col-head .head-sort{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  font-size:12px;font-weight:600;letter-spacing:0;color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;background:#fff;
+  padding:3px 6px;font-family:inherit;cursor:pointer;
+}
 .col-body{flex:1;overflow-y:auto;padding:6px 10px 14px;}
 .col-body::-webkit-scrollbar{width:8px;}
 .col-body::-webkit-scrollbar-thumb{background:#c4d0db;border-radius:4px;}
@@ -301,7 +307,14 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="col-body floors-body"><div id="floors"></div></div>
     </div>
     <div class="col dim">
-      <div class="col-head">完了<span class="cnt" id="cnt-done"></span></div>
+      <div class="col-head">完了<span class="cnt" id="cnt-done"></span>
+        <select class="head-sort" id="doneSort" onchange="setDoneSort(this.value)" title="並び順">
+          <option value="done">完了順</option>
+          <option value="arrive">到着順</option>
+          <option value="schedule">予定順</option>
+          <option value="carrier">会社順</option>
+        </select>
+      </div>
       <div class="col-body dropzone" id="done-zone" data-zone="done"><div class="done-list" id="done-list"></div></div>
     </div>
   </div>
@@ -396,6 +409,7 @@ let state = {
   displayFields: ["Carrier","Schedule Date","Pallets","Cartons","Units"],
   detailFields: ["Appointment Id","Type","CRDD","Expected Arrival Date","Dock","Priority Score"],
   sortKey: "Schedule Date",
+  doneSort: "done",     // 完了枠の並び順: done/arrive/schedule/carrier
   logRetainDays: 30,    // 保管日数（1-90）
   logRetainMax: 500,    // 最大件数（100-2000）
   // 階層構成: 各階層に複数バース。バース番号は文字列
@@ -612,15 +626,34 @@ function sortPlan(arr){
     return va.s.localeCompare(vb.s);
   });
 }
+// 予定時刻（Schedule Date）の数値キー（並び比較用）
+function schedNum(c){
+  const raw=(c.fields["Schedule Date"]||'').trim();
+  const m=raw.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})\D+(\d{1,2}):(\d{2})/);
+  if(m) return +(m[1]+m[2].padStart(2,'0')+m[3].padStart(2,'0')+m[4].padStart(2,'0')+m[5]);
+  const t=raw.match(/(\d{1,2}):(\d{2})/);
+  if(t) return +(t[1].padStart(2,'0')+t[2]);
+  return Number.MAX_SAFE_INTEGER;
+}
+// 完了枠の並び替え（完了順/到着順/予定順/会社順）
+function sortDone(arr){
+  const mode=state.doneSort||'done';
+  const a=arr.slice();
+  if(mode==='done')      a.sort((x,y)=>(x.doneAt||Infinity)-(y.doneAt||Infinity));
+  else if(mode==='arrive') a.sort((x,y)=>(x.arriveAt||Infinity)-(y.arriveAt||Infinity));
+  else if(mode==='schedule') a.sort((x,y)=>schedNum(x)-schedNum(y));
+  else if(mode==='carrier') a.sort((x,y)=>String(x.fields["Carrier"]||'').localeCompare(String(y.fields["Carrier"]||''),'ja'));
+  return a;
+}
+function setDoneSort(v){ state.doneSort=v; render(); }
 
 function render(){
   // plan（sortKey 昇順）
   const plan=sortPlan(state.cards.filter(c=>c.status==='plan'));
   document.getElementById('plan-list').innerHTML =
     plan.length?plan.map(cardHTML).join(''):'<div class="empty-hint">予定なし</div>';
-  // done（完了時刻の昇順＝完了した順。doneAt無しは末尾）
-  const done=state.cards.filter(c=>c.status==='done')
-    .sort((a,b)=>(a.doneAt||Infinity)-(b.doneAt||Infinity));
+  // done（選択された並び順）
+  const done=sortDone(state.cards.filter(c=>c.status==='done'));
   document.getElementById('done-list').innerHTML =
     done.length?done.map(cardHTML).join(''):'<div class="empty-hint">完了なし</div>';
   // floors
@@ -647,6 +680,7 @@ function render(){
   document.getElementById('cnt-plan').textContent=plan.length+'件';
   document.getElementById('cnt-arr').textContent=state.cards.filter(c=>c.status==='arrive').length+'件';
   document.getElementById('cnt-done').textContent=done.length+'件';
+  const dsSel=document.getElementById('doneSort'); if(dsSel && dsSel.value!==state.doneSort) dsSel.value=state.doneSort;
   document.getElementById('st-plan').textContent=plan.length;
   document.getElementById('st-arr').textContent=state.cards.filter(c=>c.status==='arrive').length;
   document.getElementById('st-done').textContent=done.length;
