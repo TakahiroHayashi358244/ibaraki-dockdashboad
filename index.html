@@ -277,6 +277,26 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .log-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:12px 18px;border-bottom:1px solid var(--line);background:#fafbfc;}
 .log-toolbar .lt-label{font-size:13px;color:var(--sub);font-weight:600;}
+
+/* ===== Summary modal ===== */
+.summary-modal{max-width:680px;}
+.sm-band{margin-bottom:14px;}
+.sm-band-head{display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:700;color:var(--ink);
+  padding:7px 10px;background:var(--panel2);border-radius:8px;margin-bottom:6px;}
+.sm-band-head .sm-cnt{margin-left:auto;font-size:12px;color:var(--sub);font-weight:600;}
+.sm-row{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;
+  padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px;}
+.sm-row:last-child{border-bottom:none;}
+.sm-time{font-variant-numeric:tabular-nums;color:var(--sub);font-weight:600;}
+.sm-carrier{color:var(--ink);word-break:break-word;}
+.sm-carrier .sm-id{color:var(--sub);font-size:11px;margin-right:6px;}
+.sm-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;white-space:nowrap;}
+.sm-status.plan{background:#eef1f5;color:var(--sub);}
+.sm-status.arrive{background:#e0f0f5;color:var(--accent);}
+.sm-status.done{background:#eafaf0;color:var(--green);}
+.sm-status.late{background:#fdecec;color:#c0392b;}
+.sm-empty{color:#a4b1bd;text-align:center;padding:24px;}
 </style>
 </head>
 <body>
@@ -296,6 +316,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="stat"><b id="st-arr">0</b>着車</div>
       <div class="stat"><b id="st-done">0</b>完了</div>
       <div class="spacer"></div>
+      <button class="btn" onclick="openSummary()">📊 サマリ</button>
       <button class="btn" onclick="openLogs()">📋 ログ</button>
       <button class="btn" onclick="openSettings()">⚙ 設定</button>
       <button class="btn" onclick="document.getElementById('csvFile').click()">CSV読込</button>
@@ -395,6 +416,22 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <button class="btn primary" onclick="exportLogCsv()">車両別CSV出力</button>
     </div>
     <div class="modal-body" id="log-body"></div>
+  </div>
+</div>
+
+<!-- Summary modal -->
+<div class="overlay" id="summaryModal">
+  <div class="modal summary-modal">
+    <h2>時間帯サマリ<span class="x" onclick="closeSummary()">×</span></h2>
+    <div class="log-toolbar">
+      <span class="lt-label">対象</span>
+      <select class="inp" id="summaryScope" style="width:auto;flex:none;" onchange="renderSummary()">
+        <option value="all">全カード</option>
+        <option value="plan">未着車（予定）のみ</option>
+      </select>
+      <button class="btn primary" onclick="printSummary()">🖨 印刷</button>
+    </div>
+    <div class="modal-body" id="summary-body"></div>
   </div>
 </div>
 
@@ -989,6 +1026,7 @@ setInterval(()=>{tick();updateElapsed();updateOverdue();},1000);tick();
 document.getElementById('settings').addEventListener('click',e=>{if(e.target.id==='settings')closeSettings();});
 document.getElementById('detail').addEventListener('click',e=>{if(e.target.id==='detail')closeDetail();});
 document.getElementById('logModal').addEventListener('click',e=>{if(e.target.id==='logModal')closeLogs();});
+document.getElementById('summaryModal').addEventListener('click',e=>{if(e.target.id==='summaryModal')closeSummary();});
 
 /* ============ 担当者（PCごと・localStorage保存） ============ */
 const OP_KEY='dock_operator';
@@ -1061,6 +1099,108 @@ function resetLogs(){
 }
 function openLogs(){buildLogDates();renderLogs();document.getElementById('logModal').classList.add('show');}
 function closeLogs(){document.getElementById('logModal').classList.remove('show');}
+
+/* ============ 時間帯サマリ ============ */
+function openSummary(){renderSummary();document.getElementById('summaryModal').classList.add('show');}
+function closeSummary(){document.getElementById('summaryModal').classList.remove('show');}
+// 予定時刻から「時」を取り出す（時間帯バンド用）。取れなければnull。
+function schedHour(c){
+  const raw=(c.fields["Schedule Date"]||'').trim();
+  const m=raw.match(/(\d{1,2}):(\d{2})/);   // 開始時刻のHH
+  return m ? +m[1] : null;
+}
+// 予定時刻の表示（開始のHH:MM）
+function schedHM(c){
+  const raw=(c.fields["Schedule Date"]||'').trim();
+  const m=raw.match(/(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2,'0')}:${m[2]}` : '—';
+}
+function renderSummary(){
+  const scope=document.getElementById('summaryScope').value;
+  let cards=state.cards.slice();
+  if(scope==='plan') cards=cards.filter(c=>c.status==='plan');
+  // 予定時刻順に整列
+  cards.sort((a,b)=>schedNum(a)-schedNum(b));
+  // 時間帯（時）でグループ化
+  const bands={};       // hour -> [cards]
+  const noTime=[];
+  cards.forEach(c=>{
+    const h=schedHour(c);
+    if(h===null){ noTime.push(c); return; }
+    (bands[h]||(bands[h]=[])).push(c);
+  });
+  const body=document.getElementById('summary-body');
+  if(!cards.length){ body.innerHTML='<div class="sm-empty">対象のカードがありません</div>'; return; }
+  const statusLabel=c=>{
+    if(c.status==='done') return ['done','完了'];
+    if(c.status==='arrive') return ['arrive','着車'+(c.bay?(' '+c.bay):'')];
+    return isOverdue(c)?['late','時間超過']:['plan','予定'];
+  };
+  const rowHTML=c=>{
+    const [cls,lbl]=statusLabel(c);
+    const carrier=esc(c.fields["Carrier"]||'');
+    return `<div class="sm-row">
+      <div class="sm-time">${schedHM(c)}</div>
+      <div class="sm-carrier"><span class="sm-id">${esc(c.id)}</span>${carrier}</div>
+      <div class="sm-status ${cls}">${lbl}</div>
+    </div>`;
+  };
+  let html='';
+  Object.keys(bands).map(Number).sort((a,b)=>a-b).forEach(h=>{
+    const list=bands[h];
+    html+=`<div class="sm-band">
+      <div class="sm-band-head">${String(h).padStart(2,'0')}:00 〜 ${String(h).padStart(2,'0')}:59
+        <span class="sm-cnt">${list.length}件</span></div>
+      ${list.map(rowHTML).join('')}
+    </div>`;
+  });
+  if(noTime.length){
+    html+=`<div class="sm-band">
+      <div class="sm-band-head">時刻未設定<span class="sm-cnt">${noTime.length}件</span></div>
+      ${noTime.map(rowHTML).join('')}
+    </div>`;
+  }
+  body.innerHTML=html;
+}
+// サマリを印刷（別ウィンドウで整形して印刷）
+function printSummary(){
+  const scope=document.getElementById('summaryScope').value;
+  const scopeLabel = scope==='plan' ? '未着車（予定）のみ' : '全カード';
+  const now=new Date();
+  const ts=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const content=document.getElementById('summary-body').innerHTML;
+  const w=window.open('','_blank','width=900,height=1000');
+  if(!w){ warn('ポップアップがブロックされました。許可してください'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>時間帯サマリ ${ts}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#1f2b38;padding:24px;}
+    .ph{display:flex;align-items:baseline;gap:16px;border-bottom:2px solid #1f2b38;padding-bottom:10px;margin-bottom:16px;}
+    .ph h1{font-size:20px;}
+    .ph .meta{font-size:12px;color:#697a8c;}
+    .sm-band{margin-bottom:14px;break-inside:avoid;}
+    .sm-band-head{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;
+      padding:6px 10px;background:#eef1f5;border-radius:6px;margin-bottom:4px;}
+    .sm-band-head .sm-cnt{margin-left:auto;font-size:12px;color:#697a8c;}
+    .sm-row{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;
+      padding:5px 10px;border-bottom:1px solid #d8e0e8;font-size:13px;}
+    .sm-time{color:#697a8c;font-weight:600;}
+    .sm-carrier .sm-id{color:#697a8c;font-size:11px;margin-right:6px;}
+    .sm-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid #ccc;white-space:nowrap;}
+    .sm-status.plan{background:#eef1f5;color:#697a8c;}
+    .sm-status.arrive{background:#e0f0f5;color:#1f6f8b;}
+    .sm-status.done{background:#eafaf0;color:#2e8b57;}
+    .sm-status.late{background:#fdecec;color:#c0392b;}
+    @media print{ .sm-status{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+  </style></head><body>
+  <div class="ph"><h1>時間帯サマリ</h1><span class="meta">対象：${scopeLabel}　／　出力：${ts}</span></div>
+  ${content}
+  </body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>{ w.print(); }, 300);
+}
 // ローカル日付キー（YYYY-MM-DD）
 function dayKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function dayLabel(k){const [y,m,d]=k.split('-');return `${y}/${m}/${d}`;}
