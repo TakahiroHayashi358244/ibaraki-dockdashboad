@@ -171,6 +171,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   background:#eafaf0;border-radius:5px;padding:2px 7px;white-space:nowrap;}
 .c-dur{font-size:11px;font-weight:700;color:#8a6508;
   background:#fdf3dc;border-radius:5px;padding:2px 7px;white-space:nowrap;}
+.c-dur.warn{background:#e0a030;color:#fff;}
+.c-dur.alert{background:#e05050;color:#fff;}
 
 /* ===== Modal ===== */
 .overlay{
@@ -605,9 +607,13 @@ function cardHTML(c){
   // 完了枠のカードは完了時刻を詳細ボタンの左に表示
   const doneRow = (c.status==='done' && c.doneAt)
     ? `<span class="c-done-time">完了 ${hhmm(c.doneAt)}</span>` : '';
-  // 着車→完了の所要時間
-  const dur = (c.status==='done' && c.arriveAt && c.doneAt)
-    ? `<span class="c-dur">所要 ${durMin(c.arriveAt,c.doneAt)}</span>` : '';
+  // 着車→完了の所要時間（30分以上オレンジ/60分以上赤）
+  let dur='';
+  if(c.status==='done' && c.arriveAt && c.doneAt){
+    const min=Math.round((c.doneAt-c.arriveAt)/60000);
+    const dc = min>=60?'alert':min>=30?'warn':'';
+    dur=`<span class="c-dur ${dc}">所要 ${min}分</span>`;
+  }
   return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     <div class="c-topright">${doneRow}${dur}${detailBtn}</div>
