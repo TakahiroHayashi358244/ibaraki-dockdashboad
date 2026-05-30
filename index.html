@@ -176,6 +176,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .sec-title:first-child{margin-top:0;}
 .chk-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;}
 .chk{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:4px 0;}
+.chk.locked{cursor:default;color:var(--sub);}
+.chk.locked input{accent-color:var(--sub);}
 .chk input{width:16px;height:16px;accent-color:var(--accent);}
 .bay-edit{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
 .bay-tag{
@@ -740,7 +742,11 @@ function setLogRetain(){
 }
 function buildFields(){
   const el=document.getElementById('field-list');
-  el.innerHTML=state.headers.filter(h=>h!==ID_FIELD).map(h=>{
+  el.innerHTML=state.headers.map(h=>{
+    if(h===ID_FIELD){
+      // 識別に必須のため常にチェック・変更不可
+      return `<label class="chk locked" title="カードの識別に必須のため変更できません"><input type="checkbox" checked disabled>${esc(h)}</label>`;
+    }
     const ck=state.displayFields.includes(h)?'checked':'';
     return `<label class="chk"><input type="checkbox" ${ck} onchange="toggleField('${escAttr(h)}',this.checked)">${esc(h)}</label>`;
   }).join('');
