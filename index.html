@@ -277,6 +277,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .log-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:12px 18px;border-bottom:1px solid var(--line);background:#fafbfc;}
 .log-toolbar .lt-label{font-size:13px;color:var(--sub);font-weight:600;}
+.log-toolbar .tb-spacer{flex:1;}
 
 /* ===== Summary modal ===== */
 .summary-modal{max-width:680px;}
@@ -413,6 +414,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
     <div class="log-toolbar">
       <span class="lt-label">CSV出力対象日</span>
       <select class="inp" id="logExportDate" style="width:auto;flex:none;"></select>
+      <div class="tb-spacer"></div>
       <button class="btn primary" onclick="exportLogCsv()">車両別CSV出力</button>
     </div>
     <div class="modal-body" id="log-body"></div>
@@ -429,6 +431,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
         <option value="all">全カード</option>
         <option value="plan">未着車（予定）のみ</option>
       </select>
+      <div class="tb-spacer"></div>
       <button class="btn primary" onclick="printSummary()">🖨 印刷</button>
     </div>
     <div class="modal-body" id="summary-body"></div>
