@@ -139,6 +139,11 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--plan);
   border-radius:9px;padding:26px 9px 8px;cursor:grab;box-shadow:0 2px 6px rgba(40,60,80,.10);
   transition:transform .1s,box-shadow .1s;font-size:12px;position:relative;
+  touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+.touch-ghost{
+  position:fixed;z-index:500;pointer-events:none;opacity:.9;transform:translate(-50%,-50%);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);transition:none;
 }
 .card:active{cursor:grabbing;}
 .card.dragging{opacity:.4;}
@@ -300,38 +305,23 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .sm-empty{color:#a4b1bd;text-align:center;padding:24px;}/* ===== レスポンシブ（タブレット / スマホ） ===== */
 /* タブレット以下：縦スクロールで3カラムを縦積み */
 @media (max-width:900px){
-  body{overflow:auto;}
-  .app{height:auto;min-height:100vh;}
+  /* 狭い画面でも3カラム横並びを維持し、収まらなければ横スクロール */
   .board{
-    display:flex;flex-direction:column;gap:12px;padding:12px;
-    overflow:visible;flex:none;
+    grid-template-columns:minmax(240px,1fr) minmax(360px,2.1fr) minmax(240px,1fr);
+    overflow-x:auto;overflow-y:hidden;
   }
-  .col{overflow:visible;}
-  .col-body{overflow:visible;}
-  /* 着車：5階層を縦に積み、各階層は自然な高さ */
-  .col-body.floors-body{padding:10px;}
-  #floors{display:flex;flex-direction:column;gap:10px;}
-  .floor{min-height:120px;}
-  .bay-slot{min-height:64px;}
-  /* 予定/完了は高さを抑えてスクロール可能に */
-  #plan-zone,#done-zone{max-height:60vh;overflow-y:auto;}
   header{position:sticky;top:0;z-index:50;}
 }
-/* スマホ：バースを2列に折り返し、文字を調整 */
+/* スマホ：横幅をさらに確保しつつ3カラム維持（横スクロール） */
 @media (max-width:560px){
   .clock{font-size:20px;}
   .clock .c-date{font-size:12px;}
-  .board{padding:8px;gap:10px;}
+  .board{
+    grid-template-columns:minmax(220px,1fr) minmax(320px,1.8fr) minmax(220px,1fr);
+    padding:8px;gap:10px;overflow-x:auto;overflow-y:hidden;
+  }
   .col-head{font-size:15px;padding:8px;}
-  .col-head .head-sort{position:static;transform:none;display:block;margin:6px auto 0;}
   .col-head .cnt{font-size:11px;}
-  /* バース行：フロアラベルを上に、バースを2列グリッドに */
-  .bay-row{flex-direction:column;}
-  .bay-floor{min-width:0;width:100%;padding:6px;font-size:15px;}
-  .bays{display:grid;grid-template-columns:1fr 1fr;gap:1px;}
-  .bay{border-left:none;border-top:1px solid rgba(255,255,255,.18);}
-  .floor{min-height:0;}
-  .bay-slot{min-height:54px;}
   /* ヘッダーボタンを少しコンパクトに */
   .btn{padding:7px 10px;font-size:12px;}
   .stat b{font-size:16px;}
@@ -340,9 +330,6 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   .modal{max-width:100%;max-height:92vh;}
   .chk-grid{grid-template-columns:1fr;}
   .sm-row,.log-row{font-size:12px;}
-  /* カード上部バッジが重ならないよう、詳細等は折り返し許可 */
-  .card .c-topright{position:static;justify-content:flex-end;margin-bottom:4px;flex-wrap:wrap;}
-  .card{padding:8px 9px;}
 }
 
 </style>
@@ -817,31 +804,34 @@ function requireOperator(){
   return false;
 }
 
-function drop(e){
-  e.preventDefault();
-  const slot=e.currentTarget; slot.classList.remove('dragover');
-  const c=state.cards.find(x=>x.id===dragId); if(!c)return;
-  if(!requireOperator()) return;
-  const zone=slot.dataset.zone;
+// カードを指定ゾーン（arrive/plan/done）へ移動する共通処理。成功でtrue。
+function moveCardTo(c, zone, bay){
+  if(!c) return false;
+  if(!requireOperator()) return false;
   const before=locLabel(c);
   if(zone==='arrive'){
-    const bay=slot.dataset.bay;
-    // 1バース1台制限：既に他のカードが在車していれば拒否
     const occupant=state.cards.find(x=>x.status==='arrive'&&x.bay===bay&&x.id!==c.id);
-    if(occupant){ warn('バース '+bay+' は使用中です（1バース1台）'); return; }
-    // 初回着車（予定/完了→着車）のときのみ着車時刻を記録。
-    // バース間の移動では初回の着車時刻・担当・初回バースを引き継ぐ。
+    if(occupant){ warn('バース '+bay+' は使用中です（1バース1台）'); return false; }
     if(c.status!=='arrive' || !c.arriveAt){
       c.arriveAt=Date.now(); c.arriveBay=bay; c.arriveOp=operator.trim();
     }
     c.status='arrive'; c.bay=bay;
   }
   else if(zone==='plan'){ c.status='plan'; c.bay=null; c.arriveAt=null; c.doneAt=null; }
-  else if(zone==='done'){ c.status='done'; c.doneAt=Date.now(); c.doneOp=operator.trim(); }
+  else if(zone==='done'){ c.status='done'; c.doneAt=Date.now(); c.doneOp=operator.trim(); c.bay=null; }
+  else return false;
   const after=locLabel(c);
   if(before!==after) recordMove(c, before, after);
   render();
   pushCards();
+  return true;
+}
+
+function drop(e){
+  e.preventDefault();
+  const slot=e.currentTarget; slot.classList.remove('dragover');
+  const c=state.cards.find(x=>x.id===dragId); if(!c)return;
+  moveCardTo(c, slot.dataset.zone, slot.dataset.bay);
 }
 // 予定 / 完了：枠全体をドロップゾーンに
 ['plan-zone','done-zone'].forEach(id=>{
@@ -851,16 +841,86 @@ function drop(e){
   el.addEventListener('drop',e=>{
     e.preventDefault();el.classList.remove('dragover');
     const c=state.cards.find(x=>x.id===dragId);if(!c)return;
-    if(!requireOperator()) return;
-    const before=locLabel(c);
-    c.status=el.dataset.zone;
-    if(c.status==='done'){ c.doneAt=Date.now(); c.doneOp=operator.trim(); c.bay=null; }
-    else if(c.status==='plan'){ c.bay=null; c.arriveAt=null; c.doneAt=null; }  // 予定に戻すとリセット
-    const after=locLabel(c);
-    if(before!==after) recordMove(c, before, after);
-    render();
-    pushCards();
+    moveCardTo(c, el.dataset.zone, null);
   });
+});
+
+/* ============ タッチ操作（スマホ/タブレット）でのカード移動 ============ */
+let touchCard=null, touchGhost=null, touchMoved=false, touchStartXY=null;
+function findCardEl(t){ return t.closest ? t.closest('.card') : null; }
+function cardTouchStart(e){
+  const cardEl=findCardEl(e.target);
+  if(!cardEl) return;
+  const id=cardEl.dataset.id;
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  touchCard=c; touchMoved=false;
+  const t=e.touches[0];
+  touchStartXY={x:t.clientX,y:t.clientY};
+}
+function cardTouchMove(e){
+  if(!touchCard) return;
+  const t=e.touches[0];
+  if(!touchMoved){
+    const dx=Math.abs(t.clientX-touchStartXY.x), dy=Math.abs(t.clientY-touchStartXY.y);
+    if(dx<8 && dy<8) return;   // わずかな動きはタップ扱い（詳細ボタン等を妨げない）
+    touchMoved=true;
+    // ゴースト生成
+    const src=document.querySelector(`.card[data-id="${cssEsc(touchCard.id)}"]`);
+    touchGhost=src? src.cloneNode(true):document.createElement('div');
+    touchGhost.classList.add('touch-ghost');
+    touchGhost.style.width=(src?src.offsetWidth:200)+'px';
+    document.body.appendChild(touchGhost);
+    if(src) src.classList.add('dragging');
+  }
+  e.preventDefault();   // スクロール抑止
+  touchGhost.style.left=t.clientX+'px';
+  touchGhost.style.top=t.clientY+'px';
+  // ドロップ先ハイライト
+  highlightDropAt(t.clientX,t.clientY);
+}
+function cardTouchEnd(e){
+  if(!touchCard){ return; }
+  if(!touchMoved){ touchCard=null; return; }   // タップのみ→何もしない
+  const t=(e.changedTouches&&e.changedTouches[0])||null;
+  let target=null;
+  if(t){
+    if(touchGhost) touchGhost.style.display='none';
+    target=document.elementFromPoint(t.clientX,t.clientY);
+  }
+  cleanupTouchVisuals();
+  const c=touchCard; touchCard=null;
+  if(!target){ render(); return; }
+  // ドロップ先の判定
+  const slot=target.closest('.bay-slot');
+  if(slot){ moveCardTo(c, 'arrive', slot.dataset.bay); return; }
+  const zone=target.closest('.dropzone');
+  if(zone){ moveCardTo(c, zone.dataset.zone, null); return; }
+  render();
+}
+function highlightDropAt(x,y){
+  document.querySelectorAll('.dragover').forEach(el=>el.classList.remove('dragover'));
+  if(touchGhost) touchGhost.style.visibility='hidden';
+  const el=document.elementFromPoint(x,y);
+  if(touchGhost) touchGhost.style.visibility='visible';
+  if(!el) return;
+  const slot=el.closest('.bay-slot'); if(slot){ slot.classList.add('dragover'); return; }
+  const zone=el.closest('.dropzone'); if(zone){ zone.classList.add('dragover'); }
+}
+function cleanupTouchVisuals(){
+  if(touchGhost){ touchGhost.remove(); touchGhost=null; }
+  document.querySelectorAll('.dragover').forEach(el=>el.classList.remove('dragover'));
+  document.querySelectorAll('.card.dragging').forEach(el=>el.classList.remove('dragging'));
+  touchMoved=false;
+}
+function cssEsc(s){ return String(s).replace(/["\\]/g,'\\$&'); }
+// ボード全体にタッチリスナーを委譲（カードは再生成されるため）
+['plan-list','done-list','floors'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('touchstart', cardTouchStart, {passive:true});
+  el.addEventListener('touchmove', cardTouchMove, {passive:false});
+  el.addEventListener('touchend', cardTouchEnd);
+  el.addEventListener('touchcancel', ()=>{cleanupTouchVisuals();touchCard=null;});
 });
 
 /* ============ 設定モーダル ============ */
@@ -1051,7 +1111,7 @@ function updateElapsed(){
 // 時間超過の状態が変わったカードがあれば再描画（毎秒・ドラッグ中は除く）
 let lastOverdueSig='';
 function updateOverdue(){
-  if(dragId) return;  // ドラッグ中は触らない
+  if(dragId || touchCard) return;  // ドラッグ中は触らない
   const sig=state.cards.map(c=>c.id+(isOverdue(c)?'1':'0')).join('');
   if(sig!==lastOverdueSig){ lastOverdueSig=sig; render(); }
 }
