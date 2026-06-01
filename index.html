@@ -305,23 +305,36 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .sm-empty{color:#a4b1bd;text-align:center;padding:24px;}/* ===== レスポンシブ（タブレット / スマホ） ===== */
 /* タブレット以下：縦スクロールで3カラムを縦積み */
 @media (max-width:900px){
-  /* 狭い画面でも3カラム横並びを維持し、収まらなければ横スクロール */
+  /* ページ全体を縦スクロール可能に（高さ固定を解除） */
+  html,body{height:auto;overflow-y:auto;}
+  .app{height:auto;min-height:100vh;}
   .board{
     grid-template-columns:minmax(240px,1fr) minmax(360px,2.1fr) minmax(240px,1fr);
-    overflow-x:auto;overflow-y:hidden;
+    overflow-x:auto;overflow-y:visible;flex:none;
   }
-  header{position:sticky;top:0;z-index:50;}
+  /* 着車：5階層を縦方向に自然な高さで積み、全体は縦スクロール */
+  #floors{grid-template-rows:none;}
+  .floor{min-height:150px;}
+  .col-body{overflow:visible;}
+  #plan-zone,#done-zone{overflow:visible;}
+  header{position:sticky;top:0;z-index:50;background:#fff;}
 }
-/* スマホ：横幅をさらに確保しつつ3カラム維持（横スクロール） */
+/* スマホ：全体を少し縮小しつつ3カラム維持（横スクロール＋縦スクロール） */
 @media (max-width:560px){
   .clock{font-size:20px;}
   .clock .c-date{font-size:12px;}
   .board{
-    grid-template-columns:minmax(220px,1fr) minmax(320px,1.8fr) minmax(220px,1fr);
-    padding:8px;gap:10px;overflow-x:auto;overflow-y:hidden;
+    grid-template-columns:minmax(200px,1fr) minmax(300px,1.8fr) minmax(200px,1fr);
+    padding:8px;gap:10px;overflow-x:auto;overflow-y:visible;
   }
-  .col-head{font-size:15px;padding:8px;}
-  .col-head .cnt{font-size:11px;}
+  /* 縮小: フォント・余白・バース高を小さく */
+  .col-head{font-size:14px;padding:7px;}
+  .col-head .cnt{font-size:10px;}
+  .floor{min-height:120px;}
+  .bay-floor{min-width:42px;font-size:14px;}
+  .bay-label{font-size:13px;}
+  .card{font-size:11px;padding:24px 7px 7px;}
+  .card .c-main{font-size:12px;}
   /* ヘッダーボタンを少しコンパクトに */
   .btn{padding:7px 10px;font-size:12px;}
   .stat b{font-size:16px;}
