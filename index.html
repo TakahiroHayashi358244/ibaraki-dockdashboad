@@ -344,6 +344,42 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   .chk-grid{grid-template-columns:1fr;}
   .sm-row,.log-row{font-size:12px;}
 }
+/* スマホ横画面（横向き・低い高さ）に最適化：画面内に3カラムを収める */
+@media (orientation:landscape) and (max-height:500px){
+  /* 高さ固定に戻し、ボード内で完結（ページ縦スクロールはしない） */
+  html,body{height:100%;overflow:hidden;}
+  .app{height:100vh;}
+  /* ヘッダーを薄く・1行寄りに圧縮 */
+  header{padding:5px 12px;gap:6px;}
+  .hdr-top{gap:10px;}
+  .hdr-bottom{gap:8px;}
+  header h1{font-size:14px;}
+  .clock{font-size:18px;}
+  .clock .c-date{font-size:11px;}
+  .btn{padding:5px 9px;font-size:11px;}
+  .stat{font-size:10px;}
+  .stat b{font-size:14px;}
+  .operator{padding:3px 8px;}
+  .op-input{width:84px;font-size:13px;}
+  /* ボードは画面高に収め、着車は5階層を均等充填に戻す */
+  .board{
+    grid-template-columns:minmax(150px,1fr) minmax(240px,2.1fr) minmax(150px,1fr);
+    overflow-x:auto;overflow-y:hidden;flex:1;padding:8px;gap:8px;
+  }
+  #floors{grid-template-rows:repeat(5,1fr);}
+  .floor{min-height:0;}
+  .col-body{overflow:auto;}
+  #plan-zone,#done-zone{overflow-y:auto;}
+  /* 文字・カードをコンパクトに */
+  .col-head{font-size:13px;padding:5px;}
+  .col-head .cnt{font-size:10px;}
+  .bay-floor{min-width:38px;font-size:13px;}
+  .bay-label{font-size:12px;padding:3px 2px 2px;}
+  .card{font-size:10px;padding:22px 6px 6px;}
+  .card .c-id{font-size:11px;}
+  .card .c-main{font-size:11px;}
+  .card .c-row{line-height:1.35;}
+}
 
 </style>
 </head>
