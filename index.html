@@ -1505,17 +1505,17 @@ function setupDB(){
       const on=s.val()===true; fbReady=on; setSync(on?'on':'off');
     });
 
-    // マスタ（CSVデータ）受信 → 統合再構築
+    // マスタ（CSVデータ）受信 → 統合再構築。
+    // ※ ローカルの内蔵データを自動でmasterへ書き込まない（他PCのCSVを上書きしないため）。
+    //    masterはCSV読込時のみ明示的に登録される。
     root.child('master').on('value', s=>{
       const m=s.val();
       fbMasterLoaded=true;
       if(m && m.headers && m.data){
         fbMaster=m;
         rebuildFromFB();
-      } else {
-        // Firebaseにmasterが無い → 最初の1台が内蔵データを登録
-        if(!fbMaster){ pushMaster(state.headers, state.cards.map(c=>c.fields)); }
       }
+      // masterが空でも何もしない（誰かがCSVを読み込むまで各PCは内蔵データを表示）
     });
     // 配置状態 受信 → placementキャッシュ更新して統合
     root.child('placement').on('value', s=>{
