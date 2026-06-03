@@ -648,21 +648,22 @@ function loadCSV(ev){
     txt=decodeSmart(buf);
     const rows=parseCSV(txt);
     if(rows.length<2){toast("データがありません");return;}
-    const headers=rows[0].map(h=>h.trim());
-    const data=rows.slice(1).map(r=>{
-      const o={}; headers.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o;
-    });
+    // ヘッダーの空欄を補完（Firebaseキー/ローカルキーの空文字を防ぐ）
+    const headers=rows[0].map((h,i)=>{ const t=(h||'').trim(); return t || ('列'+(i+1)); });
+    const valueRows=rows.slice(1).map(r=>headers.map((h,i)=>(r[i]||'').trim()));
+    const data=valueRows.map(vr=>{ const o={}; headers.forEach((h,i)=>o[h]=vr[i]); return o; });
     ingest(headers,data);
     recordCsvLoad(data.length);
     if(fbReady && fbDB){
-      // 新CSV = 新マスタ。配置はリセットして全PCへ反映
+      // 新CSV = 新マスタ。配置はリセットして全PCへ反映。
+      // ※ Firebaseには「ヘッダー配列＋値の二次元配列」で保存する。
+      //    オブジェクトのキーにCSVヘッダー名を使わないため、禁止文字(. # $ / [ ])や空列でもエラーにならない。
       fbMaster={headers,data};
       fbPlacement={};
-      // 送信サイズの目安チェック（大きすぎると同期失敗の恐れ）
-      const approxKB=Math.round(JSON.stringify({headers,data}).length/1024);
-      // master と placement をまとめて1回の更新で送信（部分失敗を防ぐ）
+      const payload={headers, rows:valueRows};
+      const approxKB=Math.round(JSON.stringify(payload).length/1024);
       const upd={};
-      upd[DOCK_ROOT+'/master']={headers,data};
+      upd[DOCK_ROOT+'/master']=payload;
       upd[DOCK_ROOT+'/placement']={};
       fbDB.ref().update(upd)
         .then(()=>{ toast(data.length+'件 読み込み・全PCへ共有しました（約'+approxKB+'KB）'); })
@@ -1453,6 +1454,18 @@ function setSync(stateStr){
   el.title = stateStr==='on'?'リアルタイム同期中':stateStr==='off'?'同期切断':'ローカルのみ（未設定）';
 }
 // master + placement を統合してカードを再構築
+// Firebaseのmaster値を {headers, data:[{...}]} 形式へ正規化。
+// 新形式 {headers, rows:[[...]]} と旧形式 {headers, data:[{...}]} の両対応。
+function normalizeMaster(m){
+  if(!m || !m.headers) return null;
+  const headers=m.headers;
+  if(Array.isArray(m.rows)){
+    const data=m.rows.map(vr=>{ const o={}; headers.forEach((h,i)=>o[h]=(vr&&vr[i]!=null)?vr[i]:''); return o; });
+    return {headers, data};
+  }
+  if(Array.isArray(m.data)) return {headers, data:m.data};
+  return null;
+}
 function rebuildFromFB(){
   if(!fbMaster || !fbMaster.headers || !fbMaster.data) return;
   fbApplying=true;
@@ -1511,8 +1524,9 @@ function setupDB(){
     root.child('master').on('value', s=>{
       const m=s.val();
       fbMasterLoaded=true;
-      if(m && m.headers && m.data){
-        fbMaster=m;
+      const nm=normalizeMaster(m);
+      if(nm){
+        fbMaster=nm;
         rebuildFromFB();
       }
       // masterが空でも何もしない（誰かがCSVを読み込むまで各PCは内蔵データを表示）
