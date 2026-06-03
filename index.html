@@ -653,15 +653,26 @@ function loadCSV(ev){
       const o={}; headers.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o;
     });
     ingest(headers,data);
+    recordCsvLoad(data.length);
     if(fbReady && fbDB){
       // 新CSV = 新マスタ。配置はリセットして全PCへ反映
       fbMaster={headers,data};
       fbPlacement={};
-      fbDB.ref(DOCK_ROOT+'/master').set({headers,data});
-      fbDB.ref(DOCK_ROOT+'/placement').set({});
+      // 送信サイズの目安チェック（大きすぎると同期失敗の恐れ）
+      const approxKB=Math.round(JSON.stringify({headers,data}).length/1024);
+      // master と placement をまとめて1回の更新で送信（部分失敗を防ぐ）
+      const upd={};
+      upd[DOCK_ROOT+'/master']={headers,data};
+      upd[DOCK_ROOT+'/placement']={};
+      fbDB.ref().update(upd)
+        .then(()=>{ toast(data.length+'件 読み込み・全PCへ共有しました（約'+approxKB+'KB）'); })
+        .catch(err=>{
+          console.error('CSV共有エラー:', err);
+          warn('CSV共有に失敗: '+(err&&err.message?err.message:'不明なエラー')+'（他PCに反映されていません）');
+        });
+    } else {
+      toast(data.length+'件 読み込みました（未同期：'+(FIREBASE_CONFIG.databaseURL?'接続待ち':'ローカルのみ')+'）');
     }
-    recordCsvLoad(data.length);
-    toast(data.length+"件 読み込みました");
   };
   rd.readAsArrayBuffer(file);
   ev.target.value='';
