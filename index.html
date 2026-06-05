@@ -114,11 +114,15 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   text-align:center;color:var(--yellow);font-weight:800;font-size:15px;
   padding:5px 2px 3px;letter-spacing:.02em;
   display:flex;align-items:baseline;justify-content:center;gap:6px;
+  max-width:100%;overflow:hidden;
 }
-/* バース名：枠に収まらないときだけ横スクロール（マーキー） */
+/* クリップ枠：バース幅で頭打ちにして中身をはみ出させない */
+.bay-label .bl-clip{
+  display:inline-block;max-width:100%;overflow:hidden;white-space:nowrap;vertical-align:bottom;
+}
+/* 動くテキスト本体（収まらないときだけ marquee 付与） */
 .bay-label .bl-track{
-  display:inline-block;white-space:nowrap;max-width:100%;
-  overflow:hidden;text-overflow:clip;
+  display:inline-block;white-space:nowrap;
 }
 .bay-label .bl-track.marquee{
   animation:bayMarquee ease-in-out infinite alternate;
@@ -824,13 +828,13 @@ function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>
 // バース名が枠からはみ出すものだけ、マーキー（横スクロール）を有効化
 function setupBayMarquee(){
   requestAnimationFrame(()=>{
-    document.querySelectorAll('.bay-label .bl-track').forEach(tr=>{
+    document.querySelectorAll('.bay-label .bl-clip').forEach(clip=>{
+      const tr=clip.querySelector('.bl-track'); if(!tr) return;
       tr.classList.remove('marquee'); tr.style.removeProperty('--shift'); tr.style.removeProperty('animation-duration');
-      const over=tr.scrollWidth - tr.clientWidth;
+      const over=tr.scrollWidth - clip.clientWidth;
       if(over>2){
-        const shift=-(over+8);   // 末尾まで見せる移動量
+        const shift=-(over+6);   // 末尾まで見せる移動量
         tr.style.setProperty('--shift', shift+'px');
-        // 速度：移動量に比例（最低4秒）
         const dur=Math.max(4, Math.abs(shift)/18);
         tr.style.animationDuration=dur+'s';
         tr.classList.add('marquee');
@@ -908,7 +912,7 @@ function render(){
       const full = cs.length>=1; // 1バース1台
       const t = occupied && cs[0].arriveAt ? `<span class="bay-time" data-since="${cs[0].arriveAt}">${fmtElapsed(cs[0].arriveAt)}</span>` : '';
       return `<div class="bay ${occupied?'occupied':''}">
-        <div class="bay-label"><span class="bl-track">${formatBayLabel(b)}</span>${t}</div>
+        <div class="bay-label"><span class="bl-clip"><span class="bl-track">${formatBayLabel(b)}</span></span>${t}</div>
         <div class="bay-slot ${full?'full':''}" data-zone="arrive" data-bay="${b}"
           ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
           ${cs.map(cardHTML).join('')}
