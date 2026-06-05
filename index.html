@@ -172,7 +172,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.03em;
 }
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
-.c-memo{margin-top:6px;font-size:11px;color:#7a5c00;background:#fffbe6;
+.c-memo{margin:0 0 6px;font-size:11px;color:#7a5c00;background:#fffbe6;
   border:1px solid #f0e3a8;border-radius:6px;padding:4px 7px;line-height:1.4;
   word-break:break-word;white-space:pre-wrap;}
 .dt-memo{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);}
@@ -764,10 +764,10 @@ function cardHTML(c){
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     <div class="c-topright">${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
+    ${memoRow}
     <div class="c-id">${esc(c.id)}</div>
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
-    ${memoRow}
   </div>`;
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
