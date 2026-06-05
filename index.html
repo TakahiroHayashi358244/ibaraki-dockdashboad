@@ -115,10 +115,23 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   padding:5px 2px 3px;letter-spacing:.02em;
   display:flex;align-items:baseline;justify-content:center;gap:6px;
 }
+/* バース名：枠に収まらないときだけ横スクロール（マーキー） */
+.bay-label .bl-track{
+  display:inline-block;white-space:nowrap;max-width:100%;
+  overflow:hidden;text-overflow:clip;
+}
+.bay-label .bl-track.marquee{
+  animation:bayMarquee ease-in-out infinite alternate;
+}
+@keyframes bayMarquee{
+  0%{transform:translateX(0);}
+  100%{transform:translateX(var(--shift,0));}
+}
+.bay-label .bl-alpha{color:#ff8a5c;}        /* 英字(A/B)の色 */
 .bay-label .bay-time{
   font-size:11px;font-weight:700;color:#fff;
   background:rgba(255,255,255,.18);padding:1px 6px;border-radius:5px;
-  font-variant-numeric:tabular-nums;
+  font-variant-numeric:tabular-nums;flex:none;
 }
 .bay-label .bay-time.warn{background:#e0a030;color:#1f2b38;}
 .bay-label .bay-time.alert{background:#e05050;color:#fff;}
@@ -808,6 +821,32 @@ function cardHTML(c){
   </div>`;
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+// バース名が枠からはみ出すものだけ、マーキー（横スクロール）を有効化
+function setupBayMarquee(){
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.bay-label .bl-track').forEach(tr=>{
+      tr.classList.remove('marquee'); tr.style.removeProperty('--shift'); tr.style.removeProperty('animation-duration');
+      const over=tr.scrollWidth - tr.clientWidth;
+      if(over>2){
+        const shift=-(over+8);   // 末尾まで見せる移動量
+        tr.style.setProperty('--shift', shift+'px');
+        // 速度：移動量に比例（最低4秒）
+        const dur=Math.max(4, Math.abs(shift)/18);
+        tr.style.animationDuration=dur+'s';
+        tr.classList.add('marquee');
+      }
+    });
+  });
+}
+// バース番号の表示整形：数字直後の英字(A/B等)のみ色を変える
+function formatBayLabel(b){
+  const s=String(b);
+  const m=s.match(/^(\d+)([A-Za-z]+)(.*)$/);
+  if(m){
+    return esc(m[1])+'<span class="bl-alpha">'+esc(m[2])+'</span>'+esc(m[3]);
+  }
+  return esc(s);
+}
 
 /* スケジュール時間など sortKey の昇順。空欄は末尾。 */
 function sortKeyVal(c){
@@ -869,7 +908,7 @@ function render(){
       const full = cs.length>=1; // 1バース1台
       const t = occupied && cs[0].arriveAt ? `<span class="bay-time" data-since="${cs[0].arriveAt}">${fmtElapsed(cs[0].arriveAt)}</span>` : '';
       return `<div class="bay ${occupied?'occupied':''}">
-        <div class="bay-label">${b}${t}</div>
+        <div class="bay-label"><span class="bl-track">${formatBayLabel(b)}</span>${t}</div>
         <div class="bay-slot ${full?'full':''}" data-zone="arrive" data-bay="${b}"
           ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
           ${cs.map(cardHTML).join('')}
@@ -888,6 +927,7 @@ function render(){
   document.getElementById('st-arr').textContent=state.cards.filter(c=>c.status==='arrive').length;
   document.getElementById('st-done').textContent=done.length;
   if(typeof updateElapsed==='function') updateElapsed();
+  if(typeof setupBayMarquee==='function') setupBayMarquee();
 }
 
 /* ============ Drag & Drop ============ */
