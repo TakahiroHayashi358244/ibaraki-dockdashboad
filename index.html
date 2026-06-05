@@ -162,6 +162,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   cursor:pointer;line-height:1.4;white-space:nowrap;
 }
 .card .c-detail:hover{background:#2785a3;}
+.card .c-id-manual{color:#c4ccd4;font-size:10px;font-weight:500;}
 .card.overdue{
   border-color:#e05050;border-left-color:#e05050;
   background:#fff3f3;box-shadow:0 2px 8px rgba(224,80,80,.25);
@@ -408,6 +409,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="stat"><b id="st-arr">0</b>着車</div>
       <div class="stat"><b id="st-done">0</b>完了</div>
       <div class="spacer"></div>
+      <button class="btn" onclick="openAddCard()">＋ カード追加</button>
       <button class="btn" onclick="openSummary()">📊 サマリ</button>
       <button class="btn" onclick="openLogs()">📋 ログ</button>
       <button class="btn" onclick="openSettings()">⚙ 設定</button>
@@ -526,6 +528,37 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <button class="btn primary" onclick="printSummary()">🖨 印刷</button>
     </div>
     <div class="modal-body" id="summary-body"></div>
+  </div>
+</div>
+
+<!-- Add card modal -->
+<div class="overlay" id="addModal">
+  <div class="modal" style="max-width:440px;">
+    <h2 id="addModalTitle">カードを追加<span class="x" onclick="closeAddCard()">×</span></h2>
+    <div class="modal-body">
+      <div class="sec-title">荷主</div>
+      <input class="inp" id="addCarrier" placeholder="例: 佐川急便（自由入力）">
+      <div class="sec-title">予定時刻</div>
+      <div class="row-inp" style="align-items:center;gap:6px;">
+        <input class="inp" type="date" id="addDate" style="flex:none;width:auto;">
+      </div>
+      <div class="row-inp" style="align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <select class="inp" id="addStartH" style="flex:none;width:auto;"></select>
+        <span style="color:var(--sub);">:</span>
+        <select class="inp" id="addStartM" style="flex:none;width:auto;"></select>
+        <span style="color:var(--sub);">〜</span>
+        <select class="inp" id="addEndH" style="flex:none;width:auto;"></select>
+        <span style="color:var(--sub);">:</span>
+        <select class="inp" id="addEndM" style="flex:none;width:auto;"></select>
+      </div>
+      <div class="note">時は0〜23時、分は15分単位。終了時刻は任意（未選択可）。予定時刻は時間帯サマリ・時間超過判定・並び替えに使われます。</div>
+      <div class="sec-title">メモ</div>
+      <textarea class="memo-input" id="addMemo" placeholder="メモ（自由入力・任意）"></textarea>
+      <div class="row-inp" style="margin-top:16px;justify-content:flex-end;">
+        <button class="btn" onclick="closeAddCard()">キャンセル</button>
+        <button class="btn primary" id="addSubmitBtn" onclick="submitAddCard()">予定に追加</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -760,12 +793,16 @@ function cardHTML(c){
   }
   const memoRow = c.memo && c.memo.trim()
     ? `<div class="c-memo">📝 ${esc(c.memo)}</div>` : '';
+  const isManual = /^M/.test(c.id);
+  const idHtml = isManual
+    ? `<div class="c-id c-id-manual">${esc(c.id)}</div>`
+    : `<div class="c-id">${esc(c.id)}</div>`;
   return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     <div class="c-topright">${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
-    <div class="c-id">${esc(c.id)}</div>
+    ${idHtml}
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
   </div>`;
@@ -1067,6 +1104,13 @@ function openDetail(id){
       oninput="onMemoInput()">${esc(c.memo||'')}</textarea>
     <div class="memo-saved" id="memoSaved"></div>
   </div>`;
+  // 手動追加カードのみ 編集・削除ボタン
+  if(/^M/.test(c.id)){
+    html+=`<div class="row-inp" style="margin-top:14px;justify-content:flex-end;gap:8px;">
+      <button class="btn primary" onclick="closeDetail();openAddCard('${escAttr(c.id)}')">✎ 編集</button>
+      <button class="btn danger" onclick="deleteCard('${escAttr(c.id)}')">🗑 削除</button>
+    </div>`;
+  }
   body.innerHTML=html;
   document.getElementById('detail').classList.add('show');
 }
@@ -1230,6 +1274,7 @@ document.getElementById('settings').addEventListener('click',e=>{if(e.target.id=
 document.getElementById('detail').addEventListener('click',e=>{if(e.target.id==='detail')closeDetail();});
 document.getElementById('logModal').addEventListener('click',e=>{if(e.target.id==='logModal')closeLogs();});
 document.getElementById('summaryModal').addEventListener('click',e=>{if(e.target.id==='summaryModal')closeSummary();});
+document.getElementById('addModal').addEventListener('click',e=>{if(e.target.id==='addModal')closeAddCard();});
 
 /* ============ 担当者（PCごと・localStorage保存） ============ */
 const OP_KEY='dock_operator';
@@ -1306,6 +1351,149 @@ function closeLogs(){document.getElementById('logModal').classList.remove('show'
 /* ============ 時間帯サマリ ============ */
 function openSummary(){renderSummary();document.getElementById('summaryModal').classList.add('show');}
 function closeSummary(){document.getElementById('summaryModal').classList.remove('show');}
+
+/* ============ カードを手動追加 ============ */
+let editCardId=null;   // 編集中の手動カードID（nullなら新規追加）
+function openAddCard(editId){
+  if(!requireOperator()) return;
+  editCardId = (typeof editId==='string') ? editId : null;
+  // 時・分プルダウンを生成（時:0-23、分:15分単位）
+  const hOpts='<option value="">--</option>'+Array.from({length:24},(_,h)=>`<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('');
+  const mOpts='<option value="">--</option>'+['00','15','30','45'].map(m=>`<option value="${m}">${m}</option>`).join('');
+  document.getElementById('addStartH').innerHTML=hOpts;
+  document.getElementById('addStartM').innerHTML=mOpts;
+  document.getElementById('addEndH').innerHTML=hOpts;
+  document.getElementById('addEndM').innerHTML=mOpts;
+  const title=document.getElementById('addModalTitle');
+  const btn=document.getElementById('addSubmitBtn');
+  if(editCardId){
+    // 既存カードの値を流し込む
+    const c=state.cards.find(x=>x.id===editCardId);
+    if(!c){ editCardId=null; }
+    else {
+      title.firstChild.textContent='カードを編集';
+      btn.textContent='更新';
+      document.getElementById('addCarrier').value=c.fields['Carrier']||'';
+      document.getElementById('addMemo').value=c.memo||'';
+      // Schedule Date を分解
+      const raw=c.fields['Schedule Date']||'';
+      const times=[...raw.matchAll(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/g)];
+      if(times.length){
+        const f=times[0];
+        document.getElementById('addDate').value=`${f[1]}-${String(+f[2]).padStart(2,'0')}-${String(+f[3]).padStart(2,'0')}`;
+        document.getElementById('addStartH').value=String(+f[4]).padStart(2,'0');
+        document.getElementById('addStartM').value=String(+f[5]).padStart(2,'0');
+        // 終了
+        const tail=[...raw.matchAll(/(\d{1,2}):(\d{2})/g)];
+        if(tail.length>=2){
+          const lt=tail[tail.length-1];
+          document.getElementById('addEndH').value=String(+lt[1]).padStart(2,'0');
+          document.getElementById('addEndM').value=String(+lt[2]).padStart(2,'0');
+        } else { document.getElementById('addEndH').value=''; document.getElementById('addEndM').value=''; }
+      }
+      document.getElementById('addModal').classList.add('show');
+      return;
+    }
+  }
+  // 新規追加モード
+  title.firstChild.textContent='カードを追加';
+  btn.textContent='予定に追加';
+  const d=new Date();
+  document.getElementById('addDate').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('addStartH').value='';
+  document.getElementById('addStartM').value='';
+  document.getElementById('addEndH').value='';
+  document.getElementById('addEndM').value='';
+  document.getElementById('addCarrier').value='';
+  document.getElementById('addMemo').value='';
+  document.getElementById('addModal').classList.add('show');
+}
+function closeAddCard(){editCardId=null;document.getElementById('addModal').classList.remove('show');}
+function submitAddCard(){
+  if(!requireOperator()) return;
+  const carrier=document.getElementById('addCarrier').value.trim();
+  const date=document.getElementById('addDate').value;     // YYYY-MM-DD
+  const sH=document.getElementById('addStartH').value, sM=document.getElementById('addStartM').value;
+  const eH=document.getElementById('addEndH').value, eM=document.getElementById('addEndM').value;
+  const memo=document.getElementById('addMemo').value;
+  if(!date || !sH || !sM){ warn('予定時刻（日付・開始の時/分）を入力してください'); return; }
+  const start=`${sH}:${sM}`;
+  const end=(eH&&eM)?`${eH}:${eM}`:'';
+  const dslash=date.replace(/-/g,'/');
+  let sched=`${dslash} ${start}`;
+  if(end) sched+=` - ${dslash} ${end}`;
+
+  if(editCardId){
+    // 既存カードを更新
+    const c=state.cards.find(x=>x.id===editCardId);
+    if(c){
+      c.fields['Carrier']=carrier||'(手動追加)';
+      c.fields['Schedule Date']=sched;
+      c.memo=memo||null;
+      render();
+      if(fbReady && fbDB){
+        const newData=state.cards.map(x=>x.fields);
+        const valueRows=newData.map(obj=>state.headers.map(h=>obj[h]!=null?obj[h]:''));
+        fbMaster={headers:state.headers, data:newData};
+        const upd={};
+        upd[DOCK_ROOT+'/master']={headers:state.headers, rows:valueRows};
+        fbDB.ref().update(upd).catch(e=>{console.error(e);warn('更新の共有に失敗しました');});
+        pushCards();
+      }
+    }
+    closeAddCard();
+    toast('カードを更新しました');
+    return;
+  }
+
+  // 新規追加
+  const id='M'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  const headers = state.headers.slice();
+  if(!headers.includes(ID_FIELD)) headers.unshift(ID_FIELD);
+  if(!headers.includes('Carrier')) headers.push('Carrier');
+  if(!headers.includes('Schedule Date')) headers.push('Schedule Date');
+  const fields={};
+  headers.forEach(h=>fields[h]='');
+  fields[ID_FIELD]=id;
+  fields['Carrier']=carrier||'(手動追加)';
+  fields['Schedule Date']=sched;
+  const card={ id, fields, status:'plan', bay:null, arriveAt:null, memo:memo||null, manual:true };
+  state.headers=headers;
+  state.cards.push(card);
+  render();
+  if(fbReady && fbDB){
+    const newHeaders = headers;
+    const newData = state.cards.map(c=>c.fields);
+    const valueRows = newData.map(obj=>newHeaders.map(h=>obj[h]!=null?obj[h]:''));
+    fbMaster={headers:newHeaders, data:newData};
+    const upd={};
+    upd[DOCK_ROOT+'/master']={headers:newHeaders, rows:valueRows};
+    fbDB.ref().update(upd).catch(e=>{console.error(e);warn('追加の共有に失敗しました');});
+    pushCards();
+  }
+  recordMove(card, '—', '予定');
+  closeAddCard();
+  toast('カードを予定に追加しました');
+}
+// 手動追加カードの削除（master/placementから除去し全PCへ反映）
+function deleteCard(id){
+  if(!/^M/.test(id)) return;        // 手動カードのみ
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(!confirm('このカードを削除します。よろしいですか？')) return;
+  state.cards=state.cards.filter(x=>x.id!==id);
+  closeDetail();
+  render();
+  if(fbReady && fbDB){
+    const newData=state.cards.map(x=>x.fields);
+    const valueRows=newData.map(obj=>state.headers.map(h=>obj[h]!=null?obj[h]:''));
+    fbMaster={headers:state.headers, data:newData};
+    const upd={};
+    upd[DOCK_ROOT+'/master']={headers:state.headers, rows:valueRows};
+    upd[DOCK_ROOT+'/placement/'+id]=null;   // 配置からも除去
+    fbDB.ref().update(upd).catch(e=>{console.error(e);warn('削除の共有に失敗しました');});
+  }
+  toast('カードを削除しました');
+}
 // 予定時刻から「時」を取り出す（時間帯バンド用）。取れなければnull。
 function schedHour(c){
   const raw=(c.fields["Schedule Date"]||'').trim();
