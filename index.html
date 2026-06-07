@@ -198,6 +198,11 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--ink);background:#fff;line-height:1.5;}
 .memo-input:focus{outline:none;border-color:var(--accent);}
 .memo-saved{font-size:11px;color:var(--green);font-weight:600;margin-top:4px;height:14px;}
+.memo-bar{display:flex;align-items:center;gap:10px;margin-top:8px;}
+.memo-bar .memo-saved{margin-top:0;flex:1;}
+.memo-saved.unsaved{color:#c0392b;}
+.memo-saved.done{color:var(--green);}
+.btn.attn{box-shadow:0 0 0 3px rgba(31,111,139,.25);}
 .c-done-time{font-size:11px;font-weight:700;color:var(--green);
   background:#eafaf0;border-radius:5px;padding:2px 7px;white-space:nowrap;}
 .c-dur{font-size:11px;font-weight:700;color:#8a6508;
@@ -1133,6 +1138,7 @@ function toggleDetailField(h,on){
 function openDetail(id){
   const c=state.cards.find(x=>x.id===id);if(!c)return;
   detailCardId=id;
+  memoDirty=false;
   document.getElementById('detail-title').firstChild.textContent=
     (c.fields["Carrier"]||c.id)+' ';
   const body=document.getElementById('detail-body');
@@ -1146,7 +1152,10 @@ function openDetail(id){
     <div class="dt-k" style="margin-bottom:6px;">メモ</div>
     <textarea class="memo-input" id="memoInput" placeholder="メモを入力（全PCで共有）"
       oninput="onMemoInput()">${esc(c.memo||'')}</textarea>
-    <div class="memo-saved" id="memoSaved"></div>
+    <div class="memo-bar">
+      <span class="memo-saved" id="memoSaved"></span>
+      <button class="btn primary" id="memoSaveBtn" onclick="saveMemo()">メモを保存</button>
+    </div>
   </div>`;
   // 手動追加カードのみ 編集・削除ボタン
   if(/^M/.test(c.id)){
@@ -1158,18 +1167,33 @@ function openDetail(id){
   body.innerHTML=html;
   document.getElementById('detail').classList.add('show');
 }
-let detailCardId=null, memoTimer=null;
+let detailCardId=null, memoDirty=false;
 function onMemoInput(){
   const c=state.cards.find(x=>x.id===detailCardId); if(!c) return;
-  c.memo=document.getElementById('memoInput').value;
-  render();   // メモアイコンの反映
-  // 入力が落ち着いてから同期（連打抑制）
-  clearTimeout(memoTimer);
-  memoTimer=setTimeout(()=>{ pushCards(); 
-    const el=document.getElementById('memoSaved'); if(el){el.textContent='保存しました';setTimeout(()=>{if(el)el.textContent='';},1500);}
-  }, 500);
+  c.memo=document.getElementById('memoInput').value;   // ローカル即時反映（カード表示も更新）
+  memoDirty=true;
+  render();
+  const el=document.getElementById('memoSaved'); if(el){el.textContent='未保存';el.className='memo-saved unsaved';}
+  const btn=document.getElementById('memoSaveBtn'); if(btn) btn.classList.add('attn');
 }
-function closeDetail(){detailCardId=null;document.getElementById('detail').classList.remove('show');}
+function saveMemo(){
+  const c=state.cards.find(x=>x.id===detailCardId); if(!c) return;
+  c.memo=document.getElementById('memoInput').value;
+  pushCards();             // Firebaseへ確実に同期
+  render();
+  memoDirty=false;
+  const el=document.getElementById('memoSaved'); if(el){el.textContent='保存しました';el.className='memo-saved done';}
+  const btn=document.getElementById('memoSaveBtn'); if(btn) btn.classList.remove('attn');
+  setTimeout(()=>{const e2=document.getElementById('memoSaved'); if(e2&&e2.textContent==='保存しました'){e2.textContent='';e2.className='memo-saved';}},2000);
+}
+function closeDetail(){
+  if(memoDirty){
+    if(!confirm('メモが未保存です。保存せずに閉じますか？')) return;
+  }
+  memoDirty=false;
+  detailCardId=null;
+  document.getElementById('detail').classList.remove('show');
+}
 
 function buildFloorEditor(){
   const el=document.getElementById('floor-editor');
