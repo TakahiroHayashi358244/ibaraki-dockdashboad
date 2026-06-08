@@ -120,16 +120,19 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .bay-label .bl-clip{
   display:inline-block;max-width:100%;overflow:hidden;white-space:nowrap;vertical-align:bottom;
 }
-/* 動くテキスト本体（収まらないときだけ marquee 付与） */
+/* 動くテキスト本体 */
 .bay-label .bl-track{
   display:inline-block;white-space:nowrap;
 }
+/* marquee時：本体＋複製を横並びにし、一定方向に連続ループ */
 .bay-label .bl-track.marquee{
-  animation:bayMarquee ease-in-out infinite alternate;
+  display:inline-flex;gap:var(--gap,24px);
+  animation:bayMarquee linear infinite;
 }
+.bay-label .bl-track.marquee .bl-seg{flex:none;}
 @keyframes bayMarquee{
   0%{transform:translateX(0);}
-  100%{transform:translateX(var(--shift,0));}
+  100%{transform:translateX(var(--shift,0));}   /* 1セグメント分＋gap だけ左へ流れて折り返す */
 }
 .bay-label .bl-alpha{color:#ff8a5c;}        /* 英字(A/B)の色 */
 .bay-label .bay-time{
@@ -835,12 +838,29 @@ function setupBayMarquee(){
   requestAnimationFrame(()=>{
     document.querySelectorAll('.bay-label .bl-clip').forEach(clip=>{
       const tr=clip.querySelector('.bl-track'); if(!tr) return;
-      tr.classList.remove('marquee'); tr.style.removeProperty('--shift'); tr.style.removeProperty('animation-duration');
+      // 既存のmarquee状態をリセット（複製を解除し元の単一表示に戻す）
+      if(tr.dataset.orig!==undefined){
+        tr.innerHTML=tr.dataset.orig;
+      } else {
+        tr.dataset.orig=tr.innerHTML;
+      }
+      tr.classList.remove('marquee');
+      tr.style.removeProperty('--shift'); tr.style.removeProperty('--gap');
+      tr.style.removeProperty('animation-duration');
+      // 収まらなければ連続ループ化
       const over=tr.scrollWidth - clip.clientWidth;
       if(over>2){
-        const shift=-(over+6);   // 末尾まで見せる移動量
+        const gap=24;
+        const seg=tr.innerHTML;
+        // 本体＋複製の2セグメントを横並びに
+        tr.innerHTML=`<span class="bl-seg">${seg}</span><span class="bl-seg">${seg}</span>`;
+        tr.style.setProperty('--gap', gap+'px');
+        // 1セグメント幅を測る（複製後の半分弱）
+        const firstSeg=tr.querySelector('.bl-seg');
+        const segW=firstSeg?firstSeg.offsetWidth:tr.scrollWidth/2;
+        const shift=-(segW+gap);
         tr.style.setProperty('--shift', shift+'px');
-        const dur=Math.max(4, Math.abs(shift)/18);
+        const dur=Math.max(5, Math.abs(shift)/18);   // 流れる速度
         tr.style.animationDuration=dur+'s';
         tr.classList.add('marquee');
       }
