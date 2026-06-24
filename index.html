@@ -726,19 +726,41 @@ function loadCSV(ev){
     const headers=rows[0].map((h,i)=>{ const t=(h||'').trim(); return t || ('列'+(i+1)); });
     const valueRows=rows.slice(1).map(r=>headers.map((h,i)=>(r[i]||'').trim()));
     const data=valueRows.map(vr=>{ const o={}; headers.forEach((h,i)=>o[h]=vr[i]); return o; });
+    // 再取り込み時、既存カードの配置・各時刻・メモを Appointment ID で引き継ぐ
+    const prevById={};
+    state.cards.forEach(c=>{
+      prevById[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
+        arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
+        doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null};
+    });
     ingest(headers,data);
+    // 新CSVに含まれるIDのうち、以前の情報があれば復元
+    state.cards.forEach(c=>{
+      const p=prevById[c.id];
+      if(p){ c.status=p.status||'plan'; c.bay=p.bay; c.arriveAt=p.arriveAt;
+        c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo; }
+    });
+    render();
     recordCsvLoad(data.length);
     if(fbReady && fbDB){
-      // 新CSV = 新マスタ。配置はリセットして全PCへ反映。
+      // 新CSV = 新マスタ。配置は「引き継いだ分のみ」を全PCへ反映。
       // ※ Firebaseには「ヘッダー配列＋値の二次元配列」で保存する。
-      //    オブジェクトのキーにCSVヘッダー名を使わないため、禁止文字(. # $ / [ ])や空列でもエラーにならない。
       fbMaster={headers,data};
-      fbPlacement={};
+      // 引き継ぎ後の配置を構築（新CSVに存在するIDのみ）
+      const carried={};
+      state.cards.forEach(c=>{
+        if(prevById[c.id]){
+          carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
+            arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
+            doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null};
+        }
+      });
+      fbPlacement=carried;
       const payload={headers, rows:valueRows};
       const approxKB=Math.round(JSON.stringify(payload).length/1024);
       const upd={};
       upd[DOCK_ROOT+'/master']=payload;
-      upd[DOCK_ROOT+'/placement']={};
+      upd[DOCK_ROOT+'/placement']=carried;
       fbDB.ref().update(upd)
         .then(()=>{ toast(data.length+'件 読み込み・全PCへ共有しました（約'+approxKB+'KB）'); })
         .catch(err=>{
