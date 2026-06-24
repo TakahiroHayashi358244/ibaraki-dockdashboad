@@ -1733,6 +1733,7 @@ function printSummary(){
   </body></html>`);
   w.document.close();
   w.focus();
+  w.onafterprint=()=>{ w.close(); };
   setTimeout(()=>{ w.print(); }, 300);
 }
 /* ============ ラベル印刷（110mm×155mm・バーコード付き） ============ */
@@ -1806,6 +1807,8 @@ function openLabelPrint(cardsList, copies){
   </style></head><body>${labels}</body></html>`);
   w.document.close();
   w.focus();
+  // 印刷ダイアログを閉じたら（印刷実行/キャンセル）ウィンドウを自動で閉じる
+  w.onafterprint=()=>{ w.close(); };
   setTimeout(()=>{ w.print(); }, 350);
 }
 // 個別印刷（詳細モーダルから）
