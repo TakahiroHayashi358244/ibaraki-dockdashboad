@@ -704,7 +704,13 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      if(c.id!==detailCardId) c.memo=p.memo||null; }   // 編集中のメモは上書きしない
+      if(c.id===detailCardId){
+        const ta=document.getElementById('memoInput');
+        c.memo = ta ? ta.value : (p.memo||null);
+      } else {
+        c.memo = p.memo||null;
+      }
+    }
     else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; if(c.id!==detailCardId) c.memo=null; }
   });
   render();
@@ -1962,7 +1968,15 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      if(c.id!==detailCardId) c.memo=p.memo||null; }
+      // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
+      // それ以外はFirebaseのメモを反映。
+      if(c.id===detailCardId){
+        const ta=document.getElementById('memoInput');
+        c.memo = ta ? ta.value : (p.memo||null);
+      } else {
+        c.memo = p.memo||null;
+      }
+    }
   });
   fbApplying=false;
   render();
