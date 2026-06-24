@@ -1764,6 +1764,7 @@ function labelHTML(c){
     ${memo?`<div class="lb-memo">📝 ${esc(memo)}</div>`:''}
     <div class="lb-bcwrap">
       <div class="lb-bclabel">Appointment ID</div>
+      <div class="lb-id lb-id-top">${esc(apptId)}</div>
       <div class="lb-barcode">${bc}</div>
       <div class="lb-id">${esc(apptId)}</div>
     </div>
@@ -1803,6 +1804,7 @@ function openLabelPrint(cardsList, copies){
     .lb-barcode{width:80mm;}
     .lb-barcode svg{width:100%;height:18mm;}
     .lb-id{font-size:6mm;font-weight:700;letter-spacing:1mm;margin-top:2mm;font-variant-numeric:tabular-nums;}
+    .lb-id-top{margin-top:0;margin-bottom:1.5mm;}
     @media print{ *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
   </style></head><body>${labels}</body></html>`);
   w.document.close();
