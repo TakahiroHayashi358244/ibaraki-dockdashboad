@@ -439,6 +439,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="stat"><b id="st-done">0</b>完了</div>
       <div class="spacer"></div>
       <button class="btn" onclick="openAddCard()">＋ カード追加</button>
+      <button class="btn" onclick="printAllLabels()">🖨 まとめて印刷</button>
       <button class="btn" onclick="openSummary()">📊 サマリ</button>
       <button class="btn" onclick="openLogs()">📋 ログ</button>
       <button class="btn" onclick="openSettings()">⚙ 設定</button>
@@ -1228,6 +1229,10 @@ function openDetail(id){
       <button class="btn primary" id="memoSaveBtn" onclick="saveMemo()">メモを保存</button>
     </div>
   </div>`;
+  // 印刷ボタン（全カード共通）
+  html+=`<div class="row-inp" style="margin-top:14px;justify-content:flex-end;">
+    <button class="btn" onclick="printSingleLabel('${escAttr(c.id)}')">🖨 ラベル印刷</button>
+  </div>`;
   // 手動追加カードのみ 編集・削除ボタン
   if(/^M/.test(c.id)){
     html+=`<div class="row-inp" style="margin-top:14px;justify-content:flex-end;gap:8px;">
@@ -1731,6 +1736,95 @@ function printSummary(){
   w.focus();
   setTimeout(()=>{ w.print(); }, 300);
 }
+/* ============ ラベル印刷（110mm×155mm・バーコード付き） ============ */
+// Schedule Date の日付部分（入庫日）を YYYY/MM/DD で取り出す
+function schedDateOnly(c){
+  const raw=(c.fields["Schedule Date"]||'').trim();
+  const m=raw.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if(m) return `${m[1]}/${String(+m[2]).padStart(2,'0')}/${String(+m[3]).padStart(2,'0')}`;
+  return '—';
+}
+// 1枚分のラベルHTML
+function labelHTML(c){
+  const apptId=String(c.fields[ID_FIELD]||c.id||'');
+  const carrier=c.fields["Carrier"]||'';
+  const nyukoDate=schedDateOnly(c);
+  const sched=c.fields["Schedule Date"]||'';
+  const timeM=sched.match(/(\d{1,2}:\d{2})(?:\D+(\d{1,2}:\d{2}))?/);
+  const timeStr=timeM?(timeM[2]?`${timeM[1]} - ${timeM[2]}`:timeM[1]):'';
+  const bc=barcodeSVG(apptId);
+  const pallets=c.fields["Pallets"]||'', cartons=c.fields["Cartons"]||'', units=c.fields["Units"]||'';
+  const memo=(c.memo||'').trim();
+  return `<div class="label">
+    <div class="lb-datelabel">入庫日</div>
+    <div class="lb-date">${esc(nyukoDate)}</div>
+    <div class="lb-time">${esc(timeStr)}</div>
+    <div class="lb-carrier">${esc(carrier)}</div>
+    <div class="lb-qty">${pallets!==''?('P:'+esc(pallets)):''} ${cartons!==''?('C:'+esc(cartons)):''} ${units!==''?('U:'+esc(units)):''}</div>
+    ${memo?`<div class="lb-memo">📝 ${esc(memo)}</div>`:''}
+    <div class="lb-bcwrap">
+      <div class="lb-bclabel">Appointment ID</div>
+      <div class="lb-barcode">${bc}</div>
+      <div class="lb-id">${esc(apptId)}</div>
+    </div>
+  </div>`;
+}
+// 印刷ウィンドウを開く（cardsList: 対象カード配列、copies: 各カードの枚数）
+function openLabelPrint(cardsList, copies){
+  copies=Math.max(1,Math.min(50,parseInt(copies,10)||1));
+  if(!cardsList.length){ toast('印刷対象がありません'); return; }
+  let labels='';
+  cardsList.forEach(c=>{ for(let i=0;i<copies;i++){ labels+=labelHTML(c); } });
+  const w=window.open('','_blank','width=500,height=720');
+  if(!w){ warn('ポップアップがブロックされました。許可してください'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>入庫ラベル印刷</title>
+  <style>
+    @page{ size:101.6mm 152.4mm; margin:0; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#000;}
+    .label{
+      width:101.6mm;height:152.4mm;padding:8mm 6mm 7mm;
+      display:flex;flex-direction:column;align-items:center;text-align:center;
+      page-break-after:always;overflow:hidden;
+    }
+    .label:last-child{page-break-after:auto;}
+    .lb-datelabel{font-size:4mm;font-weight:600;letter-spacing:.8mm;color:#444;}
+    .lb-date{font-size:13mm;line-height:1.05;font-weight:800;margin-top:2mm;font-variant-numeric:tabular-nums;
+      letter-spacing:-.3mm;max-width:100%;white-space:nowrap;}
+    .lb-time{font-size:9mm;font-weight:700;margin-top:4mm;color:#111;}
+    .lb-carrier{font-size:8mm;font-weight:700;margin-top:7mm;line-height:1.2;
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .lb-qty{font-size:6mm;font-weight:700;margin-top:5mm;letter-spacing:.4mm;color:#222;}
+    .lb-memo{font-size:5.5mm;margin-top:4mm;color:#5a4600;line-height:1.3;
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .lb-bcwrap{margin-top:auto;width:100%;display:flex;flex-direction:column;align-items:center;}
+    .lb-bclabel{font-size:4mm;font-weight:600;letter-spacing:.5mm;color:#444;margin-bottom:2mm;}
+    .lb-barcode{width:80mm;}
+    .lb-barcode svg{width:100%;height:18mm;}
+    .lb-id{font-size:6mm;font-weight:700;letter-spacing:1mm;margin-top:2mm;font-variant-numeric:tabular-nums;}
+    @media print{ *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+  </style></head><body>${labels}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>{ w.print(); }, 350);
+}
+// 個別印刷（詳細モーダルから）
+function printSingleLabel(id){
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  const n=prompt('印刷枚数を入力してください（1〜50）','1');
+  if(n===null) return;
+  openLabelPrint([c], n);
+}
+// まとめて印刷（予定＋着車＝完了以外）
+function printAllLabels(){
+  const targets=state.cards.filter(c=>c.status!=='done');
+  if(!targets.length){ toast('印刷対象（予定・着車）がありません'); return; }
+  const n=prompt(`予定・着車の ${targets.length} 件を印刷します。\n各カードの枚数を入力してください（1〜50）`,'1');
+  if(n===null) return;
+  openLabelPrint(targets, n);
+}
+
 // ローカル日付キー（YYYY-MM-DD）
 function dayKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function dayLabel(k){const [y,m,d]=k.split('-');return `${y}/${m}/${d}`;}
