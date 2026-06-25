@@ -323,6 +323,31 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   padding:12px 18px;border-bottom:1px solid var(--line);background:#fafbfc;}
 .log-toolbar .lt-label{font-size:13px;color:var(--sub);font-weight:600;}
 .log-toolbar .tb-spacer{flex:1;}
+/* 印刷選択モーダル */
+.print-row{display:grid;grid-template-columns:30px 84px 1fr auto;gap:12px;align-items:center;
+  padding:9px 10px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;}
+.print-row:hover{background:#f6f9fb;}
+.print-row.sel{background:#fff4ea;}
+.print-row .pr-chk{width:22px;height:22px;border-radius:6px;border:2px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:#fff;}
+.print-row.sel .pr-chk{background:#ff8a3c;border-color:#ff8a3c;}
+.print-row .pr-date{font-weight:700;font-variant-numeric:tabular-nums;}
+.print-row .pr-carrier{word-break:break-word;}
+.print-row .pr-id{font-size:11px;color:var(--sub);}
+.print-row .pr-copies{display:flex;align-items:center;gap:4px;}
+.print-row .pr-copies button{width:24px;height:24px;border:1px solid var(--line);background:#fff;
+  border-radius:6px;cursor:pointer;font-size:14px;font-weight:800;color:var(--accent);line-height:1;
+  display:flex;align-items:center;justify-content:center;font-family:inherit;}
+.print-row .pr-copies button:hover{background:var(--accent);color:#fff;}
+.print-row .pr-copies input{width:42px;text-align:center;border:1px solid var(--line);
+  border-radius:6px;padding:3px;font-size:13px;font-weight:700;font-family:inherit;}
+.print-modal{max-width:760px;width:100%;display:flex;flex-direction:column;max-height:88vh;}
+.print-modal h2{display:flex;align-items:center;gap:12px;flex:none;}
+.print-modal .ph-actions{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.print-modal .ph-actions .pf-info{font-size:13px;color:var(--sub);font-weight:500;}
+.print-modal .ph-actions .pf-info b{color:#f57721;font-size:15px;}
+.print-modal .log-toolbar{flex:none;}
+.print-modal #print-list{flex:1;overflow-y:auto;min-height:0;}
 
 /* ===== Summary modal ===== */
 .summary-modal{max-width:680px;}
@@ -560,6 +585,36 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <button class="btn primary" onclick="printSummary()">🖨 印刷</button>
     </div>
     <div class="modal-body" id="summary-body"></div>
+  </div>
+</div>
+
+<!-- Print selection modal -->
+<div class="overlay" id="printModal">
+  <div class="modal print-modal">
+    <h2>まとめて印刷
+      <span class="ph-actions">
+        <span class="pf-info"><b id="pfSel">0</b> 件選択 / 合計 <b id="pfTotal">0</b> 枚</span>
+        <button class="btn" onclick="closePrintModal()">キャンセル</button>
+        <button class="btn print-btn" onclick="printSelectedCards()">🖨 印刷する</button>
+        <span class="x" onclick="closePrintModal()">×</span>
+      </span>
+    </h2>
+    <div class="log-toolbar">
+      <span class="lt-label">対象</span>
+      <select class="inp" id="printScope" style="width:auto;flex:none;" onchange="renderPrintList()">
+        <option value="notdone">予定＋着車（完了以外）</option>
+        <option value="all">全カード</option>
+        <option value="plan">予定のみ</option>
+        <option value="arrive">着車のみ</option>
+      </select>
+      <button class="btn" onclick="printSelectAll(true)">全選択</button>
+      <button class="btn" onclick="printSelectAll(false)">全解除</button>
+      <div class="tb-spacer"></div>
+      <span class="lt-label">一括</span>
+      <input type="number" id="printBulk" value="1" min="1" max="50" style="width:64px;" class="inp">
+      <button class="btn" onclick="applyPrintBulk()">反映</button>
+    </div>
+    <div class="modal-body" id="print-list"></div>
   </div>
 </div>
 
@@ -1446,6 +1501,7 @@ document.getElementById('detail').addEventListener('click',e=>{if(e.target.id===
 document.getElementById('logModal').addEventListener('click',e=>{if(e.target.id==='logModal')closeLogs();});
 document.getElementById('summaryModal').addEventListener('click',e=>{if(e.target.id==='summaryModal')closeSummary();});
 document.getElementById('addModal').addEventListener('click',e=>{if(e.target.id==='addModal')closeAddCard();});
+document.getElementById('printModal').addEventListener('click',e=>{if(e.target.id==='printModal')closePrintModal();});
 
 /* ============ 担当者（PCごと・localStorage保存） ============ */
 const OP_KEY='dock_operator';
@@ -1803,6 +1859,11 @@ function openLabelPrint(cardsList, copies){
   if(!cardsList.length){ toast('印刷対象がありません'); return; }
   let labels='';
   cardsList.forEach(c=>{ for(let i=0;i<copies;i++){ labels+=labelHTML(c); } });
+  openLabelPrintHTML(labels);
+}
+// ラベルHTML（複数枚連結済み）を印刷ウィンドウで開く
+function openLabelPrintHTML(labels){
+  if(!labels){ toast('印刷対象がありません'); return; }
   const w=window.open('','_blank','width=500,height=720');
   if(!w){ warn('ポップアップがブロックされました。許可してください'); return; }
   w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
@@ -1833,27 +1894,122 @@ function openLabelPrint(cardsList, copies){
     .lb-id{font-size:6mm;font-weight:700;letter-spacing:1mm;margin-top:2mm;font-variant-numeric:tabular-nums;}
     .lb-id-top{margin-top:0;margin-bottom:1.5mm;}
     @media print{ *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
-  </style></head><body>${labels}</body></html>`);
+  </style></head><body>${labels}
+  <script>
+    (function(){
+      var closed=false;
+      function done(){ if(closed) return; closed=true; setTimeout(function(){ try{ window.close(); }catch(e){} }, 100); }
+      window.onafterprint=done;
+      window.addEventListener('focus', function(){ setTimeout(done, 200); });
+      if(window.matchMedia){ var mq=window.matchMedia('print'); mq.addListener(function(m){ if(!m.matches) done(); }); }
+      window.onload=function(){ setTimeout(function(){ window.focus(); window.print(); }, 250); };
+    })();
+  <\/script>
+  </body></html>`);
   w.document.close();
-  w.focus();
-  // 印刷ダイアログを閉じたら（印刷実行/キャンセル）ウィンドウを自動で閉じる
-  w.onafterprint=()=>{ w.close(); };
-  setTimeout(()=>{ w.print(); }, 350);
 }
 // 個別印刷（詳細モーダルから）
+// まとめて印刷：選択・枚数指定モーダルを開く
+let printSel={};   // id -> {sel:bool, copies:int}
+function printAllLabels(){
+  openPrintModal();
+}
+function openPrintModal(){
+  // 初期選択：予定＋着車（完了以外）を選択、枚数1
+  printSel={};
+  state.cards.forEach(c=>{
+    printSel[c.id]={ sel:(c.status!=='done'), copies:1 };
+  });
+  document.getElementById('printScope').value='notdone';
+  renderPrintList();
+  document.getElementById('printModal').classList.add('show');
+}
+function closePrintModal(){ document.getElementById('printModal').classList.remove('show'); }
+function printScopeCards(){
+  const scope=document.getElementById('printScope').value;
+  return state.cards.filter(c=>{
+    if(scope==='all') return true;
+    if(scope==='notdone') return c.status!=='done';
+    if(scope==='plan') return c.status==='plan';
+    if(scope==='arrive') return c.status==='arrive';
+    return true;
+  });
+}
+function renderPrintList(){
+  const list=printScopeCards();
+  const body=document.getElementById('print-list');
+  if(!list.length){ body.innerHTML='<div class="sm-empty">対象のカードがありません</div>'; updatePrintFoot(); return; }
+  body.innerHTML=list.map(c=>{
+    const st=printSel[c.id]||(printSel[c.id]={sel:false,copies:1});
+    const id=String(c.fields[ID_FIELD]||c.id||'');
+    const carrier=esc(c.fields["Carrier"]||'');
+    const date=esc(schedDateOnly(c));
+    return `<div class="print-row ${st.sel?'sel':''}" onclick="togglePrintSel('${escAttr(c.id)}')">
+      <div class="pr-chk">${st.sel?'✓':''}</div>
+      <div class="pr-date">${date}</div>
+      <div><div class="pr-carrier">${carrier}</div><div class="pr-id">${esc(id)}</div></div>
+      <div class="pr-copies" onclick="event.stopPropagation()">
+        <button onclick="bumpPrintCopies('${escAttr(c.id)}',-1)">−</button>
+        <input type="number" min="1" max="50" value="${st.copies}" onchange="setPrintCopies('${escAttr(c.id)}',this.value)" oninput="setPrintCopies('${escAttr(c.id)}',this.value)">
+        <button onclick="bumpPrintCopies('${escAttr(c.id)}',1)">＋</button>
+      </div>
+    </div>`;
+  }).join('');
+  updatePrintFoot();
+}
+function togglePrintSel(id){
+  const st=printSel[id]||(printSel[id]={sel:false,copies:1});
+  st.sel=!st.sel; renderPrintList();
+}
+function setPrintCopies(id,val){
+  const st=printSel[id]||(printSel[id]={sel:false,copies:1});
+  let n=parseInt(val,10); if(isNaN(n)||n<1)n=1; if(n>50)n=50;
+  st.copies=n; updatePrintFoot();
+}
+function bumpPrintCopies(id,delta){
+  const st=printSel[id]||(printSel[id]={sel:false,copies:1});
+  let n=(st.copies||1)+delta; if(n<1)n=1; if(n>50)n=50;
+  st.copies=n; renderPrintList();
+}
+function printSelectAll(on){
+  printScopeCards().forEach(c=>{ const st=printSel[c.id]||(printSel[c.id]={sel:false,copies:1}); st.sel=on; });
+  renderPrintList();
+}
+function applyPrintBulk(){
+  let n=parseInt(document.getElementById('printBulk').value,10);
+  if(isNaN(n)||n<1)n=1; if(n>50)n=50;
+  // 選択中があればそれだけ、なければ対象全て
+  const list=printScopeCards();
+  const sel=list.filter(c=>printSel[c.id]&&printSel[c.id].sel);
+  const target= sel.length?sel:list;
+  target.forEach(c=>{ const st=printSel[c.id]||(printSel[c.id]={sel:false,copies:1}); st.copies=n; });
+  renderPrintList();
+  toast((sel.length?'選択中の':'対象の')+'カードを '+n+' 枚に設定しました');
+}
+function updatePrintFoot(){
+  const list=printScopeCards();
+  const sel=list.filter(c=>printSel[c.id]&&printSel[c.id].sel);
+  const total=sel.reduce((s,c)=>s+((printSel[c.id]&&printSel[c.id].copies)||1),0);
+  document.getElementById('pfSel').textContent=sel.length;
+  document.getElementById('pfTotal').textContent=total;
+}
+function printSelectedCards(){
+  const list=printScopeCards();
+  const sel=list.filter(c=>printSel[c.id]&&printSel[c.id].sel);
+  if(!sel.length){ toast('印刷するカードを選択してください'); return; }
+  // 各カードの枚数で展開して印刷
+  let labels='';
+  sel.forEach(c=>{ const n=(printSel[c.id]&&printSel[c.id].copies)||1; for(let i=0;i<n;i++){ labels+=labelHTML(c); } });
+  openLabelPrintHTML(labels);
+  closePrintModal();
+}
 function printSingleLabel(id){
   const c=state.cards.find(x=>x.id===id); if(!c) return;
   const n=prompt('印刷枚数を入力してください（1〜50）','1');
   if(n===null) return;
-  openLabelPrint([c], n);
-}
-// まとめて印刷（予定＋着車＝完了以外）
-function printAllLabels(){
-  const targets=state.cards.filter(c=>c.status!=='done');
-  if(!targets.length){ toast('印刷対象（予定・着車）がありません'); return; }
-  const n=prompt(`予定・着車の ${targets.length} 件を印刷します。\n各カードの枚数を入力してください（1〜50）`,'1');
-  if(n===null) return;
-  openLabelPrint(targets, n);
+  let labels=''; const cnt=Math.max(1,Math.min(50,parseInt(n,10)||1));
+  for(let i=0;i<cnt;i++) labels+=labelHTML(c);
+  openLabelPrintHTML(labels);
 }
 
 // ローカル日付キー（YYYY-MM-DD）
