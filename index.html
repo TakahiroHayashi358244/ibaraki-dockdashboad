@@ -368,7 +368,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 
 /* ラベル本体（プレビュー・印刷共通） */
 .wl{width:248px;height:372px;background:#fff;border:1px solid var(--line);
-  display:flex;flex-direction:column;overflow:hidden;color:#000;}
+  display:flex;flex-direction:column;overflow:hidden;color:#000;padding-bottom:24px;}
 .wl-tape{height:30px;background-image:repeating-linear-gradient(45deg,#000 0 16px,#fff 16px 32px);flex:none;}
 .wl-tape.top{border-bottom:1px solid #000;}
 .wl-tape.bot{border-top:1px solid #000;}
@@ -2166,7 +2166,7 @@ function openWarnPrintWindow(labels){
     *{box-sizing:border-box;margin:0;padding:0;}
     html,body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#000;}
     .wl{width:101.6mm;height:152.4mm;background:#fff;display:flex;flex-direction:column;
-      overflow:hidden;page-break-after:always;}
+      overflow:hidden;page-break-after:always;padding-bottom:10mm;}
     .wl:last-child{page-break-after:auto;}
     .wl-tape{height:11mm;flex:none;
       background-image:repeating-linear-gradient(45deg,#000 0 6mm,#fff 6mm 12mm);}
