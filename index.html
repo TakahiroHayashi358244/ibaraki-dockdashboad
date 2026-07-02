@@ -386,6 +386,22 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .wl-inverse-band .wl-sub{color:#eee;}
 .wl-edge{font-size:14px;font-weight:800;letter-spacing:3px;color:#000;padding:8px 0;flex:none;}
 
+/* ===== SLAカード（プレビュー） ===== */
+.sla{width:248px;height:372px;background:#fff;border:3px solid #5aa845;border-radius:14px;
+  padding:12px 14px 44px;display:flex;flex-direction:column;overflow:hidden;color:#000;}
+.sla-h{text-align:center;font-size:22px;font-weight:800;margin-bottom:8px;letter-spacing:.02em;}
+.sla-lbl{font-size:13px;font-weight:800;margin-bottom:4px;}
+.sla-numbox{border:2px solid #5aa845;border-radius:8px;padding:6px 4px;text-align:center;
+  font-size:34px;font-weight:800;line-height:1.05;white-space:nowrap;margin-bottom:8px;overflow:hidden;}
+.sla-bc{text-align:center;margin-bottom:8px;}
+.sla-bc svg{max-width:100%;height:38px;}
+.sla-date{margin-bottom:6px;display:flex;align-items:baseline;justify-content:space-between;gap:6px;white-space:nowrap;}
+.sla-date .dl{font-size:14px;font-weight:800;flex:none;}
+.sla-date .dv{font-size:14px;font-weight:800;text-align:right;}
+.sla-pal{font-size:17px;font-weight:800;margin-top:4px;display:flex;align-items:baseline;justify-content:space-between;}
+.sla-pal .pv{font-size:34px;font-weight:800;}
+.sla-count{font-size:11px;color:var(--sub);text-align:center;margin-top:8px;}
+
 /* ===== Summary modal ===== */
 .summary-modal{max-width:680px;}
 .sm-band{margin-bottom:14px;}
@@ -505,6 +521,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <button class="btn" onclick="openAddCard()">＋ カード追加</button>
       <button class="btn" onclick="printAllLabels()">🖨 まとめて印刷</button>
       <button class="btn" onclick="openWarnModal()">⚠ 警告ラベル</button>
+      <button class="btn" onclick="openSlaModal()">🏷 SLAカード</button>
       <button class="btn" onclick="openSummary()">📊 サマリ</button>
       <button class="btn" onclick="openLogs()">📋 ログ</button>
       <button class="btn" onclick="openSettings()">⚙ 設定</button>
@@ -623,6 +640,33 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <button class="btn primary" onclick="printSummary()">🖨 印刷</button>
     </div>
     <div class="modal-body" id="summary-body"></div>
+  </div>
+</div>
+
+<!-- SLA card modal -->
+<div class="overlay" id="slaModal">
+  <div class="modal warn-modal">
+    <h2>SLAカード発行
+      <span class="ph-actions">
+        <button class="btn" onclick="closeSlaModal()">キャンセル</button>
+        <button class="btn print-btn" onclick="printSlaCards()">🖨 印刷する</button>
+        <span class="x" onclick="closeSlaModal()">×</span>
+      </span>
+    </h2>
+    <div class="warn-body">
+      <div class="warn-form">
+        <div class="wf-label">コンテナ（トート）</div>
+        <input class="inp" id="slaNum" placeholder="コンテナ（トート）をスキャン → Enter" oninput="renderSlaPreview()" autocomplete="off">
+        <div class="wf-label">パレット数</div>
+        <input class="inp" id="slaPallet" type="number" min="1" max="200" placeholder="例：10（1/10〜10/10 を作成）" oninput="renderSlaPreview()">
+        <div class="note">スキャン後 Enter でパレット数へ移動、パレット数で Enter でプレビュー更新します。入荷日は本日、STOW期限は入荷から24時間後に自動設定されます。</div>
+        <div id="slaMeta" class="note" style="margin-top:12px;"></div>
+      </div>
+      <div class="warn-preview">
+        <div class="wp-label">プレビュー（4×6インチ）</div>
+        <div id="slaPreview"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1594,6 +1638,13 @@ document.getElementById('summaryModal').addEventListener('click',e=>{if(e.target
 document.getElementById('addModal').addEventListener('click',e=>{if(e.target.id==='addModal')closeAddCard();});
 document.getElementById('printModal').addEventListener('click',e=>{if(e.target.id==='printModal')closePrintModal();});
 document.getElementById('warnModal').addEventListener('click',e=>{if(e.target.id==='warnModal')closeWarnModal();});
+document.getElementById('slaModal').addEventListener('click',e=>{if(e.target.id==='slaModal')closeSlaModal();});
+document.getElementById('slaNum').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); document.getElementById('slaPallet').focus(); }
+});
+document.getElementById('slaPallet').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); renderSlaPreview(); }
+});
 
 /* ============ 担当者（PCごと・localStorage保存） ============ */
 const OP_KEY='dock_operator';
@@ -2140,6 +2191,108 @@ function deleteSavedWarn(){
   refreshSavedWarnSelect();
   toast('削除しました');
 }
+/* ============ SLAカード ============ */
+function slaFmtDateJP(d){ return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
+function slaFmtStowJP(d){ return `${d.getMonth()+1}月${d.getDate()}日${d.getHours()}時まで`; }
+// 1枚分のSLAカードHTML（プレビュー・印刷共通クラス）。idx/total を渡す
+function slaCardHTML(num, idx, total, inDate, stowStr){
+  const bc=barcodeSVG(num)||'';
+  return `<div class="sla">
+    <div class="sla-h">SLAカード</div>
+    <div class="sla-lbl">コンテナ（トート）</div>
+    <div class="sla-numbox">${esc(num)}</div>
+    <div class="sla-bc">${bc}</div>
+    <div class="sla-date"><span class="dl">入荷日：</span><span class="dv">${esc(inDate)}</span></div>
+    <div class="sla-date"><span class="dl">STOW期限：</span><span class="dv">${esc(stowStr)}</span></div>
+    <div class="sla-pal"><span>パレット数</span><span class="pv">${idx}／${total}</span></div>
+  </div>`;
+}
+function slaCompute(){
+  const num=document.getElementById('slaNum').value.trim();
+  let total=parseInt(document.getElementById('slaPallet').value,10);
+  if(isNaN(total)||total<1) total=1; if(total>200) total=200;
+  const now=new Date();
+  const stow=new Date(now.getTime()+24*60*60*1000);
+  return {num, total, inDate:slaFmtDateJP(now), stowStr:slaFmtStowJP(stow)};
+}
+function renderSlaPreview(){
+  const {num,total,inDate,stowStr}=slaCompute();
+  const box=document.getElementById('slaPreview');
+  const meta=document.getElementById('slaMeta');
+  if(!num){ box.innerHTML='<div style="color:#9aa392;font-size:13px;padding:30px;text-align:center;">コンテナ（トート）を入力するとプレビューを表示します</div>'; meta.textContent=''; return; }
+  // プレビューは1枚目（1/total）を表示
+  box.innerHTML=slaCardHTML(num,1,total,inDate,stowStr)+`<div class="sla-count">全 ${total} 枚（1／${total} を表示）</div>`;
+  meta.innerHTML=`入荷日：<b>${esc(inDate)}</b> ／ STOW期限：<b>${esc(stowStr)}</b> ／ <b>${total}</b> 枚作成`;
+  // コンテナ番号がプレビュー枠に収まるよう自動縮小
+  requestAnimationFrame(()=>{
+    const nb=box.querySelector('.sla-numbox');
+    if(nb){ let size=34; nb.style.fontSize=size+'px';
+      while(nb.scrollWidth>nb.clientWidth && size>10){ size-=1; nb.style.fontSize=size+'px'; } }
+  });
+}
+function openSlaModal(){
+  document.getElementById('slaNum').value='';
+  document.getElementById('slaPallet').value='';
+  renderSlaPreview();
+  document.getElementById('slaModal').classList.add('show');
+  setTimeout(()=>document.getElementById('slaNum').focus(),50);
+}
+function closeSlaModal(){ document.getElementById('slaModal').classList.remove('show'); }
+function printSlaCards(){
+  const {num,total,inDate,stowStr}=slaCompute();
+  if(!num){ warn('コンテナ（トート）を入力してください'); return; }
+  if(!barcodeSVG(num)){ warn('バーコード化できない文字が含まれています'); return; }
+  let labels='';
+  for(let i=1;i<=total;i++){ labels+=slaCardHTML(num,i,total,inDate,stowStr); }
+  openSlaPrintWindow(labels);
+}
+function openSlaPrintWindow(labels){
+  const w=window.open('','_blank','width=500,height=720');
+  if(!w){ warn('ポップアップがブロックされました。許可してください'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>SLAカード印刷</title>
+  <style>
+    @page{ size:101.6mm 152.4mm; margin:0; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#000;}
+    .sla{width:101.6mm;height:152.4mm;background:#fff;
+      padding:6mm 7mm 18mm;display:flex;flex-direction:column;overflow:hidden;
+      page-break-after:always;}
+    .sla:last-child{page-break-after:auto;}
+    .sla-h{text-align:center;font-size:11mm;font-weight:800;margin-bottom:3mm;letter-spacing:.02em;}
+    .sla-lbl{font-size:5mm;font-weight:800;margin-bottom:1.5mm;}
+    .sla-numbox{border:1mm solid #000;border-radius:3mm;padding:2.5mm 1mm;text-align:center;
+      font-size:15mm;font-weight:800;line-height:1.05;white-space:nowrap;margin-bottom:3mm;overflow:hidden;}
+    .sla-bc{text-align:center;margin-bottom:3.5mm;}
+    .sla-bc svg{max-width:100%;height:14mm;}
+    .sla-date{margin-bottom:2.5mm;display:flex;align-items:baseline;justify-content:space-between;gap:2mm;white-space:nowrap;}
+    .sla-date .dl{font-size:5.5mm;font-weight:800;flex:none;}
+    .sla-date .dv{font-size:5.5mm;font-weight:800;text-align:right;}
+    .sla-pal{font-size:7mm;font-weight:800;margin-top:2mm;display:flex;align-items:baseline;justify-content:space-between;}
+    .sla-pal .pv{font-size:16mm;font-weight:800;}
+    @media print{ *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+  </style></head><body>${labels}
+  <script>
+    (function(){
+      var closed=false;
+      function done(){ if(closed) return; closed=true; setTimeout(function(){ try{ window.close(); }catch(e){} }, 100); }
+      window.onafterprint=done;
+      window.addEventListener('focus', function(){ setTimeout(done, 200); });
+      if(window.matchMedia){ var mq=window.matchMedia('print'); mq.addListener(function(m){ if(!m.matches) done(); }); }
+      window.onload=function(){
+        // コンテナ番号の自動縮小
+        document.querySelectorAll('.sla-numbox').forEach(function(box){
+          var size=15; box.style.fontSize=size+'mm';
+          while(box.scrollWidth>box.clientWidth && size>5){ size-=0.5; box.style.fontSize=size+'mm'; }
+        });
+        setTimeout(function(){ window.focus(); window.print(); }, 250);
+      };
+    })();
+  <\/script>
+  </body></html>`);
+  w.document.close();
+}
+
 function openWarnModal(){
   buildWarnTemplates();
   refreshSavedWarnSelect();
