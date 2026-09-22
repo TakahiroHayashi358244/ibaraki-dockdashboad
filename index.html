@@ -204,8 +204,9 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
 /* IDXへの反映状況（逆連携） */
 .c-idx{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px;margin:0 0 4px;}
-.c-idx.ok{background:#e8f5e9;color:#1b5e20;}
+.c-idx.ok{background:#2e7d32;color:#fff;box-shadow:0 0 0 2px rgba(46,125,50,.18);}
 .c-idx.info{background:#eceff1;color:#37474f;}
+.c-idx.checkin{background:#0277bd;color:#fff;box-shadow:0 0 0 2px rgba(2,119,189,.18);}
 .c-idx.wait{background:#e3f2fd;color:#0d47a1;}
 .c-idx.err{background:#ffebee;color:#b71c1c;}
 .stat.idx-warn{display:none;cursor:pointer;background:#ffebee;color:#b71c1c;}
@@ -1186,7 +1187,8 @@ function idxBadgeOf(c){
   if(cmd && cmd.state==='done' && (cmd.doneAt||0)>=at){ text=cmd.target; at=cmd.doneAt||0; }
   if(!text) return '';
   const closed=/(^|[^A-Za-z])CLOSED?([^A-Za-z]|$)/i.test(text);
-  return `<span class="c-idx ${closed?'ok':'info'}">IDX ${esc(text)}</span>`;
+  const checked=/CHECK(ED)?[_ -]?IN/i.test(text);              // CHECKED_IN だけ青で目立たせる
+  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}">IDX ${esc(text)}</span>`;
 }
 // IDXへ反映できなかったカードの件数表示
 function refreshIdxTrouble(){
