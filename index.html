@@ -202,6 +202,14 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.03em;
 }
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
+/* IDXへの反映状況（逆連携） */
+.c-idx{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px;margin:0 0 4px;}
+.c-idx.ok{background:#e8f5e9;color:#1b5e20;}
+.c-idx.info{background:#eceff1;color:#37474f;}
+.c-idx.wait{background:#e3f2fd;color:#0d47a1;}
+.c-idx.err{background:#ffebee;color:#b71c1c;}
+.stat.idx-warn{display:none;cursor:pointer;background:#ffebee;color:#b71c1c;}
+.stat.idx-warn.show{display:flex;}
 .c-memo{margin:0 0 6px;font-size:11px;color:#7a5c00;background:#fffbe6;
   border:1px solid #f0e3a8;border-radius:6px;padding:4px 7px;line-height:1.4;
   word-break:break-word;white-space:pre-wrap;}
@@ -525,6 +533,9 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="stat"><b id="st-plan">0</b>予定</div>
       <div class="stat"><b id="st-arr">0</b>着車</div>
       <div class="stat"><b id="st-done">0</b>完了</div>
+      <div class="stat idx-warn" id="st-idx" onclick="openIdxTrouble()" title="IDXへ反映できていないカード">
+        <b id="st-idx-n">0</b>IDX未反映
+      </div>
       <div class="spacer"></div>
       <div class="zoom-ctl" title="表示倍率">
         <button class="zbtn" onclick="bumpZoom(-10)">−</button>
@@ -583,6 +594,18 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="row-inp">
         <label class="chk"><input type="checkbox" id="idxAuto" onchange="setIdxAuto(this.checked)">IDXでステータスがCLOSEDになったカードを自動で「完了」へ移動する</label>
       </div>
+      <div class="note" id="idxInfo">受信状況を確認中…</div>
+      <div class="row-inp">
+        <label class="chk"><input type="checkbox" id="idxRev" onchange="setIdxRev(this.checked)">着車→CHECKED_IN、完了→CLOSED にIDXのステータスも変更する（逆連携）</label>
+      </div>
+      <div class="retain-row">
+        <label>連携コード</label>
+        <input class="inp" id="idxRevCode" onchange="setIdxRevCode(this.value)" placeholder="例: hfo1-dock-01">
+        <span class="ru">マスターPCの監視スクリプトと同じ文字列</span>
+      </div>
+      <div class="note">この2つの設定は全PCで共有されます。指示を実行するのは登録された「マスターPC」1台だけで（他の端末で逆連携をオンにしても待機になります）、ダッシュボードは何台からでも操作できます。上の行にマスターPCの名前と最終確認時刻が出ます。マスターを別のPCへ移すときは、そのPCの監視パネルで「このPCをマスターにする」を押してください。</div>
+      <div class="note warn-note">⚠ 逆連携をオンにすると、IDXの実データを書き換えます。完了へ移動するときは確認ダイアログが出ます（キャンセルするとカードも移動しません）。着車は確認なしで反映されます。マスターPCが応答していないときは、指示を積んだうえで警告を出します（10分以内に復帰すれば実行されます）。</div>
+
       <div class="note">IDXのDay Scheduleで監視スクリプトが動いているPCが1台必要です。Appointment Idで突き合わせ、完了時刻はIDXでCLOSEDにした時刻、担当者は「IDX自動」として記録されます。キャンセルは対象外です。この設定はこのPCのみに適用されます。</div>
 
       <div class="sec-title">カードに表示する項目</div>
@@ -869,6 +892,22 @@ const IDX_AUTO_KEY = "dock_idx_auto";
 let idxStatusMap = {};              // 最新の /dock/idxStatus
 let idxAuto = true;                 // このPCで自動完了を有効にするか（localStorage保存）
 
+/* ============ IDXへの逆連携（着車→CHECKED_IN／完了→CLOSED） ============
+   /dock/idxCommands に指示を積み、同じ連携コードを設定したIDX側のスクリプトが
+   詳細画面のステータスを変更する。IDXの実データを書き換えるため既定はオフ。 */
+const IDX_CMD_PATH = "idxCommands";
+const IDX_SITE     = "HFO1";
+const IDX_CMD_KEEP_H = 1;           // 指示の保持時間
+const IDX_REV_KEY  = "dock_idx_rev";
+let idxRev = { enabled:false, code:'' };   // このPCの設定（localStorage保存）
+let idxCmdMap = {};                        // 最新の /dock/idxCommands
+let myCmdKeys = {};                        // このPCが出した指示（結果を知らせるため）
+const IDX_WORKER_PATH = "idxWorker";       // 逆連携をオンにしている端末の一覧（待機中も含む）
+const IDX_MASTER_PATH = "idxMaster";       // 実際に実行する1台
+const IDX_WORKER_ALIVE_MS = 3 * 60000;     // この時間内に更新があれば稼働中とみなす
+let idxWorkers = {};                       // 最新の /dock/idxWorker
+let idxMaster = null;                      // 最新の /dock/idxMaster
+
 /* ============ CSV パーサ（クオート対応） ============ */
 function parseCSV(text){
   text = text.replace(/^\uFEFF/,'');
@@ -1082,6 +1121,7 @@ function cardHTML(c){
   }
   const memoRow = c.memo && c.memo.trim()
     ? `<div class="c-memo">📝 ${esc(c.memo)}</div>` : '';
+  const idxRow = idxBadgeOf(c);
   const isManual = /^M/.test(c.id);
   const idHtml = isManual
     ? `<div class="c-id c-id-manual">${esc(c.id)}</div>`
@@ -1091,10 +1131,47 @@ function cardHTML(c){
     <div class="c-topright">${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
+    ${idxRow}
     ${idHtml}
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
   </div>`;
+}
+// そのカードに対する最新のIDX指示
+function latestCmdFor(id){
+  let best=null;
+  Object.values(idxCmdMap||{}).forEach(c=>{ if(c && c.id===id && (!best || (c.at||0)>(best.at||0))) best=c; });
+  return best;
+}
+// カードに出すIDXの反映状況（逆連携を使わない場合は受信したステータスのみ表示）
+// IDXの現在のステータスを表示する（IDX側で変更してもダッシュボードから変更しても同じ表示）。
+function idxBadgeOf(c){
+  const cmd=latestCmdFor(c.id);
+  if(cmd && cmd.state==='error') return `<span class="c-idx err" title="${escAttr(cmd.message||'')}">IDX 未反映</span>`;
+  if(cmd && (cmd.state==='pending'||cmd.state==='running'))
+    return `<span class="c-idx wait">IDX ${cmd.target==='CLOSED'?'クローズ中':'着車登録中'}…</span>`;
+  // IDXから届いた状態と、指示の結果のうち新しいほうを表示
+  const st=idxStatusMap[c.id];
+  let text='', at=0;
+  if(st && (st.raw||st.status)){ text=String(st.raw||st.status); at=st.at||0; }
+  if(cmd && cmd.state==='done' && (cmd.doneAt||0)>=at){ text=cmd.target; at=cmd.doneAt||0; }
+  if(!text) return '';
+  const closed=/(^|[^A-Za-z])CLOSED?([^A-Za-z]|$)/i.test(text);
+  return `<span class="c-idx ${closed?'ok':'info'}">IDX ${esc(text)}</span>`;
+}
+// IDXへ反映できなかったカードの件数表示
+function refreshIdxTrouble(){
+  const el=document.getElementById('st-idx');
+  if(!el) return;
+  const bad=state.cards.filter(c=>{ const m=latestCmdFor(c.id); return m && m.state==='error'; });
+  document.getElementById('st-idx-n').textContent=bad.length;
+  el.classList.toggle('show', bad.length>0);
+}
+function openIdxTrouble(){
+  const bad=state.cards.map(c=>({c, m:latestCmdFor(c.id)})).filter(x=>x.m && x.m.state==='error');
+  if(!bad.length){ toast('IDXへ反映できていないカードはありません'); return; }
+  alert('IDXへ反映できていないカードです。IDXの画面で直接変更してください。\n\n'
+    + bad.map(x=>`${x.c.id}  ${(x.c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'')}\n  → ${x.m.target} / ${x.m.message||'理由不明'}`).join('\n\n'));
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
 // バース名が枠からはみ出すものだけ、マーキー（横スクロール）を有効化
@@ -1183,6 +1260,7 @@ function sortDone(arr){
 function setDoneSort(v){ state.doneSort=v; render(); }
 
 function render(){
+  refreshIdxTrouble();
   // plan（sortKey 昇順）
   const plan=sortPlan(state.cards.filter(c=>c.status==='plan'));
   document.getElementById('plan-list').innerHTML =
@@ -1251,6 +1329,17 @@ function requireOperator(){
 function moveCardTo(c, zone, bay){
   if(!c) return false;
   if(!requireOperator()) return false;
+  // IDXへの逆連携がオンのときは、完了にする前に必ず確認する（IDXの実データを変えるため）
+  if(zone==='done' && c.status!=='done' && idxRevActive()){
+    const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'');
+    const msg='このトラックを完了にします。\n'
+      + 'IDXのステータスも CLOSED に変更します。\n\n'
+      + 'Appointment Id: '+c.id+'\n'
+      + (carrier?('Carrier: '+carrier+'\n'):'')
+      + '\nよろしいですか？';
+    if(!confirm(msg)) return false;
+  }
+  const wasStatus=c.status;
   const before=locLabel(c);
   if(zone==='arrive'){
     const occupant=state.cards.find(x=>x.status==='arrive'&&x.bay===bay&&x.id!==c.id);
@@ -1265,6 +1354,9 @@ function moveCardTo(c, zone, bay){
   else return false;
   const after=locLabel(c);
   if(before!==after) recordMove(c, before, after);
+  // IDXへの指示（着車は初めて着車枠に入れたときだけ。バース間の移動では送らない）
+  if(zone==='arrive' && wasStatus!=='arrive') sendIdxCommand(c, 'CHECKED_IN');
+  if(zone==='done' && wasStatus!=='done') sendIdxCommand(c, 'CLOSED');
   render();
   pushCards();
   return true;
@@ -1368,7 +1460,7 @@ function cssEsc(s){ return String(s).replace(/["\\]/g,'\\$&'); }
 
 /* ============ 設定モーダル ============ */
 const LOG_DAYS_MAX=90, LOG_MAX_MAX=2000;
-function openSettings(){buildFields();buildDetailFields();buildSortKey();buildLogRetain();buildFloorEditor();document.getElementById('idxAuto').checked=idxAuto;document.getElementById('settings').classList.add('show');}
+function openSettings(){buildFields();buildDetailFields();buildSortKey();buildLogRetain();buildFloorEditor();document.getElementById('idxAuto').checked=idxAuto;document.getElementById('idxRev').checked=idxRev.enabled;document.getElementById('idxRevCode').value=idxRev.code;refreshIdxInfo();document.getElementById('settings').classList.add('show');}
 function closeSettings(){document.getElementById('settings').classList.remove('show');render();}
 function buildLogRetain(){
   document.getElementById('logDays').value=state.logRetainDays;
@@ -2690,8 +2782,31 @@ function setupDB(){
     // IDX連携：CLOSEDになったAppointment Idを受信 → カードを完了へ移動
     root.child(IDX_PATH).on('value', s=>{
       idxStatusMap = s.val()||{};
+      idxLastRecv = Date.now();
+      console.log('[IDX連携] 受信', idxStatusMap);
       applyIdxStatus();
       cleanupIdxStatus();
+      render();
+      refreshIdxInfo();
+    });
+    // IDXへの変更指示の結果を受信
+    root.child(IDX_CMD_PATH).on('value', s=>{
+      idxCmdMap = s.val()||{};
+      handleIdxCommands(idxCmdMap);
+      cleanupIdxCommands();
+      render();              // カードの反映状況バッジを更新
+      refreshIdxInfo();
+    });
+    // 逆連携をオンにしている端末の一覧（待機中も含む）
+    root.child(IDX_WORKER_PATH).on('value', s=>{
+      idxWorkers = s.val()||{};
+      cleanupIdxWorkers();
+      refreshIdxInfo();
+    });
+    // 実際に実行するマスターPC
+    root.child(IDX_MASTER_PATH).on('value', s=>{
+      idxMaster = s.val()||null;
+      refreshIdxInfo();
     });
     // バース構成（階層）受信
     root.child('floors').on('value', s=>{
@@ -2709,6 +2824,15 @@ function setupDB(){
       const cfg=s.val(); if(!cfg) return;
       if(cfg.logRetainDays) state.logRetainDays=cfg.logRetainDays;
       if(cfg.logRetainMax) state.logRetainMax=cfg.logRetainMax;
+      // 逆連携の設定は全PCで共有（どこか1台で設定すれば全台に反映される）
+      if(cfg.idxRev && typeof cfg.idxRev==='object'){
+        idxRev={enabled:!!cfg.idxRev.enabled, code:String(cfg.idxRev.code||'')};
+        try{ localStorage.setItem(IDX_REV_KEY, JSON.stringify(idxRev)); }catch(e){}
+        const rv=document.getElementById('idxRev'), rc=document.getElementById('idxRevCode');
+        if(rv) rv.checked=idxRev.enabled;
+        if(rc && document.activeElement!==rc) rc.value=idxRev.code;
+        refreshIdxInfo();
+      }
       if(document.getElementById('settings').classList.contains('show')) buildLogRetain();
     });
     // ログ 受信（キー付きで保持し、新しい順に並べる）
@@ -2730,6 +2854,32 @@ function setupDB(){
   }catch(e){ console.error(e); setSync('off'); }
 }
 /* ============ IDX連携：CLOSED → カードを完了へ ============ */
+let idxLastRecv=0;
+// 設定モーダルに出す受信状況（連携が届いているか・カードと一致しているかの確認用）
+function idxInfoText(){
+  const ids=Object.keys(idxStatusMap||{});
+  const match=ids.filter(id=>state.cards.some(c=>c.id===id));
+  const miss=ids.filter(id=>!state.cards.some(c=>c.id===id));
+  let t=`IDXからの受信 ${ids.length}件 / このCSVのカードと一致 ${match.length}件`;
+  if(miss.length) t+=` / 一致しないID ${miss.slice(0,5).join(', ')}${miss.length>5?' ほか':''}`;
+  t+= idxLastRecv ? ` / 最終受信 ${hhmm(idxLastRecv)}` : ' / まだ受信していません';
+  if(!fbReady) t+=' / Firebase未接続';
+  const pending=Object.values(idxCmdMap||{}).filter(c=>c&&c.state==='pending').length;
+  t+= ` / IDXへの逆連携 ${idxRevActive()?'ON':(idxRev.enabled?'ON（連携コード未入力）':'OFF')}`;
+  if(idxRev.enabled){
+    t+= idxMasterAlive()
+      ? ` / マスターPC ${idxMaster.label||'名称未設定'}（最終確認 ${hhmm(idxMaster.at)}）`
+      : (idxMaster ? ` / マスターPC ${idxMaster.label||'名称未設定'} が応答していません（最終確認 ${hhmm(idxMaster.at)}）` : ' / マスターPCが登録されていません');
+    const standby=idxAliveWorkers().filter(w=>!idxMaster||w.label!==idxMaster.label).length;
+    if(standby) t+=` / 待機中 ${standby}台`;
+  }
+  if(pending) t+=` / 未処理の指示 ${pending}件`;
+  return t;
+}
+function refreshIdxInfo(){
+  const el=document.getElementById('idxInfo');
+  if(el) el.textContent=idxInfoText();
+}
 function loadIdxAuto(){
   try{ const v=localStorage.getItem(IDX_AUTO_KEY); idxAuto = (v===null) ? true : (v==='1'); }catch(e){ idxAuto=true; }
 }
@@ -2761,6 +2911,82 @@ function applyIdxStatus(){
   });
   if(changed){ render(); pushCards(); }
 }
+/* ---- IDXへの逆連携 ---- */
+function loadIdxRev(){
+  try{ const v=JSON.parse(localStorage.getItem(IDX_REV_KEY)||'null');
+    if(v&&typeof v==='object') idxRev={enabled:!!v.enabled, code:String(v.code||'')};
+  }catch(e){}
+}
+function saveIdxRev(){
+  try{ localStorage.setItem(IDX_REV_KEY, JSON.stringify(idxRev)); }catch(e){}   // 接続前に表示するための控え
+  pushIdxRev();                                                                 // 設定は全PCで共有する
+}
+function pushIdxRev(){
+  if(!fbReady || !fbDB) return;
+  fbDB.ref(DOCK_ROOT+'/settings/idxRev').set({enabled:idxRev.enabled, code:idxRev.code}).catch(e=>console.error(e));
+}
+function setIdxRev(on){
+  idxRev.enabled=!!on; saveIdxRev(); refreshIdxInfo();
+  if(idxRev.enabled && !idxRev.code) warn('連携コードを入力してください（未入力の間はIDXへ指示を送りません）');
+  else if(idxRev.enabled && !idxWorkerAlive()) warn('逆連携をオンにしましたが、実行するマスターPCが見つかりません（IDX側の設定を確認してください）');
+  else toast(idxRev.enabled?'IDXのステータスも変更します（全PC共通の設定です）':'IDXへの変更指示を止めました（全PC共通の設定です）');
+}
+function setIdxRevCode(v){ idxRev.code=String(v||'').trim(); saveIdxRev(); refreshIdxInfo(); }
+const idxRevActive = () => idxRev.enabled && !!idxRev.code && fbReady && !!fbDB;
+
+// 登録されているマスターPCが稼働中か（実行するのはこの1台だけ）
+function idxMasterAlive(){
+  const m=idxMaster;
+  return !!(m && m.at && (Date.now()-m.at)<IDX_WORKER_ALIVE_MS && (!idxRev.code || m.code===idxRev.code));
+}
+// 逆連携をオンにしている端末（マスター以外は待機）
+function idxAliveWorkers(){
+  const now=Date.now();
+  return Object.values(idxWorkers||{}).filter(w=>w && w.at && (now-w.at)<IDX_WORKER_ALIVE_MS && (!idxRev.code || w.code===idxRev.code));
+}
+const idxWorkerAlive = () => idxMasterAlive();
+// 生存確認が1時間以上途絶えた記録を削除
+function cleanupIdxWorkers(){
+  if(!fbReady || !fbDB) return;
+  const cutoff=Date.now()-3600000;
+  const upd={};
+  Object.keys(idxWorkers||{}).forEach(k=>{ const w=idxWorkers[k]; if(!w || !w.at || w.at<cutoff) upd[k]=null; });
+  if(Object.keys(upd).length) fbDB.ref(DOCK_ROOT+'/'+IDX_WORKER_PATH).update(upd).catch(e=>console.error(e));
+}
+
+// IDXへステータス変更を指示する
+function sendIdxCommand(c, target){
+  if(!idxRevActive()) return;
+  const ref=fbDB.ref(DOCK_ROOT+'/'+IDX_CMD_PATH).push();
+  const cmd={ id:c.id, target, at:Date.now(), code:idxRev.code, site:IDX_SITE,
+    from:operator.trim()||'-', carrier:(c.fields["Carrier"]||''), state:'pending' };
+  myCmdKeys[ref.key]=cmd;
+  if(!idxWorkerAlive()) warn('マスターPCが応答していません。指示は積みましたが、10分以内に復帰しないと実行されません。');
+  ref.set(cmd)
+    .then(()=>toast(`IDXへ ${target} への変更を指示しました（${c.id}）`))
+    .catch(e=>{ console.error(e); warn('IDXへの指示を送れませんでした'); delete myCmdKeys[ref.key]; });
+}
+// 指示の結果を受け取って知らせる
+function handleIdxCommands(m){
+  Object.keys(myCmdKeys).forEach(k=>{
+    const c=m[k];
+    if(!c) return;
+    if(c.state==='done'){ toast(`IDXのステータスを変更しました（${c.id}）`); delete myCmdKeys[k]; }
+    else if(c.state==='error'){ warn(`IDXのステータスを変更できませんでした（${c.id}）: ${c.message||''}`); delete myCmdKeys[k]; }
+  });
+}
+function cleanupIdxCommands(){
+  if(!fbReady || !fbDB) return;
+  const cutoff=Date.now()-IDX_CMD_KEEP_H*3600000;
+  const upd={};
+  Object.keys(idxCmdMap||{}).forEach(k=>{
+    const c=idxCmdMap[k];
+    if(!c || !c.at || c.at<cutoff) upd[k]=null;
+  });
+  if(!Object.keys(upd).length) return;
+  fbDB.ref(DOCK_ROOT+'/'+IDX_CMD_PATH).update(upd).catch(e=>console.error(e));
+}
+
 // 古い idxStatus を削除（どのPCからでも実行。48時間より前の記録が対象）
 function cleanupIdxStatus(){
   if(!fbReady || !fbDB) return;
@@ -2828,6 +3054,7 @@ function cleanupLogs(){
 loadOperator();
 loadZoom();
 loadIdxAuto();
+loadIdxRev();
 loadInitial();
 initFirebase();
 </script>
