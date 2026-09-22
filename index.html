@@ -546,8 +546,6 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <h1><span class="dot"></span>ドックダッシュボード</h1>
       <span class="clock" id="clock"></span>
       <span class="sync-status" id="syncStatus" title="同期状態">●</span>
-    </div>
-    <div class="hdr-bottom">
       <div class="operator">
         <span class="op-label">担当者</span>
         <input class="op-input" id="opName" placeholder="名前を入力" oninput="setOperator(this.value)">
@@ -559,6 +557,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
         <span class="sc-info" id="searchInfo"></span>
         <button class="sc-clear" id="searchClear" onclick="clearSearch()" title="クリア（Esc）">×</button>
       </div>
+    </div>
+    <div class="hdr-bottom">
       <div class="stat"><b id="st-plan">0</b>予定</div>
       <div class="stat"><b id="st-arr">0</b>着車</div>
       <div class="stat"><b id="st-done">0</b>完了</div>
