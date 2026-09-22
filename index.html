@@ -579,6 +579,12 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       </div>
       <div class="note">CSV読込は予約データの取り込み、保存/復元は現在の配置状態をファイルに書き出し/読み込みします。</div>
 
+      <div class="sec-title">IDX連携（自動完了）</div>
+      <div class="row-inp">
+        <label class="chk"><input type="checkbox" id="idxAuto" onchange="setIdxAuto(this.checked)">IDXでステータスがCLOSEDになったカードを自動で「完了」へ移動する</label>
+      </div>
+      <div class="note">IDXのDay Scheduleで監視スクリプトが動いているPCが1台必要です。Appointment Idで突き合わせ、完了時刻はIDXでCLOSEDにした時刻、担当者は「IDX自動」として記録されます。キャンセルは対象外です。この設定はこのPCのみに適用されます。</div>
+
       <div class="sec-title">カードに表示する項目</div>
       <div class="chk-grid" id="field-list"></div>
 
@@ -852,6 +858,17 @@ const FIREBASE_CONFIG = {
 };
 const DOCK_ROOT = "dock";   // このアプリのデータ保存先ルート（配置ダッシュボードの /haichi とは分離）
 
+/* ============ IDX連携（Closed → 自動完了） ============
+   IDXのTampermonkeyスクリプトが /dock/idxStatus/<Appointment Id> に
+   {status:"CLOSED", at:<ms>, ...} を書き込む。ここを購読して該当カードを完了へ移動する。
+   ※ placement は pushCards() が全体を set() で上書きするため、連携用は別パスに分けている。 */
+const IDX_PATH   = "idxStatus";
+const IDX_OP     = "IDX自動";      // 操作ログ・完了カードに表示される担当者名
+const IDX_KEEP_H = 48;              // idxStatus の保持時間（これより古い記録は自動削除）
+const IDX_AUTO_KEY = "dock_idx_auto";
+let idxStatusMap = {};              // 最新の /dock/idxStatus
+let idxAuto = true;                 // このPCで自動完了を有効にするか（localStorage保存）
+
 /* ============ CSV パーサ（クオート対応） ============ */
 function parseCSV(text){
   text = text.replace(/^\uFEFF/,'');
@@ -912,6 +929,7 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
+      c.idxClosedAt=p.idxClosedAt||null;
       if(c.id===detailCardId){
         const ta=document.getElementById('memoInput');
         c.memo = ta ? ta.value : (p.memo||null);
@@ -919,7 +937,7 @@ function applyPlacement(placement){
         c.memo = p.memo||null;
       }
     }
-    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; if(c.id!==detailCardId) c.memo=null; }
+    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; if(c.id!==detailCardId) c.memo=null; }
   });
   render();
 }
@@ -945,14 +963,16 @@ function loadCSV(ev){
     state.cards.forEach(c=>{
       prevById[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
         arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
-        doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null};
+        doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
+        idxClosedAt:c.idxClosedAt||null};
     });
     ingest(headers,data);
     // 新CSVに含まれるIDのうち、以前の情報があれば復元
     state.cards.forEach(c=>{
       const p=prevById[c.id];
       if(p){ c.status=p.status||'plan'; c.bay=p.bay; c.arriveAt=p.arriveAt;
-        c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo; }
+        c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo;
+        c.idxClosedAt=p.idxClosedAt||null; }
     });
     render();
     recordCsvLoad(data.length);
@@ -966,7 +986,8 @@ function loadCSV(ev){
         if(prevById[c.id]){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
-            doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null};
+            doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
+            idxClosedAt:c.idxClosedAt||null};
         }
       });
       fbPlacement=carried;
@@ -1347,7 +1368,7 @@ function cssEsc(s){ return String(s).replace(/["\\]/g,'\\$&'); }
 
 /* ============ 設定モーダル ============ */
 const LOG_DAYS_MAX=90, LOG_MAX_MAX=2000;
-function openSettings(){buildFields();buildDetailFields();buildSortKey();buildLogRetain();buildFloorEditor();document.getElementById('settings').classList.add('show');}
+function openSettings(){buildFields();buildDetailFields();buildSortKey();buildLogRetain();buildFloorEditor();document.getElementById('idxAuto').checked=idxAuto;document.getElementById('settings').classList.add('show');}
 function closeSettings(){document.getElementById('settings').classList.remove('show');render();}
 function buildLogRetain(){
   document.getElementById('logDays').value=state.logRetainDays;
@@ -1727,9 +1748,9 @@ function addLog(entry){
     cleanupLocalLogs();
   }
 }
-function recordMove(c, from, to){
+function recordMove(c, from, to, who){
   const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'') || c.id;
-  addLog({ ts:Date.now(), who:operator.trim(), type:'move', cardId:c.id, carrier, from, to });
+  addLog({ ts:Date.now(), who:(who||operator.trim()), type:'move', cardId:c.id, carrier, from, to });
 }
 function recordCsvLoad(count){
   addLog({ ts:Date.now(), who:operator.trim()||'-', type:'csv', count });
@@ -2601,6 +2622,7 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
+      c.idxClosedAt=p.idxClosedAt||null;
       // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
       // それ以外はFirebaseのメモを反映。
       if(c.id===detailCardId){
@@ -2654,6 +2676,7 @@ function setupDB(){
       if(nm){
         fbMaster=nm;
         rebuildFromFB();
+        applyIdxStatus();   // 新しいカードにIDXのCLOSEDを反映
       }
       // masterが空でも何もしない（誰かがCSVを読み込むまで各PCは内蔵データを表示）
     });
@@ -2662,6 +2685,13 @@ function setupDB(){
       fbPlacement = s.val()||{};
       if(fbMaster){ rebuildFromFB(); }
       else { fbApplying=true; applyPlacement(fbPlacement); fbApplying=false; }
+      applyIdxStatus();
+    });
+    // IDX連携：CLOSEDになったAppointment Idを受信 → カードを完了へ移動
+    root.child(IDX_PATH).on('value', s=>{
+      idxStatusMap = s.val()||{};
+      applyIdxStatus();
+      cleanupIdxStatus();
     });
     // バース構成（階層）受信
     root.child('floors').on('value', s=>{
@@ -2699,6 +2729,51 @@ function setupDB(){
     });
   }catch(e){ console.error(e); setSync('off'); }
 }
+/* ============ IDX連携：CLOSED → カードを完了へ ============ */
+function loadIdxAuto(){
+  try{ const v=localStorage.getItem(IDX_AUTO_KEY); idxAuto = (v===null) ? true : (v==='1'); }catch(e){ idxAuto=true; }
+}
+function setIdxAuto(on){
+  idxAuto=!!on;
+  try{ localStorage.setItem(IDX_AUTO_KEY, idxAuto?'1':'0'); }catch(e){}
+  if(idxAuto) applyIdxStatus();
+  toast(idxAuto?'IDXのCLOSEDで自動完了します':'IDX連携による自動完了を止めました');
+}
+// idxStatus を現在のカードへ適用する。
+// ・同じ at を処理済みのカードは触らない（手動で予定へ戻したものを勝手に完了へ戻さない）
+// ・担当者名は IDX_OP 固定（requireOperator は通さない）
+function applyIdxStatus(){
+  if(!idxAuto) return;
+  const m=idxStatusMap; if(!m || !state.cards.length) return;
+  let changed=false;
+  Object.keys(m).forEach(id=>{
+    const v=m[id];
+    if(!v || v.status!=='CLOSED') return;
+    const c=state.cards.find(x=>x.id===id);
+    if(!c) return;                       // このCSVに無いAppointment Idは無視
+    if(c.idxClosedAt===v.at) return;     // 処理済み
+    if(c.status==='done'){ c.idxClosedAt=v.at; changed=true; return; }  // 既に完了なら記録だけ
+    const before=locLabel(c);
+    c.status='done'; c.bay=null;
+    c.doneAt=v.at||Date.now(); c.doneOp=IDX_OP; c.idxClosedAt=v.at;
+    recordMove(c, before, locLabel(c)+'（IDX CLOSED）', IDX_OP);
+    changed=true;
+  });
+  if(changed){ render(); pushCards(); }
+}
+// 古い idxStatus を削除（どのPCからでも実行。48時間より前の記録が対象）
+function cleanupIdxStatus(){
+  if(!fbReady || !fbDB) return;
+  const cutoff=Date.now()-IDX_KEEP_H*3600000;
+  const upd={};
+  Object.keys(idxStatusMap||{}).forEach(id=>{
+    const v=idxStatusMap[id];
+    if(!v || !v.at || v.at<cutoff) upd[id]=null;
+  });
+  if(!Object.keys(upd).length) return;
+  fbDB.ref(DOCK_ROOT+'/'+IDX_PATH).update(upd).catch(e=>console.error(e));
+}
+
 // 配置状態を送信
 function pushCards(){
   if(!fbReady || fbApplying || !fbDB) return;
@@ -2706,7 +2781,8 @@ function pushCards(){
   state.cards.forEach(c=>{ placement[c.id]={
     status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
     arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
-    doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null
+    doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
+    idxClosedAt:c.idxClosedAt||null
   }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
@@ -2751,6 +2827,7 @@ function cleanupLogs(){
 /* ============ Boot ============ */
 loadOperator();
 loadZoom();
+loadIdxAuto();
 loadInitial();
 initFirebase();
 </script>
