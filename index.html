@@ -318,6 +318,28 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .op-input{border:none;background:transparent;font-size:14px;font-weight:700;
   color:var(--ink);font-family:inherit;width:120px;outline:none;}
 .op-input::placeholder{color:#bbb;font-weight:500;}
+/* ===== 検索（Appointment Id） ===== */
+.search-box{display:flex;align-items:center;gap:6px;flex-shrink:0;
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:4px 8px;}
+.search-box.active{border-color:#00b0ff;background:#f0faff;}
+.sc-icon{font-size:12px;opacity:.7;}
+.sc-input{border:none;background:transparent;font-size:14px;font-weight:700;color:var(--ink);
+  font-family:inherit;width:210px;outline:none;}
+.sc-input::placeholder{color:#bbb;font-weight:500;font-size:12px;}
+.sc-info{font-size:11px;font-weight:700;color:var(--sub);white-space:nowrap;min-width:44px;text-align:right;}
+.sc-info.hit{color:#0277bd;}
+.sc-info.miss{color:#c62828;}
+.sc-clear{display:none;border:none;background:#dde3ea;color:#445;border-radius:50%;
+  width:18px;height:18px;line-height:1;cursor:pointer;font-size:13px;font-weight:700;padding:0;}
+.search-box.active .sc-clear{display:block;}
+/* 一致したカード */
+.card.hit{outline:3px solid #00b0ff;outline-offset:-3px;
+  box-shadow:0 0 0 3px rgba(0,176,255,.25),0 0 14px 3px rgba(0,176,255,.45);}
+.card.hit.now{animation:cardHitPulse .8s ease-in-out 3;}
+@keyframes cardHitPulse{
+  0%,100%{box-shadow:0 0 0 3px rgba(0,176,255,.25),0 0 14px 3px rgba(0,176,255,.45);}
+  50%{box-shadow:0 0 0 9px rgba(0,176,255,.15),0 0 26px 10px rgba(0,176,255,.85);}
+}
 .sync-status{font-size:12px;margin-left:4px;color:#bbb;transition:.3s;}
 .sync-status.on{color:var(--green);}
 .sync-status.off{color:#e05050;}
@@ -529,6 +551,13 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="operator">
         <span class="op-label">担当者</span>
         <input class="op-input" id="opName" placeholder="名前を入力" oninput="setOperator(this.value)">
+      </div>
+      <div class="search-box" id="searchBox">
+        <span class="sc-icon">🔍</span>
+        <input class="sc-input" id="searchInput" placeholder="Appointment Id を検索（4文字以上）"
+               autocomplete="off" oninput="onSearchInput()" onkeydown="onSearchKey(event)">
+        <span class="sc-info" id="searchInfo"></span>
+        <button class="sc-clear" id="searchClear" onclick="clearSearch()" title="クリア（Esc）">×</button>
       </div>
       <div class="stat"><b id="st-plan">0</b>予定</div>
       <div class="stat"><b id="st-arr">0</b>着車</div>
@@ -1299,6 +1328,76 @@ function render(){
   document.getElementById('st-done').textContent=done.length;
   if(typeof updateElapsed==='function') updateElapsed();
   if(typeof setupBayMarquee==='function') setupBayMarquee();
+  if(typeof applySearch==='function') applySearch();   // 検索のハイライトを貼り直す
+}
+
+/* ============ 検索（Appointment Id） ============ */
+const SEARCH_MIN = 4;        // 何文字入力されたら検索を始めるか
+let searchQ = '';            // 小文字にした検索語（未満のときは空）
+let searchHits = [];         // 一致したカードID
+let searchIdx = -1;          // Enterで巡回する位置
+function cardMatches(c, q){
+  if(String(c.id).toLowerCase().includes(q)) return true;
+  if(String(c.fields["Carrier"]||'').toLowerCase().includes(q)) return true;
+  return String(c.memo||'').toLowerCase().includes(q);
+}
+function cardEl(id){
+  return [...document.querySelectorAll('.card[data-id]')].find(el=>el.dataset.id===id) || null;
+}
+function onSearchInput(){
+  const raw=document.getElementById('searchInput').value.trim();
+  searchQ = raw.length>=SEARCH_MIN ? raw.toLowerCase() : '';
+  searchIdx=-1;
+  applySearch();
+  if(searchQ && searchHits.length) focusHit(0);      // 最初の一致まで移動
+}
+function onSearchKey(e){
+  if(e.key==='Escape'){ e.preventDefault(); clearSearch(); return; }
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(!searchHits.length) return;
+    focusHit((searchIdx+1)%searchHits.length);       // 複数一致は Enter で次へ
+  }
+}
+function clearSearch(){
+  const el=document.getElementById('searchInput');
+  el.value=''; searchQ=''; searchHits=[]; searchIdx=-1;
+  applySearch(); el.focus();
+}
+// 現在の盤面にハイライトを反映する（描画のたびに呼ばれる）
+function applySearch(){
+  const box=document.getElementById('searchBox');
+  const info=document.getElementById('searchInfo');
+  const inp=document.getElementById('searchInput');
+  if(!box||!info||!inp) return;
+  searchHits = searchQ ? state.cards.filter(c=>cardMatches(c,searchQ)).map(c=>c.id) : [];
+  const set=new Set(searchHits);
+  document.querySelectorAll('.card[data-id]').forEach(el=>{
+    const on = searchQ && set.has(el.dataset.id);
+    el.classList.toggle('hit', !!on);
+    if(!on) el.classList.remove('now');
+  });
+  box.classList.toggle('active', !!inp.value);
+  if(!searchQ){
+    info.textContent = inp.value ? `あと${SEARCH_MIN-inp.value.trim().length}文字` : '';
+    info.className='sc-info';
+    return;
+  }
+  info.textContent = searchHits.length ? `${searchHits.length}件` : '該当なし';
+  info.className = 'sc-info ' + (searchHits.length?'hit':'miss');
+  if(searchIdx>=0 && searchHits.length>1) info.textContent = `${searchIdx+1}/${searchHits.length}件`;
+}
+// i番目の一致へスクロールして、そのカードを強調する
+function focusHit(i){
+  if(!searchHits.length) return;
+  searchIdx=i;
+  document.querySelectorAll('.card.now').forEach(el=>el.classList.remove('now'));
+  const el=cardEl(searchHits[i]);
+  if(!el) return;
+  el.classList.add('now');
+  el.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});
+  const info=document.getElementById('searchInfo');
+  if(info && searchHits.length>1) info.textContent=`${i+1}/${searchHits.length}件`;
 }
 
 /* ============ Drag & Drop ============ */
