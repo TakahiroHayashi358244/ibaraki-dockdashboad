@@ -636,7 +636,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
         <button class="btn" onclick="closeSettings();openLogs()">📋 操作ログ</button>
         <button class="btn" onclick="closeSettings();document.getElementById('csvFile').click()">CSV読込</button>
         <button class="btn" onclick="switchToNextMaster()">翌日CSVを取込</button>
-        <button class="btn" onclick="window.open('plan.html','_blank')">着車プラン</button>
+        <button class="btn" onclick="location.href='plan.html'">着車プラン</button>
         <button class="btn" onclick="exportState()">状態を保存</button>
         <button class="btn" onclick="document.getElementById('stateFile').click()">状態を復元</button>
       </div>
@@ -3289,5 +3289,6 @@ loadIdxRev();
 loadInitial();
 initFirebase();
 </script>
+<script src="appnav.js" data-app="dock"></script>
 </body>
 </html>
