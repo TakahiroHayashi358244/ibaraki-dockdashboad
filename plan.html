@@ -322,7 +322,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
   <div class="modal" style="width:880px;max-width:96vw">
     <h2>ドックマスタへ反映<span class="x" onclick="closeDoorPush()">×</span></h2>
     <div class="modal-body">
-      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。<br>「現在」はIDX側から返ってきた<b>いま実際に入っている番号</b>です（<span class="note">実</span>付きはCSV取込後に変わったもの）。すでに計画どおりの番号が入っている便は一覧に出ません。</div>
+      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。<br>「現在」はIDX側から返ってきた<b>いま実際に入っている番号</b>です（<span class="note">実</span>付きはCSV取込後に変わったもの）。すでに計画どおりの番号が入っている便は一覧に出ません。<br>その番号が同じ時間に埋まっていた場合は、<b>同じフロアの次の空きドア</b>を順に試します。同じフロアに空きが無ければ失敗として表示します。</div>
       <div class="ai-status" id="dpStatus"></div>
       <div class="dp-wrap"><table class="dp-tab" id="dpTab"></table></div>
       <div class="dlg-actions" style="justify-content:space-between">
@@ -1357,22 +1357,39 @@ function floorDoors(fname) {
   const list = String(ov || "").split(/[,\s、]+/).map(x => x.trim()).filter(Boolean);
   return list.length ? list : floorDoorsAuto(fname);
 }
-// 予約ごとの反映先ドア番号を決める（フロアごとに、空いているドアを着車の早い順に使う）
+// 予約ごとの反映先ドア番号を決める。
+// ① いま入っているドアが計画フロアのもので、同じ時間に重ならなければそのまま使う（無駄な変更をしない）
+// ② 残りに、空いているドアを着車の早い順に割り当てる
+// あわせて、IDX側で断られたときの「同じフロアの次の候補」も返す
 function doorPlan() {
   const out = {};
   S.floors.forEach(fl => {
     const doors = floorDoors(fl.name);
     if (!doors.length) return;
     const used = {};
-    S.appts.filter(a => cellOf(a).f === fl.name)
-      .sort((x, y) => winOf(x).s - winOf(y).s || winOf(x).e - winOf(y).e)
-      .forEach(a => {
-        const w = winOf(a);
-        const d = doors.find(x => !(used[x] || []).some(v => v.s < w.e && w.s < v.e));
-        if (!d) return;                       // 同じ時間に空きドアが無い
-        (used[d] = used[d] || []).push(w);
-        out[a.key] = d;
-      });
+    const free = (x, w) => !(used[x] || []).some(v => v.s < w.e && w.s < v.e);
+    const take = (a, d, w) => { (used[d] = used[d] || []).push(w); out[a.key] = { door: d, alts: [] }; };
+    const list = S.appts.filter(a => cellOf(a).f === fl.name)
+      .sort((x, y) => winOf(x).s - winOf(y).s || winOf(x).e - winOf(y).e);
+    // ① いまのドアを引き継ぐ
+    const rest = [];
+    list.forEach(a => {
+      const cur = curDoor(a), w = winOf(a);
+      if (cur && doors.includes(cur) && free(cur, w)) take(a, cur, w); else rest.push(a);
+    });
+    // ② 残りへ割り当て
+    rest.forEach(a => {
+      const w = winOf(a);
+      const d = doors.find(x => free(x, w));
+      if (!d) return;                       // 同じ時間に空きドアが無い
+      take(a, d, w);
+    });
+    // 代わりの候補（同じフロアで、その時間に自分の計画上あいている番号）
+    list.forEach(a => {
+      const o = out[a.key]; if (!o) return;
+      const w = winOf(a);
+      o.alts = doors.filter(x => x !== o.door && !(used[x] || []).some(v => v.s < w.e && w.s < v.e)).slice(0, 8);
+    });
   });
   return out;
 }
@@ -1394,11 +1411,12 @@ function doorDiff() {
   const rows = [];
   S.appts.forEach(a => {
     const c = cellOf(a); if (!c.f) return;
-    const from = curDoor(a), to = dp[a.key] || null;
+    const from = curDoor(a), o = dp[a.key] || null;
+    const to = o ? o.door : null;
     const idx = doorFromIdx(a);
     if (!to) { rows.push({ a, from, to: null, short: true, idx }); return; }
     if (to === from) return;                                  // すでにその番号が入っている（反映済み）
-    rows.push({ a, from, to, ng: !doorExists(to), idx });
+    rows.push({ a, from, to, alts: o.alts || [], ng: !doorExists(to), idx });
   });
   return rows.sort((x, y) => winOf(x.a).s - winOf(y.a).s);
 }
@@ -1657,7 +1675,7 @@ function runDoorPush() {
     x.sel = false;
     const r = ref.push();
     x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending", at: Date.now() };
-    r.set({ id: x.a.id, door: x.to, from: x.from || null, code: idxCode, site: "HFO1",
+    r.set({ id: x.a.id, door: x.to, alts: (x.alts || []).filter(doorExists), from: x.from || null, code: idxCode, site: "HFO1",
       at: Date.now(), state: "pending", by: "plan" })
       .catch(e => { dpState[r.key] = { state: "error", message: "送信失敗: " + (e.message || e) }; renderDoorTab(); });
   });
