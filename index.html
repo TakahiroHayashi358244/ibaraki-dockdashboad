@@ -615,6 +615,18 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 </div>
 
 <!-- Settings modal -->
+<div class="overlay" id="nmConfirm" style="z-index:1200">
+  <div class="modal" style="max-width:480px">
+    <h2 id="nmTitle">CSVの取込</h2>
+    <div class="modal-body">
+      <div id="nmMsg" style="font-size:14px;line-height:1.8;white-space:pre-wrap"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <button class="btn" id="nmNo">キャンセル</button>
+        <button class="btn primary" id="nmYes">取り込む</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="settings">
   <div class="modal">
     <h2>設定<span class="x" onclick="closeSettings()">×</span></h2>
@@ -1166,13 +1178,30 @@ function switchToNextMaster(){
     if(ci>=0) m.rows.forEach(r=>{ const x=String((r&&r[ci])||'').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/); if(x){ const k=x[1]+'/'+(+x[2])+'/'+(+x[3]); cnt[k]=(cnt[k]||0)+1; } });
     const top=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
     const dLabel=top?(()=>{ const [y,mo,d]=top.split('/').map(Number); return mo+'/'+d+'('+'日月火水木金土'[new Date(y,mo-1,d).getDay()]+')'; })():'翌日';
-    const msg=dLabel+'のCSVを取り込みます。\n'
-      +'※当日の作業がすべて完了してから実行してください。\n'
+    const title=dLabel+'のCSVを取り込みます';
+    const msg='※当日の作業がすべて完了してから実行してください。\n'
       +'・ファイル: '+(m.name||'(名前なし)')+(saved?'（'+(saved.getMonth()+1)+'/'+saved.getDate()+' '+hhmm(m.savedAt)+' 保存）':'')+'\n'
       +'・件数: '+m.rows.length+'件\n'
       +'・現在の予約カードは入れ替わります（同じAppointment Idの配置状況は引き継ぎ）。\n'
       +'・全PCに反映されます。';
-    if(!confirm(msg)) return;
+    askNextMaster(title, msg).then(ok=>{ if(ok) doSwitchNextMaster(m, dLabel); });
+  }).catch(err=>warn('翌日分CSVの取得に失敗: '+(err&&err.message?err.message:'')));
+}
+// ブラウザ標準のconfirm（上部にサイト名が出る）を使わず、画面内の確認ダイアログで聞く
+function askNextMaster(title, msg){
+  return new Promise(res=>{
+    const ov=document.getElementById('nmConfirm');
+    document.getElementById('nmTitle').textContent=title;
+    document.getElementById('nmMsg').textContent=msg;
+    const done=v=>{ ov.classList.remove('show'); res(v); };
+    document.getElementById('nmYes').onclick=()=>done(true);
+    document.getElementById('nmNo').onclick=()=>done(false);
+    ov.onclick=e=>{ if(e.target===ov) done(false); };
+    ov.classList.add('show');
+  });
+}
+function doSwitchNextMaster(m, dLabel){
+  {
     const idx=m.headers.indexOf(ID_FIELD);
     const ids=new Set(m.rows.map(r=>String((r&&r[idx])||'')));
     const carried={};
@@ -1192,7 +1221,7 @@ function switchToNextMaster(){
       closeSettings();
       toast(dLabel+'のCSV '+m.rows.length+'件を取り込みました');
     }).catch(err=>warn('翌日CSVの取込に失敗: '+(err&&err.message?err.message:'不明なエラー')));
-  }).catch(err=>warn('翌日分CSVの取得に失敗: '+(err&&err.message?err.message:'')));
+  }
 }
 function cardHTML(c){
   const main = c.fields["Carrier"] || c.fields[state.displayFields[0]] || '';
