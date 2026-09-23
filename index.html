@@ -224,6 +224,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .memo-saved.unsaved{color:#c0392b;}
 .memo-saved.done{color:var(--green);}
 .btn.attn{box-shadow:0 0 0 3px rgba(31,111,139,.25);}
+.c-bay-done{font-size:11px;font-weight:800;color:#fff;background:#546e7a;
+  border-radius:6px;padding:1px 7px;letter-spacing:.02em;cursor:pointer;
+  transition:filter .12s,box-shadow .12s;}
+.c-bay-done:hover{filter:brightness(1.18);box-shadow:0 0 0 2px rgba(40,60,80,.22);}
 .c-done-time{font-size:11px;font-weight:700;color:var(--green);
   background:#eafaf0;border-radius:5px;padding:2px 7px;white-space:nowrap;}
 .c-dur{font-size:11px;font-weight:700;color:#8a6508;
@@ -998,7 +1002,7 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null;
       if(c.id===detailCardId){
         const ta=document.getElementById('memoInput');
         c.memo = ta ? ta.value : (p.memo||null);
@@ -1006,7 +1010,7 @@ function applyPlacement(placement){
         c.memo = p.memo||null;
       }
     }
-    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; if(c.id!==detailCardId) c.memo=null; }
+    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; c.doneBay=null; if(c.id!==detailCardId) c.memo=null; }
   });
   render();
 }
@@ -1033,7 +1037,7 @@ function loadCSV(ev){
       prevById[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
         arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
         doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-        idxClosedAt:c.idxClosedAt||null};
+        idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
     });
     ingest(headers,data);
     // 新CSVに含まれるIDのうち、以前の情報があれば復元
@@ -1041,7 +1045,7 @@ function loadCSV(ev){
       const p=prevById[c.id];
       if(p){ c.status=p.status||'plan'; c.bay=p.bay; c.arriveAt=p.arriveAt;
         c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo;
-        c.idxClosedAt=p.idxClosedAt||null; }
+        c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; }
     });
     render();
     recordCsvLoad(data.length);
@@ -1056,7 +1060,7 @@ function loadCSV(ev){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
             doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-            idxClosedAt:c.idxClosedAt||null};
+            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
         }
       });
       fbPlacement=carried;
@@ -1140,6 +1144,12 @@ function cardHTML(c){
   const hasDetail = state.detailFields.length>0;
   const detailBtn = hasDetail ? `<span class="c-detail" onclick="openDetail('${escAttr(c.id)}');event.stopPropagation();">詳細 ›</span>` : '';
   // 完了枠のカードは完了時刻を詳細ボタンの左に表示
+  const bayName = c.status==='done' ? (c.doneBay||c.arriveBay||'') : '';
+  const bayFi = bayName ? state.floors.findIndex(f=>f.bays.includes(String(bayName))) : -1;
+  const bayStyle = bayFi>=0 ? ` style="background:var(--f${bayFi%5})"` : '';   // 階層の色に合わせる
+  const doneBay = bayName
+    ? `<span class="c-bay-done"${bayStyle} title="${esc(bayName)}に着車（クリックで詳細）"
+        onclick="openDetail('${escAttr(c.id)}');event.stopPropagation();">${esc(bayName)}</span>` : '';
   const doneRow = (c.status==='done' && c.doneAt)
     ? `<span class="c-done-time">完了 ${hhmm(c.doneAt)}</span>` : '';
   // 着車→完了の所要時間（30分以上オレンジ/60分以上赤）
@@ -1158,7 +1168,7 @@ function cardHTML(c){
     : `<div class="c-id">${esc(c.id)}</div>`;
   return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
-    <div class="c-topright">${doneRow}${dur}${detailBtn}</div>
+    <div class="c-topright">${doneBay}${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
     ${idxRow}
@@ -1451,7 +1461,10 @@ function moveCardTo(c, zone, bay){
     c.status='arrive'; c.bay=bay;
   }
   else if(zone==='plan'){ c.status='plan'; c.bay=null; c.arriveAt=null; c.doneAt=null; }
-  else if(zone==='done'){ c.status='done'; c.doneAt=Date.now(); c.doneOp=operator.trim(); c.bay=null; }
+  else if(zone==='done'){
+    c.doneBay = c.bay || c.doneBay || c.arriveBay || null;   // 最後に着車していたバース
+    c.status='done'; c.doneAt=Date.now(); c.doneOp=operator.trim(); c.bay=null;
+  }
   else return false;
   const after=locLabel(c);
   if(before!==after) recordMove(c, before, after);
@@ -2815,7 +2828,7 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null;
       // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
       // それ以外はFirebaseのメモを反映。
       if(c.id===detailCardId){
@@ -3005,6 +3018,7 @@ function applyIdxStatus(){
     if(c.idxClosedAt===v.at) return;     // 処理済み
     if(c.status==='done'){ c.idxClosedAt=v.at; changed=true; return; }  // 既に完了なら記録だけ
     const before=locLabel(c);
+    c.doneBay = c.bay || c.doneBay || c.arriveBay || null;   // 最後に着車していたバース
     c.status='done'; c.bay=null;
     c.doneAt=v.at||Date.now(); c.doneOp=IDX_OP; c.idxClosedAt=v.at;
     recordMove(c, before, locLabel(c)+'（IDX CLOSED）', IDX_OP);
@@ -3109,7 +3123,7 @@ function pushCards(){
     status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
     arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
     doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-    idxClosedAt:c.idxClosedAt||null
+    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null
   }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
