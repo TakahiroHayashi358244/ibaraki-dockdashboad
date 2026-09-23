@@ -288,6 +288,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 /* ===== Detail modal ===== */
 .detail-modal{max-width:520px;}
 .dt-row{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;}
+.dt-bay{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:#546e7a;
+  border-radius:6px;padding:1px 8px;margin-left:8px;letter-spacing:.02em;vertical-align:middle;}
 .dt-barcode{text-align:center;padding:10px 0 14px;margin-bottom:6px;border-bottom:1px solid var(--line);}
 .dt-bc-label{font-size:11px;color:var(--sub);font-weight:600;margin-bottom:6px;}
 .dt-barcode .bc-svg{max-width:100%;height:54px;background:#fff;padding:6px 8px;border-radius:6px;}
@@ -1680,10 +1682,23 @@ function openDetail(id){
   if(bc){
     html+=`<div class="dt-barcode"><div class="dt-bc-label">Appointment ID</div>${bc}<div class="dt-bc-num">${esc(apptId)}</div></div>`;
   }
+  // 実際に着車したバース（着車中は現在のバース、完了後は最後のバース）
+  const usedBay = c.status==='arrive' ? (c.bay||'') : (c.doneBay||c.arriveBay||'');
+  const bayFi2 = usedBay ? state.floors.findIndex(x=>x.bays.includes(String(usedBay))) : -1;
+  const bayChip = usedBay
+    ? `<span class="dt-bay"${bayFi2>=0?` style="background:var(--f${bayFi2%5})"`:''}>${c.status==='arrive'?'着車中':'着車'} ${esc(usedBay)}</span>`
+    : '';
+  let dockShown=false;
   html+=fields.map(f=>{
     const v=c.fields[f]; if(v===undefined) return '';
-    return `<div class="dt-row"><div class="dt-k">${esc(f)}</div><div class="dt-v">${esc(v||'—')}</div></div>`;
+    let extra='';
+    if(bayChip && /dock/i.test(f) && !dockShown){ extra=bayChip; dockShown=true; }
+    return `<div class="dt-row"><div class="dt-k">${esc(f)}</div><div class="dt-v">${esc(v||'—')}${extra}</div></div>`;
   }).join('');
+  // Dock項目が表示対象に無い場合は独立した行として出す
+  if(bayChip && !dockShown){
+    html+=`<div class="dt-row"><div class="dt-k">着車バース</div><div class="dt-v">${bayChip}</div></div>`;
+  }
   // メモ欄
   html+=`<div class="dt-memo">
     <div class="dt-k" style="margin-bottom:6px;">メモ</div>
