@@ -324,7 +324,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
   <div class="modal" style="width:880px;max-width:96vw">
     <h2>ドックマスタへ反映<span class="x" onclick="closeDoorPush()">×</span></h2>
     <div class="modal-body">
-      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。</div>
+      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。<br>「現在」はIDX側から返ってきた<b>いま実際に入っている番号</b>です（<span class="note">実</span>付きはCSV取込後に変わったもの）。すでに計画どおりの番号が入っている便は一覧に出ません。</div>
       <div class="ai-status" id="dpStatus"></div>
       <div class="dp-wrap"><table class="dp-tab" id="dpTab"></table></div>
       <div class="dlg-actions" style="justify-content:space-between">
@@ -429,6 +429,7 @@ const S = {
   // 配置ダッシュボード
   roster: [], custom: {}, admins: [], layout: {}, floorMove: {}, pmaster: null,
   doorOpts: { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定" },   // ドックマスタで選べる番号
+  doorNow: {},   // IDXから返ってきた、いま実際に入っているドア番号（/dock/doorState）
   targetUPH: { 日勤: { in: 0 }, 夜勤: { in: 0 } },
   // ドック
   floors: [
@@ -1402,6 +1403,14 @@ function doorPlan() {
   return out;
 }
 const csvDoor = a => String((a.raw && a.raw.Dock) || "").split("[")[0].trim();
+// IDX側から返ってきた「いま実際に入っているドア」（/dock/doorState）。無ければCSV取込時の値
+const DOORSTATE_TTL = 7 * 24 * 3600000;
+function curDoor(a) {
+  const v = S.doorNow[a.id];
+  if (v && v.door && Date.now() - (v.at || 0) < DOORSTATE_TTL) return String(v.door);
+  return csvDoor(a);
+}
+const doorFromIdx = a => { const v = S.doorNow[a.id]; return !!(v && v.door && Date.now() - (v.at || 0) < DOORSTATE_TTL && String(v.door) !== csvDoor(a)); };
 // ドックマスタに実在する番号か（一覧が未取得のうちは判定しない）
 function doorExists(d) { return !S.doorOpts.list.length || S.doorOpts.list.includes(String(d)); }
 
@@ -1411,10 +1420,11 @@ function doorDiff() {
   const rows = [];
   S.appts.forEach(a => {
     const c = cellOf(a); if (!c.f) return;
-    const from = csvDoor(a), to = dp[a.key] || null;
-    if (!to) { rows.push({ a, from, to: null, short: true }); return; }
-    if (to === from) return;
-    rows.push({ a, from, to, ng: !doorExists(to) });
+    const from = curDoor(a), to = dp[a.key] || null;
+    const idx = doorFromIdx(a);
+    if (!to) { rows.push({ a, from, to: null, short: true, idx }); return; }
+    if (to === from) return;                                  // すでにその番号が入っている（反映済み）
+    rows.push({ a, from, to, ng: !doorExists(to), idx });
   });
   return rows.sort((x, y) => winOf(x.a).s - winOf(y.a).s);
 }
@@ -1655,7 +1665,7 @@ function renderDoorTab() {
     const can = dpSelectable(x);
     return `<tr><td><input type="checkbox" ${x.sel && can ? "checked" : ""} ${can ? "" : "disabled"} onchange="dpToggle(${i},this.checked)"></td><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
       <td>${esc(c.f)} ${esc((LAST && LAST.BY[c.f] && LAST.BY[c.f].pos[x.a.key] && LAST.BY[c.f].pos[x.a.key].bay) || "")}</td>
-      <td class="ar">${esc(x.from || "—")} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng || x.short ? ' style="color:var(--alert)"' : ""}>${x.to ? esc(x.to) : "—"}</span></td>
+      <td class="ar">${esc(x.from || "—")}${x.idx ? `<span class="note" style="margin-left:4px">実</span>` : ""} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng || x.short ? ' style="color:var(--alert)"' : ""}>${x.to ? esc(x.to) : "—"}</span></td>
       <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに無い番号</span>` : ""}${hint ? `<br><span class="note">${hint}</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
   }).join("");
   document.getElementById("dpTab").innerHTML =
@@ -1711,6 +1721,7 @@ function setupDB() {
   const first = () => { if (gotNext && gotCur && !S.appts.length && !S.date) { if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; } rebuildAppts(true); } };
   listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; if (S.date && S.src === "next") rebuildAppts(false); else first(); });
   listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
+  listen(dock.child("doorState"), "dock/doorState", s => { S.doorNow = s.val() || {}; if (document.getElementById("dpModal").classList.contains("show") && !dpList.some(x => x.key)) { dpList = doorDiff().map(x => ({ ...x, key: null, sel: false })); renderDoorTab(); } });
   listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {}; const l = Array.isArray(v.list) ? v.list.map(String) : [];
     S.doorOpts = l.length ? { list: l, at: v.at || 0, src: "IDXから取得" } : { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定" }; });
   listen(dock.child("settings"), "dock/settings", s => { const v = s.val() || {}; idxCode = String((v.idxRev && v.idxRev.code) || ""); });
