@@ -322,7 +322,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
   <div class="modal" style="width:880px;max-width:96vw">
     <h2>ドックマスタへ反映<span class="x" onclick="closeDoorPush()">×</span></h2>
     <div class="modal-body">
-      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。<br>「現在」はIDX側から返ってきた<b>いま実際に入っている番号</b>です（<span class="note">実</span>付きはCSV取込後に変わったもの）。すでに計画どおりの番号が入っている便は一覧に出ません。<br>その番号が同じ時間に埋まっていた場合は、<b>同じフロアの次の空きドア</b>を順に試します。同じフロアに空きが無ければ失敗として表示します。</div>
+      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。<br>「現在」はIDX側から返ってきた<b>いま実際に入っている番号</b>です（<span class="note">実</span>付きはCSV取込後に変わったもの）。すでに計画どおりの番号が入っている便は一覧に出ません。<br>その番号が同じ時間に埋まっていた場合は、<b>同じフロアの次の空きドア</b>を順に試します。同じフロアに空きが無ければ失敗として表示します。<br>「順」は実行する順番です。行き先のドアを使っている便を先に動かすように並べてあるので、玉突きで失敗しません（* は入れ替わりのため、代わりのドアを使う可能性がある便）。</div>
       <div class="ai-status" id="dpStatus"></div>
       <div class="dp-wrap"><table class="dp-tab" id="dpTab"></table></div>
       <div class="dlg-actions" style="justify-content:space-between">
@@ -1422,7 +1422,41 @@ function doorDiff() {
     if (to === from) return;                                  // すでにその番号が入っている（反映済み）
     rows.push({ a, from, to, alts: o.alts || [], ng: !doorExists(to), idx });
   });
-  return rows.sort((x, y) => winOf(x.a).s - winOf(y.a).s);
+  return orderMoves(rows.sort((x, y) => winOf(x.a).s - winOf(y.a).s));
+}
+
+// 移動の順番を決める。
+// 行き先のドアを、同じ時間に別の便がまだ使っているなら、その便を先に動かす（玉突きの解消）。
+// 互いに譲り合う循環になったときは、代わりの候補が多い便を先に出して輪を切る。
+function orderMoves(rows) {
+  const ov = (p, q) => p.s < q.e && q.s < p.e;
+  const blockers = new Map();          // この便を動かす前に、先に動かすべき便
+  rows.forEach(r => {
+    const w = winOf(r.a);
+    blockers.set(r, rows.filter(o => o !== r && String(o.from) === String(r.to) && ov(winOf(o.a), w)));
+  });
+  const out = [], done = new Set();
+  const left = rows.slice();
+  while (left.length) {
+    // 先に動かすべき便が残っていないものから出す
+    let i = left.findIndex(r => blockers.get(r).every(b => done.has(b) || !left.includes(b)));
+    let cyc = false;
+    if (i < 0) {
+      // 循環：代わりの候補が多く、着車の早い便から出す（候補で逃がして輪を切る）
+      cyc = true;
+      i = 0;
+      left.forEach((r, k) => {
+        const best = left[i];
+        const n = (r.alts || []).length, m = (best.alts || []).length;
+        if (n > m || (n === m && winOf(r.a).s < winOf(best.a).s)) i = k;
+      });
+    }
+    const r = left.splice(i, 1)[0];
+    r.waitFor = blockers.get(r).filter(b => !done.has(b)).map(b => b.a.id);
+    r.cycle = cyc;
+    done.add(r); out.push(r);
+  }
+  return out.map((r, i) => Object.assign(r, { ord: i + 1 }));
 }
 function bayFor(a, f) { return ruleEval(a).bay[f] || null; }
 // 方針ごとのフロアのコスト（小さいほど先に使う）
@@ -1738,13 +1772,15 @@ function renderDoorTab() {
     const hint = eff === "expired" ? "実行されないまま時間が過ぎました" : eff === "stalled" ? "マスターPCが止まった可能性があります" : eff === "short" ? "同じ時間に空きドアがありません"
       : waited ? "10分以上待っています。マスターPCでIDXのDay Scheduleが開いているか確認してください" : "";
     const can = dpSelectable(x);
-    return `<tr><td><input type="checkbox" ${x.sel && can ? "checked" : ""} ${can ? "" : "disabled"} onchange="dpToggle(${i},this.checked)"></td><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
+    const ordTip = x.cycle ? "入れ替わりのため、代わりのドアを使う可能性があります"
+      : (x.waitFor && x.waitFor.length ? `${x.waitFor.join(", ")} が動いたあとに実行します` : "先に動かす便はありません");
+    return `<tr><td><input type="checkbox" ${x.sel && can ? "checked" : ""} ${can ? "" : "disabled"} onchange="dpToggle(${i},this.checked)"></td><td class="ar" title="${esc(ordTip)}">${x.ord || ""}${x.cycle ? "*" : ""}</td><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
       <td>${esc(c.f)} ${esc((LAST && LAST.BY[c.f] && LAST.BY[c.f].pos[x.a.key] && LAST.BY[c.f].pos[x.a.key].bay) || "")}</td>
       <td class="ar">${esc(x.from || "—")}${x.idx ? `<span class="note" style="margin-left:4px">実</span>` : ""} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng || x.short ? ' style="color:var(--alert)"' : ""}>${x.to ? esc(x.to) : "—"}</span></td>
       <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに無い番号</span>` : ""}${hint ? `<br><span class="note">${hint}</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
   }).join("");
   document.getElementById("dpTab").innerHTML =
-    `<thead><tr><th style="width:28px"><input type="checkbox" id="dpAll" onchange="dpSelectAll(this.checked)" title="すべて選択"></th><th>受入枠</th><th>Appointment Id</th><th>キャリア</th><th>計画</th><th class="ar">Dock Door</th><th>状態</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="note" style="padding:14px">変更する予約はありません</td></tr>`}</tbody>`;
+    `<thead><tr><th style="width:28px"><input type="checkbox" id="dpAll" onchange="dpSelectAll(this.checked)" title="すべて選択"></th><th class="ar" title="実行する順番。玉突きにならないように並べています">順</th><th>受入枠</th><th>Appointment Id</th><th>キャリア</th><th>計画</th><th class="ar">Dock Door</th><th>状態</th></tr></thead><tbody>${rows || `<tr><td colspan="8" class="note" style="padding:14px">変更する予約はありません</td></tr>`}</tbody>`;
   dpUpdateBtn();
 }
 function runDoorPush() {
@@ -1754,12 +1790,14 @@ function runDoorPush() {
   document.getElementById("dpRun").disabled = true;
   document.getElementById("dpStatus").textContent = "指示を送っています…";
   const ref = fbDB.ref(DOOR_PATH);
-  send.forEach(x => {
+  const t0 = Date.now();
+  send.forEach((x, i) => {
     x.sel = false;
     const r = ref.push();
-    x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending", at: Date.now() };
+    const at = t0 + i;                  // 並べた順どおりに実行されるよう、1msずつずらす
+    x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending", at };
     r.set({ id: x.a.id, door: x.to, alts: (x.alts || []).filter(doorExists), from: x.from || null, code: idxCode, site: "HFO1",
-      at: Date.now(), state: "pending", by: "plan" })
+      at, state: "pending", by: "plan" })
       .catch(e => { dpState[r.key] = { state: "error", message: "送信失敗: " + (e.message || e) }; renderDoorTab(); });
   });
   renderDoorTab();
