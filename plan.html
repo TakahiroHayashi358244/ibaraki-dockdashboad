@@ -1588,6 +1588,7 @@ let dpWatch = null;       // 指示の状態を見るリスナー
 let dpState = {};         // 指示キー → {state, message}
 let idxCode = "";         // 逆連携の連携コード（/dock/settings/idxRev.code）
 
+let dpBaseMsg = "";
 function openDoorPush() {
   if (!S.appts.length) { toast("予約データがありません"); return; }
   dpList = doorDiff().map(x => ({ ...x, key: null }));
@@ -1595,17 +1596,66 @@ function openDoorPush() {
   const bad = dpList.filter(x => x.ng || x.short).length, okN = dpList.length - bad;
   const st = document.getElementById("dpStatus");
   const run = document.getElementById("dpRun");
-  if (!fbDB) { st.textContent = "Firebaseに接続していないため反映できません"; run.disabled = true; }
-  else if (!dpList.length) { st.textContent = "ドックマスタと計画は一致しています（変更する予約はありません）"; run.disabled = true; }
-  else if (!idxCode) { st.textContent = "連携コードが未設定です。ドックダッシュボードの設定で「逆連携」の連携コードを入れてください"; run.disabled = true; }
-  else if (!okN) { st.textContent = `ドアを割り当てられません（${bad}台）。「ルール」の「ドックマスタのドア番号」を確認してください`; run.disabled = true; }
-  else { st.textContent = `変更できるのは ${okN}台` + (bad ? `（ドアが取れない ${bad}台 を除く）` : "") + "。反映する便にチェックを入れてください（試すときは「先頭1台だけ」）"; }
-  if (S.doorOpts.src === "既定") st.textContent += " ／ 番号は組み込みの一覧で照合しています（IDX側の「ドア番号一覧を保存」を押すと実機の一覧に更新されます）";
+  if (!fbDB) { dpBaseMsg = "Firebaseに接続していないため反映できません"; run.disabled = true; }
+  else if (!dpList.length) { dpBaseMsg = "ドックマスタと計画は一致しています（変更する予約はありません）"; run.disabled = true; }
+  else if (!idxCode) { dpBaseMsg = "連携コードが未設定です。ドックダッシュボードの設定で「逆連携」の連携コードを入れてください"; run.disabled = true; }
+  else if (!okN) { dpBaseMsg = `ドアを割り当てられません（${bad}台）。「ルール」の「ドックマスタのドア番号」を確認してください`; run.disabled = true; }
+  else { dpBaseMsg = `変更できるのは ${okN}台` + (bad ? `（ドアが取れない ${bad}台 を除く）` : "") + "。反映する便にチェックを入れてください（試すときは「先頭1台だけ」）"; }
+  if (S.doorOpts.src === "既定") dpBaseMsg += " ／ 番号は組み込みの一覧で照合しています（IDX側の「ドア番号一覧を保存」を押すと実機の一覧に更新されます）";
+  st.textContent = dpBaseMsg;
   st.className = "ai-status";
   renderDoorTab();
   document.getElementById("dpModal").classList.add("show");
+  dpWatchStart();          // 送信済みの指示があれば拾い直して状態を表示する
   clearInterval(dpTimer);
   dpTimer = setInterval(() => { if (document.getElementById("dpModal").classList.contains("show")) renderDoorTab(); }, 20000);
+}
+// 送信済みの指示を予約ごとに引き当てる（画面を開き直しても状態が分かるように）
+function dpAdopt(all) {
+  const now = Date.now(), byId = {};
+  Object.keys(all || {}).forEach(k => {
+    const c = all[k];
+    if (!c || !c.id) return;
+    if (idxCode && c.code && c.code !== idxCode) return;
+    if (c.site && c.site !== "HFO1") return;
+    if (now - (c.at || 0) > DOOR_TTL) return;
+    const p = byId[c.id];
+    if (!p || (c.at || 0) > (all[p].at || 0)) byId[c.id] = k;
+  });
+  dpList.forEach(x => {
+    const k = byId[x.a.id];
+    if (k && x.key !== k) {
+      const c = all[k], stt = c.state || "pending";
+      // 実行待ち・実行中は無条件に、終わったものは同じドアへの指示だったときだけ引き当てる
+      if (["pending", "running"].includes(stt) || String(c.door) === String(x.to)) { x.key = k; dpKeys[x.a.key] = k; }
+    }
+    if (x.key && all[x.key]) {
+      const c = all[x.key];
+      dpState[x.key] = { state: c.state || "pending", message: c.message || "", at: c.at || 0, claimAt: c.claimAt || 0 };
+    }
+  });
+}
+function dpStatusUpdate() {
+  const el = document.getElementById("dpStatus");
+  if (!el) return;
+  const sent = dpList.filter(x => x.key);
+  if (!sent.length) { el.textContent = dpBaseMsg; el.className = "ai-status"; return; }
+  const fin = sent.filter(x => ["done", "error", "expired", "stalled"].includes(dpEff(x))).length;
+  const ng = sent.filter(x => ["error", "expired", "stalled"].includes(dpEff(x))).length;
+  if (fin >= sent.length) { el.textContent = `完了しました（成功 ${sent.length - ng}件 / 失敗 ${ng}件）`; el.className = "ai-status"; }
+  else { el.textContent = `実行中… ${fin}/${sent.length}件（IDXを開いたマスターPCが順番に変更します。1件30〜60秒）`; el.className = "ai-status busy"; }
+}
+function dpWatchStart() {
+  if (!fbDB) return;
+  const ref = fbDB.ref(DOOR_PATH);
+  if (dpWatch) { try { dpWatch.off(); } catch (e) { /* 無視 */ } }
+  dpWatch = ref;
+  ref.on("value", snap => {
+    if (!document.getElementById("dpModal").classList.contains("show")) return;
+    dpAdopt(snap.val() || {});
+    dpStatusUpdate();
+    renderDoorTab();
+  });
 }
 function closeDoorPush() {
   document.getElementById("dpModal").classList.remove("show");
@@ -1653,7 +1703,9 @@ function renderDoorTab() {
     const s = x.key ? dpState[x.key] : null;
     const cls = DP_CLS[eff] || "wait";
     const label = DP_LABEL[eff] || eff;
-    const hint = eff === "expired" ? "実行されないまま時間が過ぎました" : eff === "stalled" ? "マスターPCが止まった可能性があります" : eff === "short" ? "同じ時間に空きドアがありません" : "";
+    const waited = eff === "pending" && s && Date.now() - (s.at || 0) > 10 * 60000;
+    const hint = eff === "expired" ? "実行されないまま時間が過ぎました" : eff === "stalled" ? "マスターPCが止まった可能性があります" : eff === "short" ? "同じ時間に空きドアがありません"
+      : waited ? "10分以上待っています。マスターPCでIDXのDay Scheduleが開いているか確認してください" : "";
     const can = dpSelectable(x);
     return `<tr><td><input type="checkbox" ${x.sel && can ? "checked" : ""} ${can ? "" : "disabled"} onchange="dpToggle(${i},this.checked)"></td><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
       <td>${esc(c.f)} ${esc((LAST && LAST.BY[c.f] && LAST.BY[c.f].pos[x.a.key] && LAST.BY[c.f].pos[x.a.key].bay) || "")}</td>
@@ -1680,22 +1732,8 @@ function runDoorPush() {
       .catch(e => { dpState[r.key] = { state: "error", message: "送信失敗: " + (e.message || e) }; renderDoorTab(); });
   });
   renderDoorTab();
-  document.getElementById("dpStatus").textContent = `${send.length}件の指示を送りました。IDXを開いたマスターPCが順番に変更します（1件30〜60秒）`;
-  document.getElementById("dpStatus").className = "ai-status busy";
-  if (dpWatch) { try { dpWatch.off(); } catch (e) {} }
-  dpWatch = ref;
-  ref.on("value", snap => {
-    const all = snap.val() || {};
-    Object.keys(dpState).forEach(k => { if (all[k]) dpState[k] = { state: all[k].state || "pending", message: all[k].message || "", at: all[k].at || 0, claimAt: all[k].claimAt || 0 }; });
-    const sent = dpList.filter(x => x.key);
-    const fin = sent.filter(x => ["done", "error", "expired", "stalled"].includes(dpEff(x))).length;
-    const ng = sent.filter(x => ["error", "expired", "stalled"].includes(dpEff(x))).length;
-    const ks = sent;
-    const el = document.getElementById("dpStatus");
-    if (fin >= ks.length) { el.textContent = `完了しました（成功 ${ks.length - ng}件 / 失敗 ${ng}件）`; el.className = "ai-status"; }
-    else { el.textContent = `実行中… ${fin}/${ks.length}件`; el.className = "ai-status busy"; }
-    renderDoorTab();
-  });
+  dpStatusUpdate();
+  dpWatchStart();
 }
 
 /* ============ Firebase ============ */
