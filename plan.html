@@ -1101,39 +1101,80 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && S.sel) { S.sel = null; render(); } });
 
-/* ============ 保存（/dock/plans/<date>） ============ */
-let saveTimer = null;
+/* ============ 保存と共有（/dock/plans/<date>） ============
+   他のPCが保存したら自動で反映する。ただし自分が操作している最中は
+   画面が動かないように保留し、手が空いてから取り込む。            */
+const CLIENT_ID = (() => {
+  try { const k = "planClientId"; let v = localStorage.getItem(k); if (!v) { v = Math.random().toString(36).slice(2, 10); localStorage.setItem(k, v); } return v; } catch (e) { return Math.random().toString(36).slice(2, 10); }
+})();
+let saveTimer = null, saving = false;
 function setSaveSt(t) { document.getElementById("saveSt").textContent = t; }
 function savePlan() {
   if (!fbDB) { setSaveSt("未保存（未接続）"); return; }
   setSaveSt("保存中…");
   clearTimeout(saveTimer);
   const date = S.date;
+  saving = true;
   saveTimer = setTimeout(() => {
     // 自動で決まったバースも含めて保存（ドックダッシュボードの計画バッジ用）
     const BY = computeBays(), bays = {};
     S.appts.forEach(x => { const c = cellOf(x); const p = c.f && BY[c.f] && BY[c.f].pos[x.key]; if (p && p.bay) bays[x.key] = p.bay; });
-    const data = { date, assign: S.plan.assign, bays, uph: S.plan.uph || null, updatedAt: Date.now() };
-    fbDB.ref(DOCK_ROOT + "/plans/" + date).set(data).then(() => setSaveSt("保存済")).catch(e => { setSaveSt("保存失敗"); toast("保存失敗: " + (e.message || e)); });
+    const data = { date, assign: S.plan.assign, bays, uph: S.plan.uph || null, updatedAt: Date.now(), by: CLIENT_ID };
+    saveTimer = null;
+    planPend = null;      // 自分の変更のほうが新しいので、保留していた古い内容は捨てる
+    fbDB.ref(DOCK_ROOT + "/plans/" + date).set(data)
+      .then(() => { saving = false; setSaveSt("保存済"); })
+      .catch(e => { saving = false; setSaveSt("保存失敗"); toast("保存失敗: " + (e.message || e)); });
   }, 500);
 }
+
 let planReady = Promise.resolve();
+let planRef = null, planGot = false, planPend = null;
+// 自分が操作している間は取り込まない（ドラッグ中／ルール編集中／設定を開いている／保存待ち）
+function planBusy() {
+  if (drag && drag.started) return true;
+  if (RDRAFT) return true;
+  if (saveTimer || saving) return true;
+  if (document.getElementById("settings").classList.contains("show")) return true;
+  return false;
+}
+function applyPlan(v, notify) {
+  S.plan = { assign: v.assign || {}, uph: v.uph || null };
+  setSaveSt(v.updatedAt ? "保存済" : "");
+  render();
+  if (notify) toast("他のPCの変更を反映しました");
+}
 function loadPlan() {
   const date = S.date;
   if (S.planLoadedFor === date) { render(); return planReady; }
   S.planLoadedFor = date;
   S.plan = { assign: {}, uph: null };
+  if (planRef) { try { planRef.off(); } catch (e) { /* 無視 */ } planRef = null; }
+  planGot = false; planPend = null;
   if (!fbDB) { render(); return (planReady = Promise.resolve()); }
   setSaveSt("読込中…");
-  planReady = fbDB.ref(DOCK_ROOT + "/plans/" + date).once("value").then(s => {
+  let ready;
+  planReady = new Promise(res => { ready = res; });
+  planRef = fbDB.ref(DOCK_ROOT + "/plans/" + date);
+  planRef.on("value", s => {
     if (S.date !== date) return;
     const v = s.val() || {};
-    S.plan = { assign: v.assign || {}, uph: v.uph || null };
-    setSaveSt(v.updatedAt ? "保存済" : "");
-    render();
-  }).catch(e => { setSaveSt("読込失敗"); showMsg("保存済みの計画を読み込めませんでした: " + (e.message || e)); render(); });
+    if (!planGot) { planGot = true; applyPlan(v, false); ready(); return; }
+    if (v.by === CLIENT_ID) { if (!saveTimer && !saving) setSaveSt("保存済"); return; }   // 自分が保存したもの
+    if (planBusy()) { planPend = v; setSaveSt("他のPCが更新しました（反映待ち）"); return; }
+    applyPlan(v, true);
+  }, e => {
+    setSaveSt("読込失敗"); showMsg("保存済みの計画を読み込めませんでした: " + (e.message || e));
+    if (!planGot) { planGot = true; render(); ready(); }
+  });
   return planReady;
 }
+// 手が空いたら、保留していた他PCの変更を取り込む
+setInterval(() => {
+  if (!planPend || planBusy()) return;
+  const v = planPend; planPend = null;
+  applyPlan(v, true);
+}, 700);
 document.getElementById("planDate").addEventListener("change", e => { if (!e.target.value) return; S.date = e.target.value; rebuildAppts(false); });
 document.getElementById("srcSel").addEventListener("change", e => { S.src = e.target.value; rebuildAppts(true); });
 
