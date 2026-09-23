@@ -203,6 +203,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 }
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
 /* IDXへの反映状況（逆連携） */
+.c-plan{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;margin:0 4px 4px 0;color:#fff;background:var(--pfc,#697a8c);}
+.c-plan.mv{background:#fff;color:var(--pfc,#697a8c);border:1px solid var(--pfc,#697a8c);}
 .c-idx{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px;margin:0 0 4px;}
 .c-idx.ok{background:#2e7d32;color:#fff;box-shadow:0 0 0 2px rgba(46,125,50,.18);}
 .c-idx.info{background:#eceff1;color:#37474f;}
@@ -621,10 +623,12 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="settings-actions">
         <button class="btn" onclick="closeSettings();openLogs()">📋 操作ログ</button>
         <button class="btn" onclick="closeSettings();document.getElementById('csvFile').click()">CSV読込</button>
+        <button class="btn" onclick="switchToNextMaster()">翌日CSVを取込</button>
+        <button class="btn" onclick="window.open('plan.html','_blank')">着車プラン</button>
         <button class="btn" onclick="exportState()">状態を保存</button>
         <button class="btn" onclick="document.getElementById('stateFile').click()">状態を復元</button>
       </div>
-      <div class="note">CSV読込は予約データの取り込み、保存/復元は現在の配置状態をファイルに書き出し/読み込みします。</div>
+      <div class="note">CSV読込は予約データの取り込み、保存/復元は現在の配置状態をファイルに書き出し/読み込みします。「翌日CSVを取込」は着車プランで読み込んだ翌日分の予約を取り込みます（当日の作業完了後に実行してください）。</div>
 
       <div class="sec-title">IDX連携（自動完了）</div>
       <div class="row-inp">
@@ -1132,6 +1136,59 @@ function isOverdue(c){
   const end=scheduleEnd(c);
   return end ? (Date.now() > end.getTime()) : false;
 }
+/* ============ 着車プラン連携（plan.html） ============
+   /dock/plans/<YYYY-MM-DD>/assign/<Appointment Id> = {f:"5F", h:13}
+   /dock/nextMaster = 翌日分CSV（着車プランで読込） */
+let planMap = {};   // apptId -> {f, h, date}
+function planBadgeOf(c){
+  const p=planMap[String(c.id).replace(/[.#$\[\]\/]/g,'_')];
+  if(!p || !p.f) return '';
+  const fi=state.floors.findIndex(f=>f.name===p.f);
+  const col=fi>=0?`var(--f${fi%5})`:'#697a8c';
+  // 実際に着車したバース（着車中=現在のバース、完了=最後のバース）と計画を比べる
+  const used = c.status==='arrive' ? (c.bay||'') : c.status==='done' ? (c.doneBay||c.arriveBay||'') : '';
+  const onFloor = used && fi>=0 && state.floors[fi].bays.includes(String(used));
+  const diffFloor = used && !onFloor;
+  const diffBay = used && onFloor && p.b && String(used)!==String(p.b);
+  const cls = (diffFloor||diffBay) ? 'c-plan mv' : 'c-plan';
+  const label = '計画 '+esc(p.f)+(p.b?'・'+esc(p.b):'');
+  const tip = diffFloor ? `計画（${p.f}${p.b?' '+p.b:''}）と異なるフロアに着車` : diffBay ? `計画（${p.b}）と異なるバースに着車` : '着車プランの割当';
+  return `<span class="${cls}" style="--pfc:${col}" title="${esc(tip)}">${label}</span>`;
+}
+function switchToNextMaster(){
+  if(!fbReady||!fbDB){ toast('Firebase未接続のため取り込めません'); return; }
+  fbDB.ref(DOCK_ROOT+'/nextMaster').once('value').then(s=>{
+    const m=s.val();
+    if(!m||!Array.isArray(m.headers)||!Array.isArray(m.rows)||!m.rows.length){ toast('翌日分のCSVがありません（着車プランで読込んでください）'); return; }
+    const saved=m.savedAt?new Date(m.savedAt):null;
+    const msg='翌日CSVを取り込みます。\n'
+      +'※当日の作業がすべて完了してから実行してください。\n'
+      +'・ファイル: '+(m.name||'(名前なし)')+(saved?'（'+(saved.getMonth()+1)+'/'+saved.getDate()+' '+hhmm(m.savedAt)+' 保存）':'')+'\n'
+      +'・件数: '+m.rows.length+'件\n'
+      +'・現在の予約カードは入れ替わります（同じAppointment Idの配置状況は引き継ぎ）。\n'
+      +'・全PCに反映されます。';
+    if(!confirm(msg)) return;
+    const idx=m.headers.indexOf(ID_FIELD);
+    const ids=new Set(m.rows.map(r=>String((r&&r[idx])||'')));
+    const carried={};
+    state.cards.forEach(c=>{
+      if(ids.has(String(c.id))){
+        carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
+          arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
+          doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
+          idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
+      }
+    });
+    const upd={};
+    upd[DOCK_ROOT+'/master']={headers:m.headers, rows:m.rows};
+    upd[DOCK_ROOT+'/placement']=carried;
+    fbDB.ref().update(upd).then(()=>{
+      recordCsvLoad(m.rows.length);
+      closeSettings();
+      toast('翌日CSV '+m.rows.length+'件を取り込みました');
+    }).catch(err=>warn('翌日CSVの取込に失敗: '+(err&&err.message?err.message:'不明なエラー')));
+  }).catch(err=>warn('翌日分CSVの取得に失敗: '+(err&&err.message?err.message:'')));
+}
 function cardHTML(c){
   const main = c.fields["Carrier"] || c.fields[state.displayFields[0]] || '';
   let rows='';
@@ -1173,7 +1230,7 @@ function cardHTML(c){
     <div class="c-topright">${doneBay}${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
-    ${idxRow}
+    ${planBadgeOf(c)}${idxRow}
     ${idHtml}
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
@@ -2936,6 +2993,16 @@ function setupDB(){
     root.child(IDX_MASTER_PATH).on('value', s=>{
       idxMaster = s.val()||null;
       refreshIdxInfo();
+    });
+    // 着車プラン（直近の計画日分）受信 → カードに計画フロアを表示
+    root.child('plans').orderByKey().limitToLast(3).on('value', s=>{
+      const v=s.val()||{}; const m={};
+      Object.keys(v).sort().forEach(d=>{
+        const a=(v[d]&&v[d].assign)||{};
+        const bz=(v[d]&&v[d].bays)||{};
+        Object.keys(a).forEach(k=>{ if(a[k]&&a[k].f) m[k]={f:a[k].f, b:bz[k]||a[k].b||null, h:a[k].h, date:d}; });
+      });
+      planMap=m; render();
     });
     // バース構成（階層）受信
     root.child('floors').on('value', s=>{
