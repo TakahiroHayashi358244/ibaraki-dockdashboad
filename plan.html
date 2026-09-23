@@ -1385,11 +1385,14 @@ function doorPlan() {
       if (!d) return;                       // 同じ時間に空きドアが無い
       take(a, d, w);
     });
-    // 代わりの候補（同じフロアで、その時間に自分の計画上あいている番号）
+    // 代わりの候補：まず計画上あいている番号、次に同じフロアの残り
+    // （計画上ふさがっていても、その便が先に移動していれば実際には空いている。可否はIDXが判断する）
     list.forEach(a => {
       const o = out[a.key]; if (!o) return;
       const w = winOf(a);
-      o.alts = doors.filter(x => x !== o.door && !(used[x] || []).some(v => v.s < w.e && w.s < v.e)).slice(0, 8);
+      const others = doors.filter(x => x !== o.door);
+      const busy = x => (used[x] || []).some(v => v.s < w.e && w.s < v.e);
+      o.alts = others.filter(x => !busy(x)).concat(others.filter(busy)).slice(0, 8);
     });
   });
   return out;
