@@ -117,7 +117,7 @@ tr.flOff td{background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f5f7 8px 1
 .ov{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:1;}
 .grid th.rh,.grid thead th{z-index:3;}
 .grid th.rh{z-index:4;}
-.vbar td.fcell .hd{height:64px;overflow:hidden;}
+.vbar td.fcell .hd{height:84px;overflow:hidden;}
 .vbar td,.vbar thead th:not(.corner){width:220px;min-width:220px;max-width:220px;}
 .pbar{position:absolute;height:34px;border-radius:7px;background:#fff;border:1px solid var(--line);box-shadow:0 1px 3px rgba(40,60,80,.12);pointer-events:auto;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;display:flex;font-size:11px;line-height:1.3;}
 .pbar:hover{box-shadow:0 2px 8px rgba(40,60,80,.25);z-index:2;}
@@ -139,7 +139,7 @@ tr.flOff td{background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f5f7 8px 1
 body.dragmode .pbar{pointer-events:none;}
 .ghost.pbar{height:38px;}
 .vbar th.rhb{padding:5px 8px;vertical-align:top;}
-.vbar th.rhb .rhh{height:64px;overflow:hidden;}
+.vbar th.rhb .rhh{height:84px;overflow:hidden;}
 .vbar th.rhb .ft{font-size:10.5px;line-height:1.5;}
 .vbar th.rhb .lbl{height:38px;line-height:38px;font-size:12px;font-weight:700;color:var(--fc);border-top:1px dashed #e3e8ee;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .vbar th.rhb .lbl small{font-size:10px;color:#fff;background:var(--fc);border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:700;}
@@ -602,6 +602,7 @@ function compute() {
   });
   spans.forEach(p => {
     const fl = F[p.floor]; if (!fl) return;
+    fl.hcDay = (fl.hcDay || 0) + 1;
     H.forEach(h => {
       const ov = Math.max(0, Math.min(h + 1, p.e) - Math.max(h, p.s));
       if (ov <= 0) return;
@@ -634,6 +635,7 @@ function backlogCalc(fl, H) {
     t.n += c.trucks.length; t.u += c.units; t.lh += c.lh; t.cap += c.cap; t.unk += c.unk;
   });
   t.end = b;
+  t.hc = fl.hcDay || 0;
 }
 
 /* ============ 描画 ============ */
@@ -654,30 +656,30 @@ function render() {
   const BY = R.BY;
   let h = `<div class="gbox"><table class="grid${barMode ? " vbar" : ""}"><thead><tr><th class="corner">フロア ＼ 時刻</th>`;
   R.H.forEach(hh => h += `<th data-hh="${hh}" class="${hh >= 24 ? "next" : ""}">${hl(hh)}</th>`);
-  h += `<th class="tot">合計</th></tr></thead><tbody>`;
+  h += `</tr></thead><tbody>`;
   // 未割当
   h += `<tr class="unrow"><th class="rh" style="--fc:#9aa8b8"><div class="fn" style="color:var(--sub);font-size:15px">未割当</div><div class="ft"><b>${unTotal}</b>台</div></th>`;
   R.H.forEach(hh => h += `<td class="drop" data-f="" data-h="${hh}"><div class="chips">${R.un[hh].map(chipHTML).join("")}</div></td>`);
-  h += `<td class="tot">${unTotal}台</td></tr>`;
+  h += `</tr>`;
   S.floors.forEach((fl, i) => {
     const t = R.F[fl.name].tot;
     const fr = floorRule(fl.name);
     if (barMode) {
       const B = BY[fl.name];
-      h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh rhb" style="--fc:${floorColor(i)}" title="${esc(`着車 ${t.n}台 / ${fmt(t.u)}U\nIN LH ${fmt1(t.lh)} / 能力 ${fmt(t.cap)}U / 最終持越 ${fmt(t.end)}U`)}">
+      h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh rhb" style="--fc:${floorColor(i)}" title="${esc(`着車 ${t.n}台 / ${fmt(t.u)}U\nIN HC ${t.hc}名 / LH ${fmt1(t.lh)}\n能力 ${fmt(t.cap)}U / 最終持越 ${fmt(t.end)}U`)}">
         <div class="rhh"><div class="fn">${esc(fl.name)}${fr.use ? "" : `<span class="off">使用しない</span>`}${fr.use && fr.prio !== 3 ? `<span class="pr">優先度 ${PRIO_LABEL[fr.prio]}</span>` : ""}</div>
-        <div class="ft">着車 <b>${t.n}</b>台 ・同時上限 <b>${B.lim}</b>${B.over ? `<br><b style="color:var(--alert)">バース不足 ${B.over}台</b>` : `<br>LH <b>${fmt1(t.lh)}</b> ・能力 <b>${fmt(t.cap)}</b>U`}</div></div>
+        <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U<br>HC <b>${t.hc}</b>名 ・LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U ・持越 <b>${fmt(t.end)}</b>U<br>同時上限 <b>${B.lim}</b>${B.over ? ` ・<b style="color:var(--alert)">バース不足 ${B.over}</b>` : ""}</div></div>
         ${B.lanes.map((ln, j) => `<div class="lbl${j >= B.nBays ? " x" : ""}${B.rsv.has(ln) ? " r" : ""}">${esc(ln)}${B.rsv.has(ln) ? "<small>専用</small>" : ""}</div>`).join("")}</th>`;
     } else
     h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh" style="--fc:${floorColor(i)}"><div class="fn">${esc(fl.name)}${fr.use ? "" : `<span class="off">使用しない</span>`}${fr.use && fr.prio !== 3 ? `<span class="pr">優先度 ${PRIO_LABEL[fr.prio]}</span>` : ""}</div>
-      <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U${t.unk ? `<br>うち推定 ${t.unk}台` : ""}<br>IN LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U<br>
+      <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U${t.unk ? `<br>うち推定 ${t.unk}台` : ""}<br>IN HC <b>${t.hc}</b>名 ・LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U<br>
       最終持越 <b>${fmt(t.end)}</b>U<br>バース ${fl.bays.length}</div></th>`;
     R.H.forEach(hh => {
       const c = R.F[fl.name].cells[hh];
       if (barMode) h += `<td class="drop fcell" data-f="${esc(fl.name)}" data-h="${hh}"><div class="hd">${cellHead(c)}</div>${hh === R.H[0] ? `<div class="lane-sp" data-f="${esc(fl.name)}" style="height:${Math.max(1, BY[fl.name].lanes.length) * LANE_H + 4}px"></div>` : ""}</td>`;
       else h += `<td class="drop" data-f="${esc(fl.name)}" data-h="${hh}">${cellHead(c)}<div class="chips">${c.trucks.map(chipHTML).join("")}</div></td>`;
     });
-    h += `<td class="tot">${t.n}台 / <b>${fmt(t.u)}</b>U<br>LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U<br>最終持越 <b>${fmt(t.end)}</b>U</td></tr>`;
+    h += `</tr>`;
   });
   h += `</tbody></table><div class="ov"></div></div>`;
   wrap.innerHTML = h;
@@ -1155,7 +1157,7 @@ function buildPdfPages() {
     const thead = `<thead><tr><th>フロア</th>${R.H.map(h => `<th class="hc">${hl(h)}</th>`).join("")}</tr></thead>`;
     const rows = S.floors.map((fl, i) => {
       const T = R.F[fl.name].tot;
-      let x = `<th class="rh" style="--fc:${floorColor(i)}"><span class="fn" style="color:${floorColor(i)}">${esc(fl.name)}</span><div class="pm">${T.n}台<br>${fmt(T.u)}U<br>LH ${fmt1(T.lh)}<br>能力 ${fmt(T.cap)}<br>最終残 ${fmt(T.end)}</div></th>`;
+      let x = `<th class="rh" style="--fc:${floorColor(i)}"><span class="fn" style="color:${floorColor(i)}">${esc(fl.name)}</span><div class="pm">${T.n}台<br>${fmt(T.u)}U<br>HC ${T.hc}名<br>LH ${fmt1(T.lh)}<br>能力 ${fmt(T.cap)}<br>最終残 ${fmt(T.end)}</div></th>`;
       R.H.forEach(h => {
         const c = R.F[fl.name].cells[h]; const lv = barLvl(c);
         x += `<td class="gc"><div class="pm" style="white-space:nowrap">HC<b>${c.hc}</b> LH<b>${fmt1(c.lh)}</b><br>能力 <b>${fmt(c.cap)}</b></div>
