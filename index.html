@@ -1153,19 +1153,13 @@ function isOverdue(c){
    /dock/nextMaster = 翌日分CSV（着車プランで読込） */
 let planMap = {};   // apptId -> {f, h, date}
 function planBadgeOf(c){
+  if(c.status!=='plan') return '';   // 着車したら計画は役目を終える（実績バースの表示はそのまま）
   const p=planMap[String(c.id).replace(/[.#$\[\]\/]/g,'_')];
   if(!p || !p.f) return '';
   const fi=state.floors.findIndex(f=>f.name===p.f);
   const col=fi>=0?`var(--f${fi%5})`:'#697a8c';
-  // 実際に着車したバース（着車中=現在のバース、完了=最後のバース）と計画を比べる
-  const used = c.status==='arrive' ? (c.bay||'') : c.status==='done' ? (c.doneBay||c.arriveBay||'') : '';
-  const onFloor = used && fi>=0 && state.floors[fi].bays.includes(String(used));
-  const diffFloor = used && !onFloor;
-  const diffBay = used && onFloor && p.b && String(used)!==String(p.b);
-  const cls = (diffFloor||diffBay) ? 'c-plan mv' : 'c-plan';
   const label = '計画 '+esc(p.f)+(p.b?'・'+esc(p.b):'');
-  const tip = diffFloor ? `計画（${p.f}${p.b?' '+p.b:''}）と異なるフロアに着車` : diffBay ? `計画（${p.b}）と異なるバースに着車` : '着車プランの割当';
-  return `<span class="${cls}" style="--pfc:${col}" title="${esc(tip)}">${label}</span>`;
+  return `<span class="c-plan" style="--pfc:${col}" title="着車プランの割当">${label}</span>`;
 }
 function switchToNextMaster(){
   if(!fbReady||!fbDB){ toast('Firebase未接続のため取り込めません'); return; }
