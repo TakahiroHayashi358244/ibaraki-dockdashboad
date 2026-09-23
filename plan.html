@@ -194,6 +194,19 @@ header .zoom-ctl{flex:none;border-radius:6px;}
 header .zoom-ctl .zbtn{width:24px;height:24px;font-size:14px;}
 header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 
+.dp-tab{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.dp-tab th,.dp-tab td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;white-space:nowrap;}
+.dp-tab th{font-size:11px;color:var(--sub);font-weight:600;position:sticky;top:0;background:#fff;}
+.dp-tab td.ar{text-align:right;}
+.dp-wrap{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;}
+.dp-st{font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;white-space:nowrap;}
+.dp-st.wait{background:#eceff1;color:#546e7a;}
+.dp-st.run{background:#e3f2fd;color:#0d47a1;}
+.dp-st.ok{background:#e3f4e8;color:#2e7d32;}
+.dp-st.err{background:#fbd5d5;color:#a52a2a;}
+.dp-arrow{color:var(--sub);}
+.dp-to{font-weight:700;color:var(--accent);}
+
 /* ===== PDF用 ===== */
 #pdfRoot{position:fixed;left:-20000px;top:0;}
 .pg{width:1400px;height:990px;background:#fff;padding:28px 32px;overflow:hidden;color:#1f2b38;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;}
@@ -250,6 +263,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
     <button class="btn danger" onclick="clearAssign()">割当解除</button>
     <button class="btn" onclick="copyText()" title="Slack貼付用の要約をコピー">テキスト</button>
     <button class="btn primary" onclick="makePDF()">PDF作成</button>
+    <button class="btn" onclick="openDoorPush()" title="計画のバースをドックマスタのDock Door Numberへ反映">ドック反映</button>
     <button class="btn" onclick="openSettings()">設定</button>
     <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none">
   </header>
@@ -277,6 +291,10 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
       <div class="row-inp"><label>同時着車の上限（全フロア共通） <input type="number" id="rlConc" min="1" step="1" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" oninput="RDRAFT.conc=+this.value||null;renderRuleFloors()"> 台</label>
         <span class="note">空欄はバース数まで。フロア別に入れた値が優先されます。同じ時間に着車できる台数がこれを超えると「同時上限超え」になり、自動割当は別フロアへ回します。</span></div>
       <div style="overflow-x:auto"><table class="rl-tab" id="rlFloors"></table></div>
+      <div class="sec-title">ドックマスタのドア番号</div>
+      <div class="note">ダッシュボードのバース名に対する、ドックマスタ側の Dock Door Number。空欄は自動（数字＋A→1 / B→2 / C→3）。複数ある枠はカンマ区切りで並べると、同じ時間に空いている番号を使います。</div>
+      <div class="note" id="rlDoorOpt"></div>
+      <div id="rlDoors"></div>
       <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">条件ルール<button class="btn sm" onclick="addRule()">＋ ルールを追加</button></div>
       <div class="note">上から順に適用します。条件は予約CSVの列で指定します（例: CUT (Critical Unload Time) が空欄でない、Carrier に 佐川 を含む、Pallets が 10 以上）。</div>
       <div id="rlList" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -295,6 +313,21 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
       <div class="cfm-msg" id="chsMsg"></div>
       <div class="chs-list" id="chsList"></div>
       <div class="dlg-actions"><button class="btn" id="chsNo">キャンセル</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="dpModal">
+  <div class="modal" style="width:720px">
+    <h2>ドックマスタへ反映<span class="x" onclick="closeDoorPush()">×</span></h2>
+    <div class="modal-body">
+      <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。</div>
+      <div class="ai-status" id="dpStatus"></div>
+      <div class="dp-wrap"><table class="dp-tab" id="dpTab"></table></div>
+      <div class="dlg-actions">
+        <button class="btn" onclick="closeDoorPush()">閉じる</button>
+        <button class="btn primary" id="dpRun" onclick="runDoorPush()">反映する</button>
+      </div>
     </div>
   </div>
 </div>
@@ -375,6 +408,7 @@ const S = {
   planLoadedFor: "",
   // 配置ダッシュボード
   roster: [], custom: {}, admins: [], layout: {}, floorMove: {}, pmaster: null,
+  doorOpts: { list: [], at: 0 },   // ドックマスタで選べる番号（IDXスクリプトが保存）
   targetUPH: { 日勤: { in: 0 }, 夜勤: { in: 0 } },
   // ドック
   floors: [
@@ -1271,6 +1305,50 @@ function ruleNg(a) {
   const ev = ruleEval(a);
   return !ev.allowed.includes(c.f) || !!(c.b && reservedBays().has(c.b) && ev.bay[c.f] !== c.b);
 }
+/* ============ ドックマスタのドア番号 ============
+   ダッシュボードのバース名（605A）→ ドックマスタの番号（6051）。
+   既定は「数字＋A→1/B→2/C→3」。ルール画面で番号を直接指定もできる。 */
+function autoDoors(bay) {
+  const m = String(bay || "").match(/(\d{3,4})\s*([A-Za-z])?/);
+  if (!m) return [];
+  const suf = (m[2] || "A").toUpperCase();
+  const idx = Math.max(1, suf.charCodeAt(0) - 64);
+  return [m[1] + idx];
+}
+function doorsFor(floor, bay) {
+  const ov = (RULES.doors || {})[floor + "|" + bay];
+  const list = String(ov || "").split(/[,\s、]+/).map(x => x.trim()).filter(Boolean);
+  return list.length ? list : autoDoors(bay);
+}
+// 予約ごとの反映先ドア番号を決める（同じ時間に同じ番号を使わない）
+function doorPlan() {
+  const R = compute(), out = {};
+  S.floors.forEach(fl => {
+    const B = R.BY[fl.name]; if (!B) return;
+    const used = {};   // 番号 → 使用中の時間帯
+    S.appts.filter(a => cellOf(a).f === fl.name).sort((x, y) => winOf(x).s - winOf(y).s).forEach(a => {
+      const p = B.pos[a.key]; if (!p || !p.bay) return;
+      const w = winOf(a);
+      const cands = validDoors(fl.name, p.bay).length ? validDoors(fl.name, p.bay) : doorsFor(fl.name, p.bay);
+      const d = cands.find(x => !(used[x] || []).some(v => v.s < w.e && w.s < v.e)) || cands[0];
+      if (!d) return;
+      (used[d] = used[d] || []).push(w);
+      out[a.key] = d;
+    });
+  });
+  return out;
+}
+const csvDoor = a => String((a.raw && a.raw.Dock) || "").split("[")[0].trim();
+// ドックマスタに実在する番号か（一覧が未取得のうちは判定しない）
+function doorExists(d) { return !S.doorOpts.list.length || S.doorOpts.list.includes(String(d)); }
+function validDoors(floor, bay) { return doorsFor(floor, bay).filter(doorExists); }
+// 反映が必要な予約の一覧
+function doorDiff() {
+  const dp = doorPlan();
+  return S.appts.filter(a => dp[a.key] && dp[a.key] !== csvDoor(a))
+    .map(a => ({ a, from: csvDoor(a), to: dp[a.key], ng: !doorExists(dp[a.key]) }))
+    .sort((x, y) => winOf(x.a).s - winOf(y.a).s);
+}
 function bayFor(a, f) { return ruleEval(a).bay[f] || null; }
 // 方針ごとのフロアのコスト（小さいほど先に使う）
 function floorCost(name, R) {
@@ -1282,7 +1360,7 @@ function floorCost(name, R) {
 }
 function loadRules(v) {
   const d = v || {};
-  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [] };
+  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, doors: d.doors || {}, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [] };
 }
 function saveRules() {
   if (fbDB) fbDB.ref(DOCK_ROOT + "/planRules").set(RULES).catch(e => toast("ルールの保存に失敗: " + (e.message || e)));
@@ -1312,7 +1390,7 @@ function openRules() {
   RDRAFT = JSON.parse(JSON.stringify(RULES));
   document.querySelectorAll('input[name="rlStrat"]').forEach(x => x.checked = x.value === RDRAFT.strategy);
   document.getElementById("rlConc").value = RDRAFT.conc || "";
-  renderRuleFloors(); renderRuleList();
+  renderRuleFloors(); renderRuleDoors(); renderRuleList();
   document.getElementById("rulesModal").classList.add("show");
 }
 function renderRuleFloors() {
@@ -1326,6 +1404,27 @@ function renderRuleFloors() {
       <td class="note">${f.bays.map(esc).join(" / ")}（${f.bays.length}）</td></tr>`;
   });
   document.getElementById("rlFloors").innerHTML = h + "</tbody>";
+}
+function renderRuleDoors() {
+  const o = document.getElementById("rlDoorOpt");
+  if (o) o.innerHTML = S.doorOpts.list.length
+    ? `ドックマスタの番号（${S.doorOpts.list.length}件）: ${esc(S.doorOpts.list.join(", "))}<br>✕ の枠は、この一覧に無い番号です。`
+    : `<span style="color:var(--alert)">ドックマスタの番号一覧が未取得です。</span> IDXの設定パネルで「ドア番号一覧を保存」を押すと、ここに実際の番号が出て照合できます。`;
+  document.getElementById("rlDoors").innerHTML = S.floors.map((f, i) => `<div class="rl-row" style="align-items:flex-start;margin-bottom:4px">
+    <span class="lb" style="min-width:34px;color:${floorColor(i)};font-weight:800;padding-top:5px">${esc(f.name)}</span>
+    <div class="rl-bays" style="flex:1">${f.bays.map(b => {
+      const cur = (RDRAFT.doors || {})[f.name + "|" + b] || "";
+      const list = String(cur || "").split(/[,\s、]+/).map(x => x.trim()).filter(Boolean);
+      const eff = list.length ? list : autoDoors(b);
+      const bad = S.doorOpts.list.length && !eff.some(doorExists);
+      return `<label style="flex-direction:column;align-items:stretch;gap:2px"><span style="font-size:10.5px;color:${bad ? "var(--alert)" : "var(--sub)"}">${esc(b)}${bad ? " ✕" : ""}</span>
+      <input type="text" style="width:100%${bad ? ";border-color:var(--alert)" : ""}" value="${esc(cur)}" placeholder="${esc(autoDoors(b).join(",") || "—")}" oninput="rdSet('${esc(f.name)}','${esc(b)}',this.value);renderRuleDoors()"></label>`;
+    }).join("")}</div></div>`).join("");
+}
+function rdSet(f, b, v) {
+  RDRAFT.doors = RDRAFT.doors || {};
+  const t = String(v || "").trim();
+  if (t) RDRAFT.doors[f + "|" + b] = t; else delete RDRAFT.doors[f + "|" + b];
 }
 function rfSet(name, k, v) { RDRAFT.floors[name] = Object.assign({ use: true, prio: 3 }, RDRAFT.floors[name] || {}, { [k]: v }); updRuleSummary(); }
 function renderRuleList() {
@@ -1401,6 +1500,82 @@ function planScore() {
   return { alert, warn, end, over, un, ng };
 }
 
+/* ============ ドックマスタへ反映 ============
+   /dock/doorCommands に指示を書き、IDX側のスクリプト（マスターPC）が
+   appointment/edit 画面の Dock Door Number を変更する。 */
+const DOOR_PATH = DOCK_ROOT + "/doorCommands";
+let dpList = [];          // 反映対象 [{a, from, to, key}]
+let dpKeys = {};          // apptKey → Firebaseの指示キー
+let dpWatch = null;       // 指示の状態を見るリスナー
+let dpState = {};         // 指示キー → {state, message}
+let idxCode = "";         // 逆連携の連携コード（/dock/settings/idxRev.code）
+
+function openDoorPush() {
+  if (!S.appts.length) { toast("予約データがありません"); return; }
+  dpList = doorDiff().map(x => ({ ...x, key: null }));
+  dpKeys = {}; dpState = {};
+  const bad = dpList.filter(x => x.ng).length, okN = dpList.length - bad;
+  const st = document.getElementById("dpStatus");
+  const run = document.getElementById("dpRun");
+  if (!fbDB) { st.textContent = "Firebaseに接続していないため反映できません"; run.disabled = true; }
+  else if (!dpList.length) { st.textContent = "ドックマスタと計画は一致しています（変更する予約はありません）"; run.disabled = true; }
+  else if (!idxCode) { st.textContent = "連携コードが未設定です。ドックダッシュボードの設定で「逆連携」の連携コードを入れてください"; run.disabled = true; }
+  else if (!okN) { st.textContent = `ドックマスタに無い番号ばかりです（${bad}台）。「ルール」の「ドックマスタのドア番号」を直してください`; run.disabled = true; }
+  else { st.textContent = `${okN}台のドック番号を変更します` + (bad ? `（ドックマスタに無い番号の ${bad}台 は送りません）` : ""); run.disabled = false; }
+  if (!S.doorOpts.list.length) st.textContent += " ／ 番号の一覧が未取得です（IDX側の設定で「ドア番号一覧を保存」を押すと照合できます）";
+  st.className = "ai-status";
+  renderDoorTab();
+  document.getElementById("dpModal").classList.add("show");
+}
+function closeDoorPush() {
+  document.getElementById("dpModal").classList.remove("show");
+  if (dpWatch) { try { dpWatch.off(); } catch (e) {} dpWatch = null; }
+}
+function renderDoorTab() {
+  const rows = dpList.map(x => {
+    const c = cellOf(x.a), w = winOf(x.a);
+    const s = x.key ? (dpState[x.key] || { state: "pending" }) : null;
+    const cls = x.ng ? "err" : !s ? "wait" : s.state === "done" ? "ok" : s.state === "error" ? "err" : s.state === "running" ? "run" : "wait";
+    const label = x.ng ? "番号なし" : !s ? "未実行" : s.state === "done" ? "反映済" : s.state === "error" ? "失敗" : s.state === "running" ? "実行中" : "待機中";
+    return `<tr><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
+      <td>${esc(c.f)} ${esc((LAST && LAST.BY[c.f] && LAST.BY[c.f].pos[x.a.key] && LAST.BY[c.f].pos[x.a.key].bay) || "")}</td>
+      <td class="ar">${esc(x.from || "—")} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng ? ' style="color:var(--alert)"' : ""}>${esc(x.to)}</span></td>
+      <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに この番号がありません</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
+  }).join("");
+  document.getElementById("dpTab").innerHTML =
+    `<thead><tr><th>受入枠</th><th>Appointment Id</th><th>キャリア</th><th>計画</th><th class="ar">Dock Door</th><th>状態</th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="note" style="padding:14px">変更する予約はありません</td></tr>`}</tbody>`;
+}
+function runDoorPush() {
+  if (!fbDB || !dpList.length || !idxCode) return;
+  const run = document.getElementById("dpRun"); run.disabled = true;
+  document.getElementById("dpStatus").textContent = "指示を送っています…";
+  const ref = fbDB.ref(DOOR_PATH);
+  const send = dpList.filter(x => !x.ng);
+  send.forEach(x => {
+    const r = ref.push();
+    x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending" };
+    r.set({ id: x.a.id, door: x.to, from: x.from || null, code: idxCode, site: "HFO1",
+      at: Date.now(), state: "pending", by: "plan" })
+      .catch(e => { dpState[r.key] = { state: "error", message: "送信失敗: " + (e.message || e) }; renderDoorTab(); });
+  });
+  renderDoorTab();
+  document.getElementById("dpStatus").textContent = `${send.length}件の指示を送りました。IDXを開いたマスターPCが順番に変更します（1件30〜60秒）`;
+  document.getElementById("dpStatus").className = "ai-status busy";
+  if (dpWatch) { try { dpWatch.off(); } catch (e) {} }
+  dpWatch = ref;
+  ref.on("value", snap => {
+    const all = snap.val() || {};
+    Object.keys(dpState).forEach(k => { if (all[k]) dpState[k] = { state: all[k].state || "pending", message: all[k].message || "" }; });
+    const ks = Object.keys(dpState);
+    const fin = ks.filter(k => dpState[k].state === "done" || dpState[k].state === "error").length;
+    const ng = ks.filter(k => dpState[k].state === "error").length;
+    const el = document.getElementById("dpStatus");
+    if (fin >= ks.length) { el.textContent = `完了しました（成功 ${ks.length - ng}件 / 失敗 ${ng}件）`; el.className = "ai-status"; }
+    else { el.textContent = `実行中… ${fin}/${ks.length}件`; el.className = "ai-status busy"; }
+    renderDoorTab();
+  });
+}
+
 /* ============ Firebase ============ */
 let dbStarted = false;
 function setupDB() {
@@ -1416,6 +1591,8 @@ function setupDB() {
   const first = () => { if (gotNext && gotCur && !S.appts.length && !S.date) { if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; } rebuildAppts(true); } };
   listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; if (S.date && S.src === "next") rebuildAppts(false); else first(); });
   listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
+  listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {}; S.doorOpts = { list: Array.isArray(v.list) ? v.list.map(String) : [], at: v.at || 0 }; });
+  listen(dock.child("settings"), "dock/settings", s => { const v = s.val() || {}; idxCode = String((v.idxRev && v.idxRev.code) || ""); });
   listen(dock.child("planRules"), "dock/planRules", s => { if (!RDRAFT) { loadRules(s.val()); if (S.date) render(); } });
   listen(dock.child("floors"), "dock/floors", s => { const f = s.val(); if (Array.isArray(f) && f.length) { S.floors = f.filter(Boolean).map(x => ({ name: x.name, bays: Array.isArray(x.bays) ? x.bays : [] })); if (S.date) render(); } });
   // 配置ダッシュボード（ルート直下）
