@@ -295,7 +295,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
         <span class="note">空欄はバース数まで。フロア別に入れた値が優先されます。同じ時間に着車できる台数がこれを超えると「同時上限超え」になり、自動割当は別フロアへ回します。</span></div>
       <div style="overflow-x:auto"><table class="rl-tab" id="rlFloors"></table></div>
       <div class="sec-title">ドックマスタのドア番号</div>
-      <div class="note">ダッシュボードのバース名に対する、ドックマスタ側の Dock Door Number。空欄は自動（数字＋A→1 / B→2 / C→3）。複数ある枠はカンマ区切りで並べると、同じ時間に空いている番号を使います。</div>
+      <div class="note">フロアごとに使う Dock Door Number。空欄なら、先頭の数字がそのフロアと同じ番号を自動で使います。着車の早い順に、空いているドアから順に割り当てます。同時着車の上限は「バース数」と「ドア数」の小さいほうになります。</div>
       <div class="note" id="rlDoorOpt"></div>
       <div id="rlDoors"></div>
       <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">条件ルール<button class="btn sm" onclick="addRule()">＋ ルールを追加</button></div>
@@ -405,6 +405,15 @@ const FIREBASE_CONFIG = {
   appId: "1:218653712277:web:af850c4143bbf88983209c"
 };
 const DOCK_ROOT = "dock";
+// ドックマスタの Dock Door Number（HFO1の編集画面で確認した一覧）。
+// IDX側の「ドア番号一覧を保存」を押すと /dock/doorOptions の値で置き換わる。
+const DOOR_LIST_DEFAULT = [
+  "2021", "2022", "2031", "2032", "2041", "2042",
+  "3021", "3022", "3031", "3032", "3181", "3182", "3183",
+  "4021", "4022", "4031", "4032", "4181", "4182", "4183",
+  "5021", "5022", "5031", "5032",
+  "6021", "6022", "6031", "6032", "6041", "6042",
+];
 const ID_FIELD = "Appointment Id";
 const LS_KEY = "chakusha_plan_cfg";
 const WD = ["日","月","火","水","木","金","土"];
@@ -419,7 +428,7 @@ const S = {
   planLoadedFor: "",
   // 配置ダッシュボード
   roster: [], custom: {}, admins: [], layout: {}, floorMove: {}, pmaster: null,
-  doorOpts: { list: [], at: 0 },   // ドックマスタで選べる番号（IDXスクリプトが保存）
+  doorOpts: { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定" },   // ドックマスタで選べる番号
   targetUPH: { 日勤: { in: 0 }, 夜勤: { in: 0 } },
   // ドック
   floors: [
@@ -1280,8 +1289,10 @@ function floorRule(name) { const r = RULES.floors[name] || {}; return { use: r.u
 // 同時着車の上限：フロア別の指定 > 全フロア共通の指定 > バース数（バース数は超えない）
 function floorLimit(name, bays) {
   const r = floorRule(name); const n = typeof bays === "number" ? bays : (S.floors.find(f => f.name === name) || { bays: [] }).bays.length;
-  const lim = r.max || (RULES.conc > 0 ? +RULES.conc : 0) || n;
-  return Math.min(lim, n || lim);
+  const dn = floorDoors(name).length;                 // ドックマスタのドア数も上限になる
+  const cap = dn ? Math.min(n || dn, dn) : n;
+  const lim = r.max || (RULES.conc > 0 ? +RULES.conc : 0) || cap;
+  return Math.min(lim, cap || lim);
 }
 function estU(a) { return a.units != null ? a.units : (a.cartons ? a.cartons * 10 : 0); }
 function condHit(a, r) {
@@ -1319,46 +1330,52 @@ function ruleNg(a) {
 /* ============ ドックマスタのドア番号 ============
    ダッシュボードのバース名（605A）→ ドックマスタの番号（6051）。
    既定は「数字＋A→1/B→2/C→3」。ルール画面で番号を直接指定もできる。 */
-function autoDoors(bay) {
-  const m = String(bay || "").match(/(\d{3,4})\s*([A-Za-z])?/);
-  if (!m) return [];
-  const suf = (m[2] || "A").toUpperCase();
-  const idx = Math.max(1, suf.charCodeAt(0) - 64);
-  return [m[1] + idx];
+const floorDigit = f => ((String(f).match(/(\d)/) || [])[1] || "");
+// そのフロアで使えるドア番号（先頭の数字がフロアと同じもの）
+function floorDoorsAuto(fname) {
+  const d = floorDigit(fname);
+  return d ? S.doorOpts.list.filter(x => String(x)[0] === d) : [];
 }
-function doorsFor(floor, bay) {
-  const ov = (RULES.doors || {})[floor + "|" + bay];
+function floorDoors(fname) {
+  const ov = (RULES.doors || {})[fname];
   const list = String(ov || "").split(/[,\s、]+/).map(x => x.trim()).filter(Boolean);
-  return list.length ? list : autoDoors(bay);
+  return list.length ? list : floorDoorsAuto(fname);
 }
-// 予約ごとの反映先ドア番号を決める（同じ時間に同じ番号を使わない）
+// 予約ごとの反映先ドア番号を決める（フロアごとに、空いているドアを着車の早い順に使う）
 function doorPlan() {
-  const R = compute(), out = {};
+  const out = {};
   S.floors.forEach(fl => {
-    const B = R.BY[fl.name]; if (!B) return;
-    const used = {};   // 番号 → 使用中の時間帯
-    S.appts.filter(a => cellOf(a).f === fl.name).sort((x, y) => winOf(x).s - winOf(y).s).forEach(a => {
-      const p = B.pos[a.key]; if (!p || !p.bay) return;
-      const w = winOf(a);
-      const cands = validDoors(fl.name, p.bay).length ? validDoors(fl.name, p.bay) : doorsFor(fl.name, p.bay);
-      const d = cands.find(x => !(used[x] || []).some(v => v.s < w.e && w.s < v.e)) || cands[0];
-      if (!d) return;
-      (used[d] = used[d] || []).push(w);
-      out[a.key] = d;
-    });
+    const doors = floorDoors(fl.name);
+    if (!doors.length) return;
+    const used = {};
+    S.appts.filter(a => cellOf(a).f === fl.name)
+      .sort((x, y) => winOf(x).s - winOf(y).s || winOf(x).e - winOf(y).e)
+      .forEach(a => {
+        const w = winOf(a);
+        const d = doors.find(x => !(used[x] || []).some(v => v.s < w.e && w.s < v.e));
+        if (!d) return;                       // 同じ時間に空きドアが無い
+        (used[d] = used[d] || []).push(w);
+        out[a.key] = d;
+      });
   });
   return out;
 }
 const csvDoor = a => String((a.raw && a.raw.Dock) || "").split("[")[0].trim();
 // ドックマスタに実在する番号か（一覧が未取得のうちは判定しない）
 function doorExists(d) { return !S.doorOpts.list.length || S.doorOpts.list.includes(String(d)); }
-function validDoors(floor, bay) { return doorsFor(floor, bay).filter(doorExists); }
-// 反映が必要な予約の一覧
+
+// 反映が必要な予約の一覧（ドアが取れなかった便も出す）
 function doorDiff() {
   const dp = doorPlan();
-  return S.appts.filter(a => dp[a.key] && dp[a.key] !== csvDoor(a))
-    .map(a => ({ a, from: csvDoor(a), to: dp[a.key], ng: !doorExists(dp[a.key]) }))
-    .sort((x, y) => winOf(x.a).s - winOf(y.a).s);
+  const rows = [];
+  S.appts.forEach(a => {
+    const c = cellOf(a); if (!c.f) return;
+    const from = csvDoor(a), to = dp[a.key] || null;
+    if (!to) { rows.push({ a, from, to: null, short: true }); return; }
+    if (to === from) return;
+    rows.push({ a, from, to, ng: !doorExists(to) });
+  });
+  return rows.sort((x, y) => winOf(x.a).s - winOf(y.a).s);
 }
 function bayFor(a, f) { return ruleEval(a).bay[f] || null; }
 // 方針ごとのフロアのコスト（小さいほど先に使う）
@@ -1371,7 +1388,8 @@ function floorCost(name, R) {
 }
 function loadRules(v) {
   const d = v || {};
-  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, doors: d.doors || {}, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [] };
+  const dd = {}; Object.keys(d.doors || {}).forEach(k => { if (!k.includes("|")) dd[k] = d.doors[k]; });   // 旧形式（フロア|バース）は使わない
+  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, doors: dd, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [] };
 }
 function saveRules() {
   if (fbDB) fbDB.ref(DOCK_ROOT + "/planRules").set(RULES).catch(e => toast("ルールの保存に失敗: " + (e.message || e)));
@@ -1381,7 +1399,7 @@ function rulesText() {
   // ルールの要約（テキスト）
   const L = [];
   L.push(`方針: ${STRAT_LABEL[RULES.strategy]}`);
-  S.floors.forEach(f => { const r = floorRule(f.name); L.push(`${f.name}: ${r.use ? "使用" : "使用しない"}／優先度 ${PRIO_LABEL[r.prio]}／同時着車の上限 ${floorLimit(f.name, f.bays.length)}台／バース ${f.bays.join(",")}`); });
+  S.floors.forEach(f => { const r = floorRule(f.name); L.push(`${f.name}: ${r.use ? "使用" : "使用しない"}／優先度 ${PRIO_LABEL[r.prio]}／同時着車の上限 ${floorLimit(f.name, f.bays.length)}台／ドア ${floorDoors(f.name).join(",") || "なし"}`); });
   RULES.conds.filter(r => r.on).forEach(r => {
     const c = (r.op === "empty" || r.op === "notempty") ? `${r.col}${OP_LABEL[r.op]}` : `${r.col}${OP_LABEL[r.op]}「${r.val}」`;
     const t = r.act === "bay" ? Object.keys(r.bays || {}).filter(n => r.bays[n]).map(n => `${n}→${r.bays[n]}`).join(", ") : (r.floors || []).join(",");
@@ -1408,35 +1426,38 @@ function renderRuleFloors() {
   let h = `<thead><tr><th>フロア</th><th>使用</th><th>優先度</th><th>同時着車の上限</th><th>バース</th></tr></thead><tbody>`;
   S.floors.forEach((f, i) => {
     const r = Object.assign({ use: true, prio: 3, max: "" }, RDRAFT.floors[f.name] || {});
+    const keep = RULES.doors; RULES.doors = RDRAFT.doors || {};
+    const dn = floorDoors(f.name).length; RULES.doors = keep;
+    const cap = dn ? Math.min(f.bays.length, dn) : f.bays.length;
     h += `<tr><td><b style="color:${floorColor(i)}">${esc(f.name)}</b></td>
       <td><input type="checkbox" id="rfUse_${i}" ${r.use !== false ? "checked" : ""} onchange="rfSet('${esc(f.name)}','use',this.checked)"></td>
       <td><select id="rfPrio_${i}" onchange="rfSet('${esc(f.name)}','prio',+this.value)">${[5, 4, 3, 2, 1].map(p => `<option value="${p}" ${+r.prio === p ? "selected" : ""}>${PRIO_LABEL[p]}</option>`).join("")}</select></td>
-      <td><input type="number" id="rfMax_${i}" min="1" max="${f.bays.length}" step="1" value="${r.max || ""}" placeholder="${Math.min(RDRAFT.conc || f.bays.length, f.bays.length)}" onchange="rfSet('${esc(f.name)}','max',+this.value||null)"> 台</td>
-      <td class="note">${f.bays.map(esc).join(" / ")}（${f.bays.length}）</td></tr>`;
+      <td><input type="number" id="rfMax_${i}" min="1" max="${cap}" step="1" value="${r.max || ""}" placeholder="${Math.min(RDRAFT.conc || cap, cap)}" onchange="rfSet('${esc(f.name)}','max',+this.value||null)"> 台</td>
+      <td class="note">${f.bays.map(esc).join(" / ")}（バース${f.bays.length} / ドア${dn}）</td></tr>`;
   });
   document.getElementById("rlFloors").innerHTML = h + "</tbody>";
 }
 function renderRuleDoors() {
   const o = document.getElementById("rlDoorOpt");
-  if (o) o.innerHTML = S.doorOpts.list.length
-    ? `ドックマスタの番号（${S.doorOpts.list.length}件）: ${esc(S.doorOpts.list.join(", "))}<br>✕ の枠は、この一覧に無い番号です。`
-    : `<span style="color:var(--alert)">ドックマスタの番号一覧が未取得です。</span> IDXの設定パネルで「ドア番号一覧を保存」を押すと、ここに実際の番号が出て照合できます。`;
-  document.getElementById("rlDoors").innerHTML = S.floors.map((f, i) => `<div class="rl-row" style="align-items:flex-start;margin-bottom:4px">
-    <span class="lb" style="min-width:34px;color:${floorColor(i)};font-weight:800;padding-top:5px">${esc(f.name)}</span>
-    <div class="rl-bays" style="flex:1">${f.bays.map(b => {
-      const cur = (RDRAFT.doors || {})[f.name + "|" + b] || "";
-      const list = String(cur || "").split(/[,\s、]+/).map(x => x.trim()).filter(Boolean);
-      const eff = list.length ? list : autoDoors(b);
-      const bad = S.doorOpts.list.length && !eff.some(doorExists);
-      return `<label style="flex-direction:column;align-items:stretch;gap:2px"><span style="font-size:10.5px;color:${bad ? "var(--alert)" : "var(--sub)"}">${esc(b)}${bad ? " ✕" : ""}</span>
-      <input type="text" style="width:100%${bad ? ";border-color:var(--alert)" : ""}" value="${esc(cur)}" placeholder="${esc(autoDoors(b).join(",") || "—")}" oninput="rdSet('${esc(f.name)}','${esc(b)}',this.value);renderRuleDoors()"></label>`;
-    }).join("")}</div></div>`).join("");
+  if (o) o.innerHTML = `ドックマスタの番号（${S.doorOpts.list.length}件・${esc(S.doorOpts.src)}）: ${esc(S.doorOpts.list.join(", "))}`;
+  document.getElementById("rlDoors").innerHTML = S.floors.map((f, i) => {
+    const auto = floorDoorsAuto(f.name);
+    const keep = RULES.doors; RULES.doors = RDRAFT.doors || {};
+    const eff = floorDoors(f.name), lim = floorLimit(f.name, f.bays.length); RULES.doors = keep;
+    const bad = eff.filter(d => !doorExists(d));
+    return `<div class="rl-row" style="margin-bottom:4px">
+      <span class="lb" style="min-width:34px;color:${floorColor(i)};font-weight:800">${esc(f.name)}</span>
+      <input type="text" style="flex:1;min-width:220px" value="${esc((RDRAFT.doors || {})[f.name] || "")}" placeholder="${esc(auto.join(", ") || "（このフロアの番号がありません）")}" oninput="rdSet('${esc(f.name)}',this.value)">
+      <span class="note">${eff.length ? `${eff.length}ドア` : `<span style="color:var(--alert)">0ドア</span>`}${bad.length ? `<span style="color:var(--alert)"> ／ 一覧に無い: ${esc(bad.join(","))}</span>` : ""}／ バース ${f.bays.length} → 同時 ${lim}台</span></div>`;
+  }).join("");
 }
-function rdSet(f, b, v) {
+function rdSet(f, v) {
   RDRAFT.doors = RDRAFT.doors || {};
   const t = String(v || "").trim();
-  if (t) RDRAFT.doors[f + "|" + b] = t; else delete RDRAFT.doors[f + "|" + b];
+  if (t) RDRAFT.doors[f] = t; else delete RDRAFT.doors[f];
+  clearTimeout(rdT); rdT = setTimeout(() => { renderRuleDoors(); renderRuleFloors(); }, 400);
 }
+let rdT = null;
 function rfSet(name, k, v) { RDRAFT.floors[name] = Object.assign({ use: true, prio: 3 }, RDRAFT.floors[name] || {}, { [k]: v }); updRuleSummary(); }
 function renderRuleList() {
   const cols = csvCols();
@@ -1515,6 +1536,9 @@ function planScore() {
    /dock/doorCommands に指示を書き、IDX側のスクリプト（マスターPC）が
    appointment/edit 画面の Dock Door Number を変更する。 */
 const DOOR_PATH = DOCK_ROOT + "/doorCommands";
+const DOOR_TTL = 3 * 3600000;    // 指示の有効期限（IDX側と同じ）
+const DOOR_STALL = 10 * 60000;   // 実行中のまま止まったとみなす時間
+let dpTimer = null;
 let dpList = [];          // 反映対象 [{a, from, to, key}]
 let dpKeys = {};          // apptKey → Firebaseの指示キー
 let dpWatch = null;       // 指示の状態を見るリスナー
@@ -1525,29 +1549,41 @@ function openDoorPush() {
   if (!S.appts.length) { toast("予約データがありません"); return; }
   dpList = doorDiff().map(x => ({ ...x, key: null }));
   dpKeys = {}; dpState = {};
-  const bad = dpList.filter(x => x.ng).length, okN = dpList.length - bad;
+  const bad = dpList.filter(x => x.ng || x.short).length, okN = dpList.length - bad;
   const st = document.getElementById("dpStatus");
   const run = document.getElementById("dpRun");
   if (!fbDB) { st.textContent = "Firebaseに接続していないため反映できません"; run.disabled = true; }
   else if (!dpList.length) { st.textContent = "ドックマスタと計画は一致しています（変更する予約はありません）"; run.disabled = true; }
   else if (!idxCode) { st.textContent = "連携コードが未設定です。ドックダッシュボードの設定で「逆連携」の連携コードを入れてください"; run.disabled = true; }
-  else if (!okN) { st.textContent = `ドックマスタに無い番号ばかりです（${bad}台）。「ルール」の「ドックマスタのドア番号」を直してください`; run.disabled = true; }
-  else { st.textContent = `変更できるのは ${okN}台` + (bad ? `（ドックマスタに無い番号の ${bad}台 を除く）` : "") + "。反映する便にチェックを入れてください（試すときは「先頭1台だけ」）"; }
-  if (!S.doorOpts.list.length) st.textContent += " ／ 番号の一覧が未取得です（IDX側の設定で「ドア番号一覧を保存」を押すと照合できます）";
+  else if (!okN) { st.textContent = `ドアを割り当てられません（${bad}台）。「ルール」の「ドックマスタのドア番号」を確認してください`; run.disabled = true; }
+  else { st.textContent = `変更できるのは ${okN}台` + (bad ? `（ドアが取れない ${bad}台 を除く）` : "") + "。反映する便にチェックを入れてください（試すときは「先頭1台だけ」）"; }
+  if (S.doorOpts.src === "既定") st.textContent += " ／ 番号は組み込みの一覧で照合しています（IDX側の「ドア番号一覧を保存」を押すと実機の一覧に更新されます）";
   st.className = "ai-status";
   renderDoorTab();
   document.getElementById("dpModal").classList.add("show");
+  clearInterval(dpTimer);
+  dpTimer = setInterval(() => { if (document.getElementById("dpModal").classList.contains("show")) renderDoorTab(); }, 20000);
 }
 function closeDoorPush() {
   document.getElementById("dpModal").classList.remove("show");
+  clearInterval(dpTimer); dpTimer = null;
   if (dpWatch) { try { dpWatch.off(); } catch (e) {} dpWatch = null; }
 }
-// 選べる行か（番号ありで、まだ送っていない／失敗した行）
-function dpSelectable(x) {
-  if (x.ng) return false;
-  const st = x.key && dpState[x.key] ? dpState[x.key].state : null;
-  return !st || st === "error";
+// 行の実際の状態（期限切れ・中断もここで判定する）
+function dpEff(x) {
+  if (x.short) return "short";
+  if (x.ng) return "ng";
+  if (!x.key) return "new";
+  const s = dpState[x.key]; if (!s) return "pending";
+  const now = Date.now();
+  if (s.state === "pending" && now - (s.at || 0) > DOOR_TTL) return "expired";
+  if (s.state === "running" && now - (s.claimAt || s.at || 0) > DOOR_STALL) return "stalled";
+  return s.state;
 }
+const DP_LABEL = { new: "未実行", pending: "待機中", running: "実行中", done: "反映済", error: "失敗", expired: "期限切れ", stalled: "中断", ng: "番号なし", short: "ドア不足" };
+const DP_CLS = { new: "wait", pending: "wait", running: "run", done: "ok", error: "err", expired: "err", stalled: "err", ng: "err", short: "err" };
+// 選べる行か（番号があり、まだ送っていない／失敗・期限切れ・中断の行）
+function dpSelectable(x) { return ["new", "error", "expired", "stalled"].includes(dpEff(x)); }
 function dpToggle(i, on) { if (dpList[i]) dpList[i].sel = !!on; dpUpdateBtn(); }
 function dpSelectAll(on) { dpList.forEach(x => { x.sel = on && dpSelectable(x); }); renderDoorTab(); }
 function dpSelectFirst(n) {
@@ -1570,14 +1606,16 @@ function dpUpdateBtn() {
 function renderDoorTab() {
   const rows = dpList.map((x, i) => {
     const c = cellOf(x.a), w = winOf(x.a);
-    const s = x.key ? (dpState[x.key] || { state: "pending" }) : null;
-    const cls = x.ng ? "err" : !s ? "wait" : s.state === "done" ? "ok" : s.state === "error" ? "err" : s.state === "running" ? "run" : "wait";
-    const label = x.ng ? "番号なし" : !s ? "未実行" : s.state === "done" ? "反映済" : s.state === "error" ? "失敗" : s.state === "running" ? "実行中" : "待機中";
+    const eff = dpEff(x);
+    const s = x.key ? dpState[x.key] : null;
+    const cls = DP_CLS[eff] || "wait";
+    const label = DP_LABEL[eff] || eff;
+    const hint = eff === "expired" ? "実行されないまま時間が過ぎました" : eff === "stalled" ? "マスターPCが止まった可能性があります" : eff === "short" ? "同じ時間に空きドアがありません" : "";
     const can = dpSelectable(x);
     return `<tr><td><input type="checkbox" ${x.sel && can ? "checked" : ""} ${can ? "" : "disabled"} onchange="dpToggle(${i},this.checked)"></td><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
       <td>${esc(c.f)} ${esc((LAST && LAST.BY[c.f] && LAST.BY[c.f].pos[x.a.key] && LAST.BY[c.f].pos[x.a.key].bay) || "")}</td>
-      <td class="ar">${esc(x.from || "—")} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng ? ' style="color:var(--alert)"' : ""}>${esc(x.to)}</span></td>
-      <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに無い番号</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
+      <td class="ar">${esc(x.from || "—")} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng || x.short ? ' style="color:var(--alert)"' : ""}>${x.to ? esc(x.to) : "—"}</span></td>
+      <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに無い番号</span>` : ""}${hint ? `<br><span class="note">${hint}</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
   }).join("");
   document.getElementById("dpTab").innerHTML =
     `<thead><tr><th style="width:28px"><input type="checkbox" id="dpAll" onchange="dpSelectAll(this.checked)" title="すべて選択"></th><th>受入枠</th><th>Appointment Id</th><th>キャリア</th><th>計画</th><th class="ar">Dock Door</th><th>状態</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="note" style="padding:14px">変更する予約はありません</td></tr>`}</tbody>`;
@@ -1593,7 +1631,7 @@ function runDoorPush() {
   send.forEach(x => {
     x.sel = false;
     const r = ref.push();
-    x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending" };
+    x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending", at: Date.now() };
     r.set({ id: x.a.id, door: x.to, from: x.from || null, code: idxCode, site: "HFO1",
       at: Date.now(), state: "pending", by: "plan" })
       .catch(e => { dpState[r.key] = { state: "error", message: "送信失敗: " + (e.message || e) }; renderDoorTab(); });
@@ -1605,10 +1643,11 @@ function runDoorPush() {
   dpWatch = ref;
   ref.on("value", snap => {
     const all = snap.val() || {};
-    Object.keys(dpState).forEach(k => { if (all[k]) dpState[k] = { state: all[k].state || "pending", message: all[k].message || "" }; });
-    const ks = dpList.filter(x => x.key).map(x => x.key);
-    const fin = ks.filter(k => dpState[k] && (dpState[k].state === "done" || dpState[k].state === "error")).length;
-    const ng = ks.filter(k => dpState[k] && dpState[k].state === "error").length;
+    Object.keys(dpState).forEach(k => { if (all[k]) dpState[k] = { state: all[k].state || "pending", message: all[k].message || "", at: all[k].at || 0, claimAt: all[k].claimAt || 0 }; });
+    const sent = dpList.filter(x => x.key);
+    const fin = sent.filter(x => ["done", "error", "expired", "stalled"].includes(dpEff(x))).length;
+    const ng = sent.filter(x => ["error", "expired", "stalled"].includes(dpEff(x))).length;
+    const ks = sent;
     const el = document.getElementById("dpStatus");
     if (fin >= ks.length) { el.textContent = `完了しました（成功 ${ks.length - ng}件 / 失敗 ${ng}件）`; el.className = "ai-status"; }
     else { el.textContent = `実行中… ${fin}/${ks.length}件`; el.className = "ai-status busy"; }
@@ -1631,7 +1670,8 @@ function setupDB() {
   const first = () => { if (gotNext && gotCur && !S.appts.length && !S.date) { if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; } rebuildAppts(true); } };
   listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; if (S.date && S.src === "next") rebuildAppts(false); else first(); });
   listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
-  listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {}; S.doorOpts = { list: Array.isArray(v.list) ? v.list.map(String) : [], at: v.at || 0 }; });
+  listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {}; const l = Array.isArray(v.list) ? v.list.map(String) : [];
+    S.doorOpts = l.length ? { list: l, at: v.at || 0, src: "IDXから取得" } : { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定" }; });
   listen(dock.child("settings"), "dock/settings", s => { const v = s.val() || {}; idxCode = String((v.idxRev && v.idxRev.code) || ""); });
   listen(dock.child("planRules"), "dock/planRules", s => { if (!RDRAFT) { loadRules(s.val()); if (S.date) render(); } });
   listen(dock.child("floors"), "dock/floors", s => { const f = s.val(); if (Array.isArray(f) && f.length) { S.floors = f.filter(Boolean).map(x => ({ name: x.name, bays: Array.isArray(x.bays) ? x.bays : [] })); if (S.date) render(); } });
