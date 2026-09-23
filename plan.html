@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>着車プラン</title>
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --panel2:#eef1f5;
+  --ink:#1f2b38; --sub:#697a8c;
+  --line:#d8e0e8; --accent:#1f6f8b; --accent2:#15495c;
+  --ok:#2e9e5b; --warn:#e0a800; --alert:#d64545;
+  --f0:#1f6f8b; --f1:#2e8b57; --f2:#b8860b; --f3:#a0522d; --f4:#6a5acd; --f5:#607d8b; --f6:#c2185b;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:var(--bg);color:var(--ink);overflow:hidden;}
+.app{display:flex;flex-direction:column;height:100vh;}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);}
+header h1{font-size:18px;font-weight:700;letter-spacing:.04em;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+header h1 .dot{width:10px;height:10px;border-radius:50%;background:#aab4bf;}
+header h1 .dot.on{background:#3ec96a;box-shadow:0 0 8px #3ec96a;}
+.sp{flex:1;}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.btn:hover{background:var(--panel2);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover{background:var(--accent2);}
+.btn.danger{color:var(--alert);}
+.fld{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);}
+.fld input,.fld select{border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;}
+.save-st{font-size:11px;color:var(--sub);min-width:60px;}
+
+.stats{display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);}
+.stat{background:var(--panel2);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--sub);white-space:nowrap;}
+.stat b{color:var(--ink);font-size:14px;margin-left:4px;font-variant-numeric:tabular-nums;}
+.stat.warn{background:#fff6dc;color:#8a6a00;}
+.stat.alert{background:#fde8e8;color:#a33;}
+.legend{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--sub);margin-left:auto;}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:3px;}
+
+.grid-wrap{flex:1;overflow:auto;position:relative;}
+table.grid{border-collapse:separate;border-spacing:0;}
+.grid th,.grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top;}
+.grid thead th{position:sticky;top:0;z-index:3;background:#fff;padding:7px 8px;text-align:left;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;min-width:178px;width:178px;}
+.grid thead th.next{color:#6a5acd;}
+.grid thead th.corner{left:0;z-index:5;min-width:170px;width:170px;color:var(--sub);font-size:12px;}
+.grid th.rh{position:sticky;left:0;z-index:2;background:#fff;min-width:170px;width:170px;padding:8px 10px;text-align:left;border-left:5px solid var(--fc);}
+.grid th.rh .fn{font-size:18px;font-weight:800;color:var(--fc);}
+.grid th.rh .ft{color:var(--sub);font-weight:500;font-size:11px;line-height:1.55;margin-top:2px;font-variant-numeric:tabular-nums;}
+.grid th.rh .ft b{color:var(--ink);}
+.grid tr.unrow th.rh{background:#f7f8fa;}
+.grid tr.unrow td{background:#f7f8fa;}
+.grid td{padding:5px;background:#fff;height:90px;width:178px;min-width:178px;max-width:178px;}
+.grid tr.unrow td{height:64px;}
+.grid td.drop.hover{outline:3px solid var(--accent);outline-offset:-3px;background:#eaf5f9;}
+.grid th.tot,.grid td.tot{background:#f0f3f6;font-size:11px;color:var(--sub);min-width:150px;width:150px;max-width:none;padding:8px;font-variant-numeric:tabular-nums;line-height:1.6;}
+.grid td.tot b{color:var(--ink);}
+.m{display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;line-height:1.4;}
+.m b{color:var(--ink);}
+.ld{display:flex;align-items:center;gap:6px;font-size:11px;margin:3px 0 4px;font-variant-numeric:tabular-nums;color:var(--sub);}
+.ld b{color:var(--ink);}
+.bar{flex:1;height:8px;background:#e6eaef;border-radius:4px;overflow:hidden;min-width:40px;}
+.bar i{display:block;height:100%;background:var(--ok);}
+.bar i.warn{background:var(--warn);} .bar i.alert{background:var(--alert);}
+.pct{font-size:10.5px;font-weight:700;min-width:34px;text-align:right;}
+.pct.warn{color:#9a7400;} .pct.alert{color:var(--alert);} .pct.ok{color:var(--ok);}
+.tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;white-space:nowrap;}
+.tag.warn{background:#fff0c2;color:#8a6a00;}
+.tag.alert{background:#fbd5d5;color:#a52a2a;}
+.tag.info{background:#e3eef8;color:#2a5d8a;}
+.chips{display:flex;flex-direction:column;gap:4px;min-height:22px;}
+.chip{background:#fff;border:1px solid var(--line);border-left:4px solid var(--cc,#9aa8b8);border-radius:7px;padding:4px 7px;font-size:11.5px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 1px 3px rgba(40,60,80,.08);line-height:1.35;}
+.chip:hover{box-shadow:0 2px 6px rgba(40,60,80,.18);}
+.chip.sel{outline:2px solid var(--accent);background:#eaf5f9;}
+.chip.dragging{opacity:.35;}
+.chip .r1{display:flex;gap:6px;align-items:baseline;}
+.chip .t{font-weight:700;font-variant-numeric:tabular-nums;}
+.chip .cr{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
+.chip .u{font-weight:700;font-variant-numeric:tabular-nums;}
+.chip .r2{display:flex;gap:6px;color:var(--sub);font-size:10.5px;font-variant-numeric:tabular-nums;}
+.chip .mv{color:#b35c00;font-weight:700;}
+.ghost{position:fixed;z-index:1000;pointer-events:none;opacity:.92;transform:translate(-50%,-50%) rotate(-2deg);box-shadow:0 8px 24px rgba(0,0,0,.25);width:190px;}
+
+.empty{padding:60px 20px;text-align:center;color:var(--sub);font-size:14px;line-height:2;}
+.dropmask{position:fixed;inset:0;background:rgba(31,111,139,.15);border:4px dashed var(--accent);z-index:900;display:none;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--accent);}
+.dropmask.show{display:flex;}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1f2b38;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:1100;max-width:90vw;}
+.toast.show{opacity:1;transform:translateX(-50%);}
+
+.overlay{position:fixed;inset:0;background:rgba(20,30,40,.4);display:none;align-items:center;justify-content:center;z-index:950;padding:16px;}
+.overlay.show{display:flex;}
+.modal{background:#fff;border-radius:12px;width:560px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.25);}
+.modal h2{font-size:16px;padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.modal h2 .x{cursor:pointer;font-size:20px;color:var(--sub);}
+.modal-body{padding:14px 18px 18px;display:flex;flex-direction:column;gap:10px;}
+.sec-title{font-size:13px;font-weight:700;color:var(--accent);margin-top:6px;}
+.row-inp{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;}
+.row-inp input[type=number]{width:90px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:13px;font-family:inherit;}
+.note{font-size:11.5px;color:var(--sub);line-height:1.6;}
+.chk{display:inline-flex;gap:5px;align-items:center;font-size:13px;margin-right:10px;}
+
+.zoom-ctl{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;}
+.zoom-ctl .zbtn{border:none;background:#fff;width:30px;height:32px;cursor:pointer;font-size:17px;font-weight:800;color:var(--accent);font-family:inherit;line-height:1;}
+.zoom-ctl .zbtn:hover{background:var(--accent);color:#fff;}
+.zoom-ctl .zval{min-width:50px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums;user-select:none;}
+.btn:disabled{opacity:.4;cursor:default;}
+.demo-bar{background:#fff8e1;border-bottom:1px solid #f0dca0;color:#6b5400;font-size:12px;padding:6px 16px;}
+.dlg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.chip .bay{background:#37474f;color:#fff;border-radius:4px;padding:0 5px;font-weight:700;font-size:10px;}
+.chip .ng{background:#fbd5d5;color:#a52a2a;border-radius:4px;padding:0 5px;font-weight:700;font-size:10px;}
+.chip.ngc{border-color:#e7a3a3;}
+.rh .off{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:#90a4ae;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:3px;}
+.rh .pr{display:inline-block;font-size:10px;font-weight:700;color:var(--fc);border:1px solid var(--fc);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:3px;}
+tr.flOff td{background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f5f7 8px 16px);}
+/* 処理時間バー表示 */
+.gbox{position:relative;display:inline-block;min-width:100%;}
+.ov{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:1;}
+.grid th.rh,.grid thead th{z-index:3;}
+.grid th.rh{z-index:4;}
+.vbar td.fcell .hd{height:64px;overflow:hidden;}
+.vbar td,.vbar thead th:not(.corner){width:220px;min-width:220px;max-width:220px;}
+.pbar{position:absolute;height:34px;border-radius:7px;background:#fff;border:1px solid var(--line);box-shadow:0 1px 3px rgba(40,60,80,.12);pointer-events:auto;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;display:flex;font-size:11px;line-height:1.3;}
+.pbar:hover{box-shadow:0 2px 8px rgba(40,60,80,.25);z-index:2;}
+.pbar.sel{outline:2px solid var(--accent);}
+.pbar.ngc{border-color:#e7a3a3;}
+.pbar{background:color-mix(in srgb,var(--cc) 16%,#fff);border-left:4px solid var(--cc);}
+.pbar .wt{position:absolute;left:0;top:0;bottom:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.85) 0 5px,rgba(210,218,227,.85) 5px 10px);border-right:3px solid var(--cc);}
+.pbar .pr{position:relative;flex:1;min-width:0;height:100%;padding:3px 6px;display:flex;flex-direction:column;justify-content:center;}
+.pbar .l1,.pbar .l2{text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;}
+.pbar .bay,.pbar .ng{text-shadow:none;}
+.pbar .l1,.pbar .l2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pbar .l1 b{font-variant-numeric:tabular-nums;}
+.pbar .l2{color:var(--sub);font-size:10.5px;font-variant-numeric:tabular-nums;}
+.pbar.unf{border-color:var(--alert);box-shadow:0 0 0 1px var(--alert);}
+.pbar.haswt{border-left-color:#b0bcc8;}
+.pbar .bay{background:#37474f;color:#fff;border-radius:4px;padding:0 4px;font-weight:700;font-size:10px;margin-right:3px;}
+.pbar .ng{background:#fbd5d5;color:#a52a2a;border-radius:4px;padding:0 4px;font-weight:700;font-size:10px;margin-right:3px;}
+.pbar.dragging{opacity:.35;}
+body.dragmode .pbar{pointer-events:none;}
+.ghost.pbar{height:38px;}
+.vbar th.rhb{padding:5px 8px;vertical-align:top;}
+.vbar th.rhb .rhh{height:64px;overflow:hidden;}
+.vbar th.rhb .ft{font-size:10.5px;line-height:1.5;}
+.vbar th.rhb .lbl{height:38px;line-height:38px;font-size:12px;font-weight:700;color:var(--fc);border-top:1px dashed #e3e8ee;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.vbar th.rhb .lbl small{font-size:10px;color:#fff;background:var(--fc);border-radius:4px;padding:1px 4px;margin-left:4px;font-weight:700;}
+.vbar th.rhb .lbl.x{color:var(--alert);}
+.lane-line{position:absolute;border-top:1px dashed #e3e8ee;pointer-events:none;}
+body.dragmode .lane-line,body.selmode .lane-line{pointer-events:auto;}
+body.selmode .lane-line{cursor:pointer;}
+body.selmode .lane-line:hover{background:rgba(31,111,139,.08);}
+.lane-line.hover{background:rgba(31,111,139,.16)!important;outline:2px solid var(--accent);outline-offset:-2px;z-index:0;}
+.pbar .fix{background:var(--cc);color:#fff;border-radius:4px;padding:0 4px;font-weight:700;font-size:10px;margin-right:3px;text-shadow:none;}
+.lane-line.r{background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(96,125,139,.06) 8px 16px);}
+.lane-line.x{background:rgba(214,69,69,.06);border-top-color:#f0b0b0;}
+/* ルール画面 */
+.rl-tab{border-collapse:collapse;width:100%;font-size:13px;}
+.rl-tab th,.rl-tab td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:left;}
+.rl-tab th{font-size:11.5px;color:var(--sub);font-weight:600;}
+.rl-tab select,.rl-tab input[type=number],.rl-card select,.rl-card input[type=text],.rl-card input[type=number]{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12.5px;font-family:inherit;background:#fff;color:var(--ink);}
+.rl-tab input[type=number]{width:70px;}
+.strat{display:flex;flex-direction:column;gap:6px;}
+.strat label{display:flex;gap:8px;align-items:flex-start;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;}
+.strat label:has(input:checked){border-color:var(--accent);background:#eef6f9;}
+.strat small{display:block;color:var(--sub);font-size:11.5px;margin-top:2px;}
+.rl-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
+.rl-card.off{opacity:.55;}
+.rl-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px;}
+.rl-row .lb{color:var(--sub);font-size:11.5px;min-width:34px;}
+.rl-name{flex:1;min-width:140px;font-weight:700;}
+.rl-hit{font-size:11px;color:var(--sub);}
+.rl-bays{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;}
+.rl-bays label{font-size:12px;display:flex;gap:4px;align-items:center;}
+.btn.sm{padding:4px 9px;font-size:12px;}
+.rl-foot{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:#fff;padding-top:8px;border-top:1px solid var(--line);}
+.cfm-msg{font-size:14px;line-height:1.7;white-space:pre-wrap;}
+
+.chs-list{display:flex;flex-direction:column;gap:6px;}
+.chs-list button{text-align:left;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 12px;font-family:inherit;font-size:13px;cursor:pointer;color:var(--ink);}
+.chs-list button:hover,.chs-list button:focus-visible{border-color:var(--accent);background:#eef6f9;outline:none;}
+.chs-list button b{display:block;font-size:13.5px;}
+.chs-list button small{color:var(--sub);font-size:11.5px;}
+.chs-list button.rec{border-color:var(--accent);}
+.chs-list button:disabled{opacity:.45;cursor:default;background:#fff;border-color:var(--line);}
+
+/* ヘッダーを1行に収める（小さめのボタン・文字） */
+header{flex-wrap:nowrap;gap:5px;padding:6px 12px;overflow-x:auto;scrollbar-width:thin;}
+header h1{font-size:15px;gap:6px;margin-right:4px;}
+header .btn{padding:4px 8px;font-size:11.5px;border-radius:6px;flex:none;}
+header .fld{font-size:11px;gap:4px;flex:none;}
+header .fld input,header .fld select{padding:3px 5px;font-size:11.5px;border-radius:6px;}
+header .save-st{font-size:10.5px;min-width:0;white-space:nowrap;flex:none;}
+header .sp{min-width:4px;}
+header .zoom-ctl{flex:none;border-radius:6px;}
+header .zoom-ctl .zbtn{width:24px;height:24px;font-size:14px;}
+header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
+
+/* ===== PDF用 ===== */
+#pdfRoot{position:fixed;left:-20000px;top:0;}
+.pg{width:1400px;height:990px;background:#fff;padding:28px 32px;overflow:hidden;color:#1f2b38;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;}
+.pg .ph{display:flex;align-items:baseline;gap:16px;border-bottom:3px solid var(--accent);padding-bottom:8px;margin-bottom:10px;}
+.pg .ph h1{font-size:24px;}
+.pg .ph .d{font-size:18px;font-weight:700;color:var(--accent);}
+.pg .ph .g{margin-left:auto;font-size:12px;color:#697a8c;}
+.pg .sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:13px;}
+.pg .sum span{background:#eef1f5;border-radius:6px;padding:4px 10px;}
+.pg table{border-collapse:collapse;width:100%;table-layout:fixed;}
+.pg th,.pg td{border:1px solid #c9d3dd;padding:4px 6px;vertical-align:top;font-size:12px;}
+.pg thead th{background:#f0f3f6;text-align:left;}
+.pg thead th .fn{font-size:15px;font-weight:800;}
+.pg td.tm{text-align:center;font-weight:700;width:60px;}
+.pg .pm{font-size:10.5px;color:#697a8c;margin-bottom:2px;}
+.pg .pm b{color:#1f2b38;}
+.pg .pl{font-size:11.5px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pg .pb{height:6px;background:#e6eaef;border-radius:3px;overflow:hidden;margin:2px 0 3px;}
+.pg .pb i{display:block;height:100%;background:#2e9e5b;}
+.pg .pb i.warn{background:#e0a800;} .pg .pb i.alert{background:#d64545;}
+.pg th.rh{border-left:5px solid var(--fc);width:120px;text-align:left;}
+.pg .fh{font-size:17px;font-weight:800;margin:10px 0 6px;padding-left:8px;border-left:6px solid var(--fc);}
+.pg .num{text-align:right;font-variant-numeric:tabular-nums;}
+.pg.fit{height:auto;min-height:990px;overflow:visible;}
+.pg table.gtab th,.pg table.gtab td{padding:3px 3px;font-size:10.5px;}
+.pg table.gtab th.hc{text-align:center;font-size:11.5px;}
+.pg table.gtab td.gc{height:150px;}
+.pg table.gtab .pm{font-size:9.5px;line-height:1.3;}
+.pg .gt{border-top:1px solid #e3e8ee;padding:2px 0 1px;}
+.pg .gt .g1{display:flex;justify-content:space-between;font-size:10px;line-height:1.25;font-variant-numeric:tabular-nums;}
+.pg .gt .g2{font-size:9.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#37474f;}
+.pg .foot{margin-top:8px;font-size:11px;color:#697a8c;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1><span class="dot" id="syncDot"></span>着車プラン</h1>
+    <label class="fld">計画日 <input type="date" id="planDate"></label>
+    <label class="fld">予約
+      <select id="srcSel">
+        <option value="next">翌日分CSV</option>
+        <option value="current">ドック表示中</option>
+      </select>
+    </label>
+    <button class="btn" onclick="document.getElementById('csvFile').click()">CSV読込</button>
+    <span class="save-st" id="saveSt"></span>
+    <span class="sp"></span>
+    <button class="btn" onclick="openRules()">ルール</button>
+    <button class="btn" onclick="autoAssign()">自動割当</button>
+    <button class="btn" id="undoBtn" onclick="undo()" disabled>元に戻す</button>
+    <button class="btn" id="viewBtn" onclick="toggleView()" title="カードの表示を切り替えます">バー表示</button>
+    <span class="zoom-ctl" title="表の表示サイズ"><button class="zbtn" onclick="setZoom(-1)" aria-label="縮小">−</button><span class="zval" id="zoomVal" onclick="setZoom(0)" title="クリックで100%に戻す">100%</span><button class="zbtn" onclick="setZoom(1)" aria-label="拡大">＋</button></span>
+    <button class="btn danger" onclick="clearAssign()">割当解除</button>
+    <button class="btn" onclick="copyText()" title="Slack貼付用の要約をコピー">テキスト</button>
+    <button class="btn primary" onclick="makePDF()">PDF作成</button>
+    <button class="btn" onclick="openSettings()">設定</button>
+    <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none">
+  </header>
+  <div class="demo-bar" id="msgBar" hidden></div>
+  <div class="stats" id="stats"></div>
+  <div class="grid-wrap" id="gridWrap"><div class="empty">読込中…</div></div>
+</div>
+
+<div class="dropmask" id="dropMask">CSVをドロップして翌日分として読込</div>
+<div class="toast" id="toast"></div>
+<div id="pdfRoot"></div>
+
+<div class="overlay" id="rulesModal">
+  <div class="modal" style="width:760px">
+    <h2>割当ルール<span class="x" onclick="closeRules(false)">×</span></h2>
+    <div class="modal-body">
+      <div class="note">「自動割当」で使います。使用フロア・限定・除外・バース指定は必ず守り、優先は条件（能力不足を作らない範囲）で効かせます。手で動かしたカードがルールに反すると「ルール外」と表示されます。</div>
+      <div class="sec-title">割当の方針</div>
+      <div class="strat" id="rlStrat">
+        <label><input type="radio" name="rlStrat" value="balance"><span><b>均等に分散</b><small>使用する全フロアに台数が均等になるように、同じ時間に重ならないように振り分けます（能力不足は避けます）。</small></span></label>
+        <label><input type="radio" name="rlStrat" value="priority"><span><b>優先フロアから埋める</b><small>下の優先度が高いフロアから順に入れ、能力不足になる分だけ次のフロアへ回します。</small></span></label>
+        <label><input type="radio" name="rlStrat" value="capacity"><span><b>処理能力（TP）の高いフロアに集中</b><small>その日のIN LH × UPH が大きいフロアから順に入れ、能力不足になる分だけ次へ回します。</small></span></label>
+      </div>
+      <div class="sec-title">フロア設定</div>
+      <div class="row-inp"><label>同時着車の上限（全フロア共通） <input type="number" id="rlConc" min="1" step="1" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" oninput="RDRAFT.conc=+this.value||null;renderRuleFloors()"> 台</label>
+        <span class="note">空欄はバース数まで。フロア別に入れた値が優先されます。同じ時間に着車できる台数がこれを超えると「同時上限超え」になり、自動割当は別フロアへ回します。</span></div>
+      <div style="overflow-x:auto"><table class="rl-tab" id="rlFloors"></table></div>
+      <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">条件ルール<button class="btn sm" onclick="addRule()">＋ ルールを追加</button></div>
+      <div class="note">上から順に適用します。条件は予約CSVの列で指定します（例: CUT (Critical Unload Time) が空欄でない、Carrier に 佐川 を含む、Pallets が 10 以上）。</div>
+      <div id="rlList" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="rl-foot">
+        <span class="note" id="rlSummary"></span>
+        <span style="display:flex;gap:8px"><button class="btn" onclick="closeRules(false)">キャンセル</button><button class="btn primary" onclick="closeRules(true)">保存</button></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="chs">
+  <div class="modal" style="width:480px">
+    <h2 id="chsTitle">選択</h2>
+    <div class="modal-body">
+      <div class="cfm-msg" id="chsMsg"></div>
+      <div class="chs-list" id="chsList"></div>
+      <div class="dlg-actions"><button class="btn" id="chsNo">キャンセル</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="cfm">
+  <div class="modal" style="width:420px">
+    <h2 id="cfmTitle">確認</h2>
+    <div class="modal-body">
+      <div class="cfm-msg" id="cfmMsg"></div>
+      <div class="dlg-actions"><button class="btn" id="cfmNo">キャンセル</button><button class="btn primary" id="cfmYes">OK</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="settings">
+  <div class="modal">
+    <h2>設定<span class="x" onclick="closeSettings()">×</span></h2>
+    <div class="modal-body">
+      <div class="sec-title">処理能力（IN 目標UPH）</div>
+      <div class="row-inp">
+        <label>日勤 <input type="number" id="uphDay" min="0" step="1"></label>
+        <label>夜勤 <input type="number" id="uphNight" min="0" step="1"></label>
+      </div>
+      <div class="note" id="uphNote"></div>
+      <div class="sec-title">対象工程（IN）</div>
+      <div id="subsecBox" class="row-inp"></div>
+      <div class="note">チェックした工程の人員だけを時間別HC/LHと処理能力に含めます（このPCに保存）。</div>
+      <div class="sec-title">稼働時間（表示する時間帯）</div>
+      <div class="row-inp">
+        <label>開始 <input type="number" id="axS" min="0" max="29" placeholder="8"> 時</label>
+        <label>終了 <input type="number" id="axE" min="1" max="30" placeholder="18"> 時</label>
+      </div>
+      <div class="note">空欄は 8〜18時。範囲外の予約がある日は自動で広げます。24以降は翌日（例: 30 = 翌6時）。</div>
+      <div class="sec-title">判定の見方</div>
+      <div class="note">
+        処理能力 = その時間帯のIN人員のLH × 目標UPH。LHは各人の出勤〜退勤に比例配分（休憩分はLH値に含めて按分）。<br>
+        持越 = 前の時間からの残 + その時間の着車Units − 処理能力（0未満は0）。<br>
+        処理可能バー = (前時間の持越 + その時間の着車Units) ÷ 処理能力。緑 = 時間内に処理可能 / 黄 = 残が出るが次の1時間で解消見込み / 赤 = 残が1時間分の処理能力を超える、または人員なしで着車あり。<br>
+        「台数超過」 = 1時間の着車台数がそのフロアのバース数を超過。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* =====================================================================
+   着車プラン
+   - 予約: /dock/nextMaster（翌日分CSV・ドックダッシュボードと共有） or /dock/master
+   - 人員: 配置ダッシュボードのルート（roster/custom/admins/layout/floorMove/master/targetUPH）
+   - 計画: /dock/plans/<YYYY-MM-DD> = {assign:{<apptId>:{f,h}}, uph, updatedAt}
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD01thIqlq4VQpSe8fxU-0a_M9ynO6p0IM",
+  authDomain: "gworker-haichi.firebaseapp.com",
+  databaseURL: "https://gworker-haichi-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gworker-haichi",
+  storageBucket: "gworker-haichi.firebasestorage.app",
+  messagingSenderId: "218653712277",
+  appId: "1:218653712277:web:af850c4143bbf88983209c"
+};
+const DOCK_ROOT = "dock";
+const ID_FIELD = "Appointment Id";
+const LS_KEY = "chakusha_plan_cfg";
+const WD = ["日","月","火","水","木","金","土"];
+
+let fbDB = null, fbReady = false;
+const S = {
+  src: "next",
+  masters: { next: null, current: null },
+  appts: [], outOfDate: 0,
+  date: "",
+  plan: { assign: {}, uph: null },
+  planLoadedFor: "",
+  // 配置ダッシュボード
+  roster: [], custom: {}, admins: [], layout: {}, floorMove: {}, pmaster: null,
+  targetUPH: { 日勤: { in: 0 }, 夜勤: { in: 0 } },
+  // ドック
+  floors: [
+    { name: "6F", bays: ["605A","605B","604A","604B","603A","603B","602A","602B"] },
+    { name: "5F", bays: ["505A","505B","504A","504B","503A","503B","502A","502B"] },
+    { name: "4F", bays: ["418A","403A","403B","402A","402B"] },
+    { name: "3F", bays: ["318A","303A","303B","302A","302B"] },
+    { name: "2F", bays: ["205A","205B","204A","204B","203A","203B","202A","202B"] },
+  ],
+  sel: null,
+};
+let CFG = { subsecOff: [], axS: null, axE: null };
+try { Object.assign(CFG, JSON.parse(localStorage.getItem(LS_KEY) || "{}")); } catch (e) {}
+function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
+
+/* ============ 汎用 ============ */
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m])); }
+function fmt(n) { return Math.round(n || 0).toLocaleString("ja-JP"); }
+function fmt1(n) { return (Math.round((n || 0) * 10) / 10).toFixed(1); }
+let tt; function toast(m) { const t = document.getElementById("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 2600); }
+function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function dateLabel(key) { if (!key) return ""; const [y, m, d] = key.split("-").map(Number); const dt = new Date(y, m - 1, d); return `${y}/${m}/${d}(${WD[dt.getDay()]})`; }
+function hl(h) { return (h >= 24 ? "翌" : "") + (h % 24) + ":00"; }
+function hm(d) { return d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function floorColor(i) { return `var(--f${i % 7})`; }
+function floorIdx(name) { return S.floors.findIndex(f => f.name === name); }
+function num(v) { const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "")); return isNaN(n) ? null : n; }
+function keyEnc(k) { return String(k).replace(/[.#$\[\]\/]/g, "_"); }
+
+/* ============ CSV ============ */
+function parseCSV(text) {
+  text = text.replace(/^﻿/, "");
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (q) { if (c === '"' && n === '"') { cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
+    else { if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\r") {} else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else cur += c; }
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ""));
+}
+function decodeSmart(buf) {
+  const bytes = new Uint8Array(buf);
+  function score(t) { let cjk = 0, half = 0; for (const ch of t) { const c = ch.codePointAt(0); if ((c >= 0x3040 && c <= 0x30ff) || (c >= 0x4e00 && c <= 0x9fff)) cjk++; else if (c >= 0xff61 && c <= 0xff9f) half++; } const bad = (t.match(/\uFFFD/g) || []).length; return cjk - half * 2 - bad * 3; }
+  let best = null;
+  for (const enc of ["utf-8", "shift_jis", "windows-31j", "euc-jp"]) { let t; try { t = new TextDecoder(enc, { fatal: false }).decode(bytes); } catch (e) { continue; } const s = score(t); if (!best || s > best.s) best = { t, s }; }
+  return best ? best.t : new TextDecoder("utf-8").decode(bytes);
+}
+function normalizeMaster(m) {
+  if (!m) return null;
+  if (Array.isArray(m.headers) && Array.isArray(m.rows)) return { headers: m.headers, rows: m.rows, name: m.name || "", savedAt: m.savedAt || 0 };
+  if (Array.isArray(m.headers) && Array.isArray(m.data)) return { headers: m.headers, rows: m.data.map(o => m.headers.map(h => o[h] == null ? "" : o[h])), name: m.name || "", savedAt: m.savedAt || 0 };
+  return null;
+}
+function ingestCSVText(text, name) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) { toast("データがありません"); return; }
+  const headers = rows[0].map((h, i) => (h || "").trim() || ("列" + (i + 1)));
+  if (!headers.includes(ID_FIELD)) { toast("「" + ID_FIELD + "」列がありません"); return; }
+  const valueRows = rows.slice(1).map(r => headers.map((h, i) => (r[i] || "").trim()));
+  const payload = { headers, rows: valueRows, name, savedAt: Date.now() };
+  S.masters.next = payload; S.src = "next"; document.getElementById("srcSel").value = "next";
+  undoStack = []; document.getElementById("undoBtn").disabled = true;
+  rebuildAppts(true);
+  if (fbDB) {
+    fbDB.ref(DOCK_ROOT + "/nextMaster").set(payload)
+      .then(() => toast(valueRows.length + "件を翌日分として保存しました"))
+      .catch(e => toast("保存に失敗: " + (e.message || e)));
+  } else toast(valueRows.length + "件 読込みました");
+  // 取込直後：割当がまだ無ければ自動割当で叩き台を作る（「元に戻す」で取り消し可）
+  planReady.then(() => { if (S.appts.length && !S.appts.some(a => cellOf(a).f)) { pushUndo(); autoAssignCore(true, true); } });
+}
+function readCSVFile(file) {
+  const rd = new FileReader();
+  rd.onload = () => ingestCSVText(decodeSmart(rd.result), file.name);
+  rd.readAsArrayBuffer(file);
+}
+document.getElementById("csvFile").addEventListener("change", e => { const f = e.target.files[0]; if (f) readCSVFile(f); e.target.value = ""; });
+(function () {
+  const mask = document.getElementById("dropMask"); let cnt = 0;
+  const isFile = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
+  window.addEventListener("dragenter", e => { if (!isFile(e)) return; e.preventDefault(); cnt++; mask.classList.add("show"); });
+  window.addEventListener("dragover", e => { if (isFile(e)) e.preventDefault(); });
+  window.addEventListener("dragleave", e => { if (!isFile(e)) return; cnt = Math.max(0, cnt - 1); if (!cnt) mask.classList.remove("show"); });
+  window.addEventListener("drop", e => { if (!isFile(e)) return; e.preventDefault(); cnt = 0; mask.classList.remove("show"); const f = e.dataTransfer.files[0]; if (f) readCSVFile(f); });
+})();
+
+/* ============ 予約データ ============ */
+function parseSched(s) {
+  const m = String(s || "").match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+}
+// "2026/09/24 14:00 JST - 2026/09/24 14:30 JST" / "2026/09/24 14:00 - 14:30" → 終了時刻
+function parseSchedEnd(s, start) {
+  const str = String(s || "");
+  const full = [...str.matchAll(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/g)];
+  if (full.length >= 2) { const m = full[1]; return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]); }
+  const tail = str.split("-").slice(-1)[0].match(/(\d{1,2}):(\d{2})/);
+  if (start && str.includes("-") && tail) { const e = new Date(start); e.setHours(+tail[1], +tail[2], 0, 0); if (e <= start) e.setDate(e.getDate() + 1); return e; }
+  return null;
+}
+function splitCarrier(c) {
+  const m = String(c || "").match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+  const code = m ? m[1] : "", name = (m ? m[2] : String(c || "")).replace(/株式会社|\(株\)|（株）/g, "").trim();
+  return { code, name: name || code || "(不明)" };
+}
+function rebuildAppts(resetDate) {
+  const M = S.masters[S.src];
+  const all = [];
+  if (M) {
+    const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
+    const g = (r, k) => hi[k] == null ? "" : r[hi[k]];
+    M.rows.forEach(r => {
+      const dt = parseSched(g(r, "Schedule Date")) || parseSched(g(r, "Expected Arrival Date"));
+      const de = dt ? parseSchedEnd(g(r, "Schedule Date"), dt) : null;
+      const durMin = de && de > dt ? Math.round((de - dt) / 60000) : 30;
+      const id = String(g(r, ID_FIELD) || "").trim(); if (!id) return;
+      const cr = splitCarrier(g(r, "Carrier"));
+      all.push({ id, key: keyEnc(id), dt, carrier: g(r, "Carrier"), code: cr.code, cname: cr.name,
+        sched: g(r, "Schedule Date"), units: num(g(r, "Units")), cartons: num(g(r, "Cartons")), pallets: num(g(r, "Pallets")),
+        type: g(r, "Type"), status: g(r, "Status"), durMin,
+        raw: Object.fromEntries(M.headers.map(h => [h, g(r, h)])) });
+    });
+  }
+  // 計画日：未設定 or CSV差替時は最多の日付
+  if (resetDate || !S.date) {
+    const cnt = {}; all.forEach(a => { if (a.dt) { const k = ymd(a.dt); cnt[k] = (cnt[k] || 0) + 1; } });
+    const best = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+    if (best) S.date = best;
+    else if (!S.date) { const t = new Date(); t.setDate(t.getDate() + 1); S.date = ymd(t); }
+    document.getElementById("planDate").value = S.date;
+  }
+  const base = dateBase();
+  S.appts = []; S.outOfDate = 0;
+  all.forEach(a => {
+    if (!a.dt) { S.outOfDate++; return; }
+    const h = Math.floor((a.dt - base) / 3600000);
+    if (h < 0 || h >= 24) { S.outOfDate++; return; }
+    a.h0 = h; S.appts.push(a);
+  });
+  S.appts.sort((a, b) => a.dt - b.dt);
+  loadPlan();
+}
+function dateBase() { const [y, m, d] = S.date.split("-").map(Number); return new Date(y, m - 1, d); }
+
+/* ============ 人員（配置ダッシュボード） ============ */
+function uidEnc(p) { return String(p.no + "_" + p.name).replace(/[.#$\[\]\/]/g, "_"); }
+function pmasterOk() { return S.pmaster && ["OUT", "IN", "ICQA"].some(k => Array.isArray(S.pmaster[k]) && S.pmaster[k].length); }
+function locOf(p) {
+  const k = uidEnc(p), L = S.layout[k];
+  const valid = (pl, sub) => !pmasterOk() || (Array.isArray(S.pmaster[pl]) && S.pmaster[pl].includes(sub));
+  if (L !== undefined && L !== null) {
+    if (["WAIT", "ABSENT", "HOLIDAY", "other"].includes(L)) return L;
+    const pt = String(L).split("|");
+    return valid(pt[0], pt[1]) ? pt[0] + "|" + pt[1] : "WAIT";
+  }
+  return valid(p.section, p.subsec) ? p.section + "|" + p.subsec : "WAIT";
+}
+function floorOf(p) { const k = uidEnc(p); return S.floorMove[k] !== undefined ? S.floorMove[k] : p.floor; }
+function people() {
+  const list = Array.isArray(S.roster) ? S.roster.filter(Boolean).slice() : [];
+  Object.values(S.custom || {}).forEach(c => { if (c && !list.some(p => p.no === c.no)) list.push(c); });
+  return list; // 管理者は除外（サマリと同じ）
+}
+function tnum(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return v < 1 ? v * 24 : v;
+  const m = String(v).match(/(\d{1,2})\s*[:：]\s*(\d{2})/); if (m) return +m[1] + m[2] / 60;
+  const n = parseFloat(v); if (!isNaN(n)) return n < 1 ? n * 24 : n;
+  return null;
+}
+function inSubsecs() {
+  const s = new Set();
+  if (pmasterOk() && Array.isArray(S.pmaster.IN)) S.pmaster.IN.forEach(x => s.add(x));
+  people().forEach(p => { const l = locOf(p); if (l.startsWith("IN|")) s.add(l.split("|")[1]); });
+  return [...s];
+}
+function uphOf(shift) {
+  const o = S.plan.uph && S.plan.uph[shift];
+  if (o > 0) return o;
+  return (S.targetUPH[shift] && +S.targetUPH[shift].in) || 0;
+}
+// IN人員を {floor, s, e, f(LH/時間), uph} に変換
+function inSpans() {
+  const out = [], info = { total: 0, inCnt: 0, noTime: 0, offFloor: 0 };
+  people().forEach(p => {
+    info.total++;
+    const l = locOf(p);
+    if (!l.startsWith("IN|")) return;
+    if (CFG.subsecOff.includes(l.split("|")[1])) return;
+    info.inCnt++;
+    const fl = floorOf(p);
+    if (floorIdx(fl) < 0) { info.offFloor++; return; }
+    let s = tnum(p.startT), e = tnum(p.endT);
+    if (s == null || e == null) { info.noTime++; return; }
+    if (e <= s) e += 24;
+    if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
+    const dur = e - s; const lh = num(p.lh) > 0 ? num(p.lh) : dur;
+    out.push({ floor: fl, s, e, f: lh / dur, uph: uphOf(p.shift), shift: p.shift, lh });
+  });
+  return { spans: out, info };
+}
+
+/* ============ 集計 ============ */
+function cellOf(a) { const x = S.plan.assign[a.key]; return { f: x && x.f ? x.f : null, h: x && x.h != null ? x.h : a.h0, b: x && x.b ? x.b : null }; }
+function axis(spans) {
+  let a = 24, b = 0;
+  S.appts.forEach(x => { const h = cellOf(x).h; a = Math.min(a, h); b = Math.max(b, h + 1); });
+  spans.forEach(p => { a = Math.min(a, Math.floor(p.s)); b = Math.max(b, Math.ceil(p.e)); });
+  // 稼働時間（既定 8〜18時）。予約がはみ出す場合だけ広げる
+  a = (CFG.axS != null && CFG.axS !== "") ? +CFG.axS : 8;
+  b = (CFG.axE != null && CFG.axE !== "") ? +CFG.axE : 18;
+  S.appts.forEach(x => { const w = winOf(x); if (Math.floor(w.s / 60) < a) a = Math.floor(w.s / 60); if (Math.ceil(w.e / 60) > b) b = Math.ceil(w.e / 60); });
+  a = Math.max(0, a); b = Math.min(30, Math.max(a + 1, b));
+  return { a, b };
+}
+function compute() {
+  const { spans, info } = inSpans();
+  const ax = axis(spans);
+  const H = []; for (let h = ax.a; h < ax.b; h++) H.push(h);
+  const F = {};
+  S.floors.forEach(fl => {
+    F[fl.name] = { name: fl.name, bays: fl.bays.length || 0, cells: {}, tot: { n: 0, u: 0, lh: 0, cap: 0, unk: 0 } };
+    H.forEach(h => F[fl.name].cells[h] = { hc: 0, lh: 0, cap: 0, trucks: [], units: 0, unk: 0, backlog: 0, lvl: "" });
+  });
+  spans.forEach(p => {
+    const fl = F[p.floor]; if (!fl) return;
+    H.forEach(h => {
+      const ov = Math.max(0, Math.min(h + 1, p.e) - Math.max(h, p.s));
+      if (ov <= 0) return;
+      const c = fl.cells[h]; c.hc++; c.lh += ov * p.f; c.cap += ov * p.f * p.uph;
+    });
+  });
+  const un = {}; H.forEach(h => un[h] = []);
+  S.appts.forEach(a => {
+    const c = cellOf(a);
+    if (c.f && F[c.f] && F[c.f].cells[c.h]) { const cell = F[c.f].cells[c.h]; cell.trucks.push(a); cell.units += estU(a); if (a.units == null) cell.unk++;
+      if (c.b) { cell.bayUse = cell.bayUse || {}; cell.bayUse[c.b] = (cell.bayUse[c.b] || 0) + 1; } }
+    else if (un[c.h]) un[c.h].push(a);
+  });
+  Object.values(F).forEach(fl => backlogCalc(fl, H));
+  const BY = computeBays();
+  S.floors.forEach(fl => { const B = BY[fl.name]; S.appts.forEach(a => { const p = B.pos[a.key]; if (p && (p.over || p.dup)) { const c = F[fl.name].cells[cellOf(a).h]; if (c) c.over = true; } }); });
+  return { H, F, un, info, spans, BY };
+}
+function backlogCalc(fl, H) {
+  let b = 0; const t = fl.tot; t.n = t.u = t.lh = t.cap = t.unk = 0;
+  H.forEach(h => {
+    const c = fl.cells[h];
+    c.inb = b; c.load = b + c.units;
+    c.ratio = c.cap > 0 ? c.load / c.cap : (c.load > 0 ? 9 : 0);
+    b = Math.max(0, b + c.units - c.cap); c.backlog = b;
+    c.lvl = "";
+    if (b > 0) c.lvl = (c.cap <= 0 || b > c.cap) ? "alert" : "warn";
+    c.over = false;
+    c.bayDup = c.bayUse ? Object.keys(c.bayUse).filter(b => c.bayUse[b] > 1) : [];
+    t.n += c.trucks.length; t.u += c.units; t.lh += c.lh; t.cap += c.cap; t.unk += c.unk;
+  });
+  t.end = b;
+}
+
+/* ============ 描画 ============ */
+let LAST = null;
+function render() {
+  const wrap = document.getElementById("gridWrap");
+  const R = LAST = compute();
+  renderStats(R);
+  if (!S.appts.length) {
+    wrap.innerHTML = `<div class="empty">${dateLabel(S.date)} の予約がありません。<br>翌日分のCSVを「CSV読込」またはこの画面へドラッグ&ドロップしてください。<br>${S.outOfDate ? `（他の日付の予約 ${S.outOfDate}件 は計画日を変更すると表示されます）` : ""}</div>`;
+    return;
+  }
+  const sc = wrap.scrollTop, sl = wrap.scrollLeft;
+  const unTotal = R.H.reduce((s, x) => s + R.un[x].length, 0);
+  const barMode = CFG.view !== "card";
+  document.body.classList.toggle("selmode", !!S.sel && barMode);
+  document.getElementById("viewBtn").textContent = barMode ? "バー表示" : "カード表示";
+  const BY = R.BY;
+  let h = `<div class="gbox"><table class="grid${barMode ? " vbar" : ""}"><thead><tr><th class="corner">フロア ＼ 時刻</th>`;
+  R.H.forEach(hh => h += `<th data-hh="${hh}" class="${hh >= 24 ? "next" : ""}">${hl(hh)}</th>`);
+  h += `<th class="tot">合計</th></tr></thead><tbody>`;
+  // 未割当
+  h += `<tr class="unrow"><th class="rh" style="--fc:#9aa8b8"><div class="fn" style="color:var(--sub);font-size:15px">未割当</div><div class="ft"><b>${unTotal}</b>台</div></th>`;
+  R.H.forEach(hh => h += `<td class="drop" data-f="" data-h="${hh}"><div class="chips">${R.un[hh].map(chipHTML).join("")}</div></td>`);
+  h += `<td class="tot">${unTotal}台</td></tr>`;
+  S.floors.forEach((fl, i) => {
+    const t = R.F[fl.name].tot;
+    const fr = floorRule(fl.name);
+    if (barMode) {
+      const B = BY[fl.name];
+      h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh rhb" style="--fc:${floorColor(i)}" title="${esc(`着車 ${t.n}台 / ${fmt(t.u)}U\nIN LH ${fmt1(t.lh)} / 能力 ${fmt(t.cap)}U / 最終持越 ${fmt(t.end)}U`)}">
+        <div class="rhh"><div class="fn">${esc(fl.name)}${fr.use ? "" : `<span class="off">使用しない</span>`}${fr.use && fr.prio !== 3 ? `<span class="pr">優先度 ${PRIO_LABEL[fr.prio]}</span>` : ""}</div>
+        <div class="ft">着車 <b>${t.n}</b>台 ・同時上限 <b>${B.lim}</b>${B.over ? `<br><b style="color:var(--alert)">バース不足 ${B.over}台</b>` : `<br>LH <b>${fmt1(t.lh)}</b> ・能力 <b>${fmt(t.cap)}</b>U`}</div></div>
+        ${B.lanes.map((ln, j) => `<div class="lbl${j >= B.nBays ? " x" : ""}${B.rsv.has(ln) ? " r" : ""}">${esc(ln)}${B.rsv.has(ln) ? "<small>専用</small>" : ""}</div>`).join("")}</th>`;
+    } else
+    h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh" style="--fc:${floorColor(i)}"><div class="fn">${esc(fl.name)}${fr.use ? "" : `<span class="off">使用しない</span>`}${fr.use && fr.prio !== 3 ? `<span class="pr">優先度 ${PRIO_LABEL[fr.prio]}</span>` : ""}</div>
+      <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U${t.unk ? `<br>うち推定 ${t.unk}台` : ""}<br>IN LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U<br>
+      最終持越 <b>${fmt(t.end)}</b>U<br>バース ${fl.bays.length}</div></th>`;
+    R.H.forEach(hh => {
+      const c = R.F[fl.name].cells[hh];
+      if (barMode) h += `<td class="drop fcell" data-f="${esc(fl.name)}" data-h="${hh}"><div class="hd">${cellHead(c)}</div>${hh === R.H[0] ? `<div class="lane-sp" data-f="${esc(fl.name)}" style="height:${Math.max(1, BY[fl.name].lanes.length) * LANE_H + 4}px"></div>` : ""}</td>`;
+      else h += `<td class="drop" data-f="${esc(fl.name)}" data-h="${hh}">${cellHead(c)}<div class="chips">${c.trucks.map(chipHTML).join("")}</div></td>`;
+    });
+    h += `<td class="tot">${t.n}台 / <b>${fmt(t.u)}</b>U<br>LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U<br>最終持越 <b>${fmt(t.end)}</b>U</td></tr>`;
+  });
+  h += `</tbody></table><div class="ov"></div></div>`;
+  wrap.innerHTML = h;
+  const gb = wrap.querySelector(".gbox"); if (gb) gb.style.zoom = zoomOf();
+  document.getElementById("zoomVal").textContent = Math.round(zoomOf() * 100) + "%";
+  if (barMode) layoutBars(R, BY);
+  wrap.scrollTop = sc; wrap.scrollLeft = sl;
+}
+/* ---- 予約の時間幅とバース割付 ----
+   バーの長さ = Schedule Date の時間幅（開始〜終了）。
+   各フロアのバースをレーンとして、開始順に空いているバースへ並べる。
+   バース指定ルールのバースはそのルールの便が使い、専用指定なら他の便は使わない。 */
+function winOf(a) { const c = cellOf(a); const s = c.h * 60 + a.dt.getMinutes(); return { s, e: s + (a.durMin || 30) }; }
+function dur(m) { m = Math.round(m); return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, "0") + "m" : ""}` : `${m}分`; }
+function hmm(m) { return (m >= 1440 ? "翌" : "") + Math.floor((m % 1440) / 60) + ":" + String(m % 60).padStart(2, "0"); }
+const LANE_H = 38;
+function reservedBays() {
+  const r = new Set();
+  RULES.conds.forEach(c => { if (c.on && c.act === "bay" && c.excl !== false) Object.values(c.bays || {}).forEach(b => b && r.add(b)); });
+  return r;
+}
+// フロアごとに {lanes:[バース名..., 不足レーン], pos:{key:{lane,bay,over}}, over:台数}
+function computeBays() {
+  const res = {}; const rsv = reservedBays();
+  S.floors.forEach(fl => {
+    const bays = fl.bays.slice(); const occ = {}; bays.forEach(b => occ[b] = []);
+    const extra = []; const pos = {}; let over = 0;
+    const hit = (b, w) => occ[b].some(v => v.s < w.e && w.s < v.e);
+    const lim = floorLimit(fl.name, bays.length);
+    const busyN = w => bays.reduce((n, b) => n + occ[b].filter(v => v.s < w.e && w.s < v.e).length, 0);
+    const toExtra = (a, w, want, why) => { let i = extra.findIndex(e => e <= w.s); if (i < 0) { i = extra.length; extra.push(0); } extra[i] = w.e; pos[a.key] = { lane: bays.length + i, bay: null, over: true, want, why }; over++; };
+    const list = S.appts.filter(a => cellOf(a).f === fl.name).sort((x, y) => winOf(x).s - winOf(y).s || winOf(y).e - winOf(x).e);
+    // 1) バースが決まっている便（手動固定・ルール指定）を先に置く
+    list.filter(a => cellOf(a).b && bays.includes(cellOf(a).b)).forEach(a => {
+      const w = winOf(a), b = cellOf(a).b;
+      if (hit(b, w)) return toExtra(a, w, b);
+      if (busyN(w) >= lim) return toExtra(a, w, null, "lim");
+      occ[b].push(w); pos[a.key] = { lane: bays.indexOf(b), bay: b };
+    });
+    // 2) 残りは空いているバースへ（専用バースは使わない）
+    list.filter(a => !pos[a.key]).forEach(a => {
+      const w = winOf(a);
+      if (busyN(w) >= lim) return toExtra(a, w, null, "lim");
+      const b = bays.find(x => !rsv.has(x) && !hit(x, w));
+      if (!b) return toExtra(a, w, null);
+      occ[b].push(w); pos[a.key] = { lane: bays.indexOf(b), bay: b };
+    });
+    res[fl.name] = { lanes: bays.concat(extra.map((_, i) => "不足" + (i + 1))), nBays: bays.length, pos, over, rsv, lim };
+  });
+  return res;
+}
+// ある便をそのフロアに入れたとき、同じ時間帯に使えるバースが残っているか
+function bayFits(a, floorName, ev) {
+  const fl = S.floors.find(f => f.name === floorName); if (!fl) return false;
+  const w = winOf(a); const rsv = reservedBays(); const want = ev.bay[floorName];
+  const busy = new Set();
+  S.appts.forEach(x => { if (x === a || cellOf(x).f !== floorName) return; const v = winOf(x); if (v.s < w.e && w.s < v.e) busy.add(x); });
+  if (busy.size >= floorLimit(floorName, fl.bays.length)) return false;   // 同時着車の上限
+  if (want) return ![...busy].some(x => cellOf(x).b === want);
+  const usable = fl.bays.filter(b => !rsv.has(b)).length;
+  const busyOnUsable = [...busy].filter(x => !cellOf(x).b || !rsv.has(cellOf(x).b)).length;
+  return busyOnUsable < usable;
+}
+const ZOOMS = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+function zoomOf() { const z = +CFG.zoom; return z > 0 ? z : 1; }
+function setZoom(d) {
+  let i = ZOOMS.indexOf(zoomOf()); if (i < 0) i = ZOOMS.indexOf(1);
+  CFG.zoom = d === 0 ? 1 : ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + d))];
+  saveCfg(); render();
+}
+function toggleView() { CFG.view = CFG.view === "card" ? "bar" : "card"; saveCfg(); render(); }
+// カードにカーソルを当てたときの表示：アポイントID・キャリア・Units
+function cardTip(a) { return `${a.id}\n${a.carrier}\n${a.units == null ? "Units -" : fmt(a.units) + " Units"}`; }
+function barHTML(a, bp, P) {
+  const c = cellOf(a); const fi = floorIdx(c.f); const w = winOf(a);
+  const ev = ruleEval(a);
+  const misuse = c.b && reservedBays().has(c.b) && ev.bay[c.f] !== c.b;   // 専用バースに対象外の便
+  const ng = !isManual(a) && (!ev.allowed.includes(c.f) || misuse);
+  const fixed = S.plan.assign[a.key] && S.plan.assign[a.key].bm;
+  const moved = c.h !== a.h0;
+  const bad = bp.over || bp.dup;
+  const tip = cardTip(a);
+  return `<div class="pbar${S.sel === a.key ? " sel" : ""}${ng ? " ngc" : ""}${bad ? " unf" : ""}" data-k="${esc(a.key)}" style="--cc:${floorColor(fi)};left:${P.x}px;top:${P.y}px;width:${P.w}px" title="${esc(tip)}">
+    <div class="pr"><div class="l1">${fixed && bp.bay ? `<span class="fix" title="手動でバースを固定">固定</span>` : ""}${ng ? `<span class="ng">${misuse ? "専用外" : "ルール外"}</span>` : ""}${bp.over ? `<span class="ng">${bp.want ? esc(bp.want) + " 使用中" : bp.why === "lim" ? "同時上限超え" : "バース不足"}</span>` : ""}<b>${hmm(w.s)}</b> ${esc(a.cname)}</div>
+    <div class="l2">${hmm(w.s)}〜${hmm(w.e)}・${a.units == null ? "U?" : fmt(a.units) + "U"}${a.pallets ? "・" + fmt(a.pallets) + "P" : ""}${moved ? "・時間移動" : ""}</div></div></div>`;
+}
+// 描画後にバーを時刻の位置へ配置
+function layoutBars(R, BY) {
+  const box = document.querySelector(".gbox"); if (!box) return;
+  const ov = box.querySelector(".ov"); const br = box.getBoundingClientRect();
+  // 表示サイズ(zoom)をかけている場合、画面上の座標を表の中の座標に戻す
+  const z = br.width && box.offsetWidth ? br.width / box.offsetWidth : 1;
+  const ths = {}; box.querySelectorAll("thead th[data-hh]").forEach(th => { const r = th.getBoundingClientRect(); ths[th.dataset.hh] = { x: (r.left - br.left) / z, w: r.width / z }; });
+  const hs = R.H;
+  const xOf = m => { const h = Math.floor(m / 60); const t = ths[h]; if (!t) return m < hs[0] * 60 ? ths[hs[0]].x : ths[hs[hs.length - 1]].x + ths[hs[hs.length - 1]].w; return t.x + t.w * (m % 60) / 60; };
+  let h = "";
+  S.floors.forEach(fl => {
+    const sp = box.querySelector(`.lane-sp[data-f="${fl.name}"]`); if (!sp) return;
+    const top0 = (sp.getBoundingClientRect().top - br.top) / z;
+    const B = BY[fl.name];
+    // レーンの区切り線
+    B.lanes.forEach((ln, i) => { h += `<div class="lane-line${i >= B.nBays ? " x" : ""}${B.rsv.has(ln) ? " r" : ""}" data-f="${esc(fl.name)}" data-b="${i < B.nBays ? esc(ln) : ""}" style="left:${ths[hs[0]].x}px;top:${top0 + i * LANE_H}px;width:${xOf(hs[hs.length - 1] * 60 + 60) - ths[hs[0]].x}px;height:${LANE_H}px"></div>`; });
+    S.appts.filter(a => cellOf(a).f === fl.name).forEach(a => {
+      const bp = B.pos[a.key]; if (!bp) return; const w = winOf(a);
+      const x0 = xOf(w.s), x1 = Math.max(xOf(w.e), x0 + 30);
+      h += barHTML(a, bp, { x: x0 + 1, y: top0 + bp.lane * LANE_H + 2, w: x1 - x0 - 2 });
+    });
+  });
+  ov.innerHTML = h;
+}
+let rsT = null; window.addEventListener("resize", () => { clearTimeout(rsT); rsT = setTimeout(() => { if (S.appts.length) render(); }, 200); });
+// セル上部：人員・能力と処理可能バー（前時間の持越＋着車 ÷ 能力）
+function barLvl(c) { return c.lvl || (c.load > 0 ? "ok" : ""); }
+function cellHead(c) {
+  const lv = barLvl(c);
+  const w = Math.min(100, c.ratio * 100);
+  const pct = c.cap > 0 ? Math.round(c.ratio * 100) + "%" : (c.load > 0 ? "人員0" : "");
+  const tip = `HC ${c.hc} / LH ${fmt1(c.lh)} / 能力 ${fmt(c.cap)}U\n前時間の持越 ${fmt(c.inb)}U + 着車 ${fmt(c.units)}U = ${fmt(c.load)}U\n残（次の時間へ） ${fmt(c.backlog)}U`;
+  return `<div class="m" title="${esc(tip)}"><span>HC <b>${c.hc}</b></span><span>LH <b>${fmt1(c.lh)}</b></span><span>能力 <b>${fmt(c.cap)}</b></span></div>
+    <div class="ld" title="${esc(tip)}"><span class="bar"><i class="${lv === "ok" ? "" : lv}" style="width:${w}%"></i></span><span class="pct ${lv}">${pct}</span></div>
+    ${c.trucks.length || c.backlog ? `<div class="ld"><span><b>${c.trucks.length}</b>台 <b>${fmt(c.units)}</b>U</span>${c.backlog > 0 ? `<span>残${fmt(c.backlog)}</span>` : ""}${c.over && CFG.view === "card" ? `<span class="tag alert">バース不足</span>` : ""}</div>` : ""}`;
+}
+function chipHTML(a) {
+  const c = cellOf(a); const fi = c.f ? floorIdx(c.f) : -1;
+  const moved = c.h !== a.h0;
+  const ng = ruleNg(a);
+  return `<div class="chip${S.sel === a.key ? " sel" : ""}${ng ? " ngc" : ""}" data-k="${esc(a.key)}" style="--cc:${fi >= 0 ? floorColor(fi) : "#9aa8b8"}" title="${esc(cardTip(a))}">
+    <div class="r1"><span class="t">${hmm(winOf(a).s)}-${hmm(winOf(a).e)}</span>${c.b ? `<span class="bay">${esc(c.b)}</span>` : ""}<span class="cr">${esc(a.cname)}</span><span class="u" ${a.units == null ? 'title="Units空欄のためカートン数×10で推定"' : ""}>${a.units == null ? (a.cartons ? "約" + fmt(estU(a)) + "U" : "U?") : fmt(a.units) + "U"}</span></div>
+    <div class="r2">${ng ? `<span class="ng">ルール外</span>` : ""}<span>${esc(a.code)}</span>${a.type && a.type !== "CARP" ? `<span>${esc(a.type)}</span>` : ""}<span>${a.pallets != null ? fmt(a.pallets) + "P" : ""}</span><span>${a.cartons != null ? fmt(a.cartons) + "C" : ""}</span>${moved ? `<span class="mv">予定${a.h0 % 24}時台→移動</span>` : ""}</div></div>`;
+}
+function renderStats(R) {
+  const tu = S.appts.reduce((s, a) => s + (a.units || 0), 0);
+  const assigned = S.appts.filter(a => cellOf(a).f).length;
+  const tlh = S.floors.reduce((s, f) => s + R.F[f.name].tot.lh, 0);
+  const tcap = S.floors.reduce((s, f) => s + R.F[f.name].tot.cap, 0);
+  const alertN = S.floors.reduce((s, f) => s + R.H.filter(h => R.F[f.name].cells[h].lvl === "alert").length, 0);
+  const overN = S.floors.reduce((s, f) => s + R.BY[f.name].over, 0);
+  const M = S.masters[S.src];
+  const noUph = !uphOf("日勤") && !uphOf("夜勤");
+  const i = R.info;
+  let h = `<span class="stat">計画日<b>${dateLabel(S.date)}</b></span>
+    <span class="stat">予約<b>${S.appts.length}</b>台 / <b>${fmt(tu)}</b>U</span>
+    <span class="stat ${assigned < S.appts.length ? "warn" : ""}">割当<b>${assigned}</b>/${S.appts.length}</span>
+    <span class="stat">IN LH<b>${fmt1(tlh)}</b></span>
+    <span class="stat">能力<b>${fmt(tcap)}</b>U</span>
+    <span class="stat ${noUph ? "alert" : ""}">UPH 日<b>${fmt(uphOf("日勤"))}</b> 夜<b>${fmt(uphOf("夜勤"))}</b></span>
+    <span class="stat">IN人員<b>${i.inCnt}</b>名${i.noTime ? `（時刻なし${i.noTime}）` : ""}${i.offFloor ? `（階不明${i.offFloor}）` : ""}</span>`;
+  if (alertN) h += `<span class="stat alert">能力不足<b>${alertN}</b>枠</span>`;
+  if (overN) h += `<span class="stat alert">バース不足<b>${overN}</b>台</span>`;
+  const ngN = S.appts.filter(ruleNg).length;
+  if (ngN) h += `<span class="stat alert">ルール外<b>${ngN}</b>台</span>`;
+  if (!i.total) h += `<span class="stat alert">配置ロスター未取得</span>`;
+  h += `<span class="stat">CSV<b style="font-size:12px">${M ? esc(M.name || "（名前なし）") : "なし"}</b></span>`;
+  h += `<span class="legend"><span><i style="background:var(--ok)"></i>処理可能</span><span><i style="background:var(--warn)"></i>次の1時間で解消</span><span><i style="background:var(--alert)"></i>能力不足</span></span>`;
+  document.getElementById("stats").innerHTML = h;
+}
+
+/* ============ 割当操作 ============ */
+// bay: undefined=ルールに従う / ""=自動（空いているバース） / "605A"等=そのバースに固定
+function setAssign(key, f, h, bay) {
+  const a = S.appts.find(x => x.key === key); if (!a) return;
+  pushUndo();
+  if (!f && h === a.h0) delete S.plan.assign[key];
+  else if (f && bay) S.plan.assign[key] = { f, h, b: bay, bm: true, m: true };
+  else { const b = f ? bayFor(a, f) : null; S.plan.assign[key] = Object.assign({ f: f || null, h }, b ? { b } : {}, f ? { m: true } : {}); }   // m = 手で動かした（ルール外の表示をしない）
+  S.sel = null;
+  render(); savePlan();
+}
+function askConfirm(msg, title) {
+  return new Promise(res => {
+    const ov = document.getElementById("cfm");
+    document.getElementById("cfmMsg").textContent = msg;
+    document.getElementById("cfmTitle").textContent = title || "確認";
+    const done = v => { ov.classList.remove("show"); res(v); };
+    document.getElementById("cfmYes").onclick = () => done(true);
+    document.getElementById("cfmNo").onclick = () => done(false);
+    ov.classList.add("show");
+  });
+}
+// 元に戻す（直前の一括操作・移動）
+let undoStack = [];
+function pushUndo() { undoStack.push(JSON.stringify(S.plan.assign)); if (undoStack.length > 30) undoStack.shift(); document.getElementById("undoBtn").disabled = false; }
+function undo() {
+  if (!undoStack.length) return;
+  S.plan.assign = JSON.parse(undoStack.pop());
+  document.getElementById("undoBtn").disabled = !undoStack.length;
+  render(); savePlan(); toast("元に戻しました");
+}
+async function clearAssign() {
+  if (!Object.keys(S.plan.assign).length) return;
+  if (!(await askConfirm("この日の割当をすべて解除しますか？"))) return;
+  pushUndo(); S.plan.assign = {}; render(); savePlan();
+}
+/* ---- 置き直しの対象
+   un   = 未割当だけ
+   ng   = 未割当 ＋ ルール外 ＋ バース不足
+   free = 手で固定したバース以外すべて（ルール変更後の標準）
+   all  = すべて（固定も解除） */
+function isNg(a, R) {
+  const c = cellOf(a); if (!c.f) return true;
+  if (ruleNg(a)) return true;
+  const p = R && R.BY[c.f] && R.BY[c.f].pos[a.key]; return !!(p && p.over);
+}
+function targetsFor(mode) {
+  const R = compute();
+  if (mode === "un") return S.appts.filter(a => !cellOf(a).f);
+  if (mode === "ng") return S.appts.filter(a => isNg(a, R));
+  if (mode === "free") return S.appts.filter(a => !(S.plan.assign[a.key] && S.plan.assign[a.key].bm && cellOf(a).f));
+  return S.appts.slice();
+}
+// 対象のフロア・バースを外す（時間帯の移動は残す）
+function unplace(list) {
+  list.forEach(a => { const x = S.plan.assign[a.key]; if (!x) return; if (x.h !== a.h0) S.plan.assign[a.key] = { f: null, h: x.h }; else delete S.plan.assign[a.key]; });
+}
+function modeCounts() {
+  const n = m => targetsFor(m).length;
+  return { un: n("un"), ng: n("ng"), free: n("free"), all: S.appts.length, fixed: S.appts.filter(a => S.plan.assign[a.key] && S.plan.assign[a.key].bm && cellOf(a).f).length };
+}
+function askChoice(title, msg, opts) {
+  return new Promise(res => {
+    const ov = document.getElementById("chs");
+    document.getElementById("chsTitle").textContent = title;
+    document.getElementById("chsMsg").textContent = msg || "";
+    const box = document.getElementById("chsList"); box.innerHTML = "";
+    const done = v => { ov.classList.remove("show"); res(v); };
+    opts.forEach(o => { const b = document.createElement("button"); b.className = o.rec ? "rec" : ""; b.disabled = !!o.disabled; b.innerHTML = `<b>${esc(o.label)}</b>${o.sub ? `<small>${esc(o.sub)}</small>` : ""}`; b.onclick = () => done(o.value); box.appendChild(b); });
+    document.getElementById("chsNo").onclick = () => done(null);
+    ov.classList.add("show");
+    const f = box.querySelector("button.rec:not(:disabled)") || box.querySelector("button:not(:disabled)"); if (f) f.focus();
+  });
+}
+function scopeOptions(k, recommend) {
+  return [
+    { value: "un", label: `未割当だけ置く（${k.un}台）`, sub: "今の配置はそのまま", disabled: !k.un, rec: recommend === "un" },
+    { value: "ng", label: `ルール外・バース不足・未割当を置き直す（${k.ng}台）`, sub: "問題のある便だけ動かす", disabled: !k.ng, rec: recommend === "ng" },
+    { value: "free", label: `固定したバース以外すべて置き直す（${k.free}台）`, sub: `手で固定した${k.fixed}台はそのまま。ルールを変えた後はこれ`, disabled: !k.free, rec: recommend === "free" },
+    { value: "all", label: `すべて置き直す（${k.all}台）`, sub: "手で固定したバースも解除", rec: recommend === "all" },
+  ];
+}
+async function autoAssign() {
+  if (!S.appts.length) { toast("予約データがありません"); return; }
+  const k = modeCounts();
+  let mode = "un";
+  if (k.un < S.appts.length) {   // 割当済みがある
+    mode = await askChoice("自動割当", `方針「${STRAT_LABEL[RULES.strategy]}」と今の割当ルールで配置します。どの便を置き直しますか？`, scopeOptions(k, k.un && !k.ng ? "un" : "free"));
+    if (!mode) return;
+  }
+  pushUndo();
+  const list = targetsFor(mode);
+  unplace(list.filter(a => cellOf(a).f));
+  return autoAssignCore(true, true, list.length);
+}
+function autoAssignSilent() { return autoAssignCore(false); }
+function autoAssignCore(ui, undoDone, planned) {
+  const R = compute();
+  const targets = S.appts.filter(a => !cellOf(a).f);
+  if (!targets.length) { if (ui) toast("未割当の予約はありません"); return; }
+  if (ui && !undoDone) pushUndo();
+  let ng = 0;
+  // 条件ルールで候補が絞られる予約から先に置く（後回しにすると枠が埋まるため）
+  targets.map(a => ({ a, ev: ruleEval(a) })).sort((x, y) => x.ev.allowed.length - y.ev.allowed.length || x.a.dt - y.a.dt).forEach(({ a, ev }) => {
+    const best = pickFloor(R, a, ev);
+    if (!best) { ng++; return; }
+    const h = cellOf(a).h;
+    const b = ev.bay[best] || null;
+    S.plan.assign[a.key] = b ? { f: best, h, b } : { f: best, h };
+    const F = R.F[best]; const c = F.cells[h];
+    c.trucks.push(a); c.units += estU(a);
+    if (b) { c.bayUse = c.bayUse || {}; c.bayUse[b] = (c.bayUse[b] || 0) + 1; }
+    backlogCalc(F, R.H);
+  });
+  if (!ui) return ng;
+  render(); savePlan();
+  toast(`${targets.length - ng}台を自動割当しました（方針: ${STRAT_LABEL[RULES.strategy]}）${ng ? ` ／ 置けるフロアがない予約 ${ng}台` : ""}`);
+}
+// 1台のフロアを選ぶ：候補フロア（ルール）の中で、能力不足を増やさず、方針・優先度に沿い、持越の小さいところ
+function pickFloor(R, a, ev) {
+  const h = cellOf(a).h, u = estU(a), H = R.H;
+  let best = null;
+  ev.allowed.forEach(name => {
+    const F = R.F[name]; if (!F) return; const c = F.cells[h]; if (!c) return;
+    let b = 0, area = 0, alerts = 0, alerts0 = 0, b0 = 0;
+    H.forEach(x => {
+      const cc = F.cells[x];
+      b0 = Math.max(0, b0 + cc.units - cc.cap); if (b0 > 0 && (cc.cap <= 0 || b0 > cc.cap)) alerts0++;
+      b = Math.max(0, b + cc.units + (x === h ? u : 0) - cc.cap); area += b; if (b > 0 && (cc.cap <= 0 || b > cc.cap)) alerts++;
+    });
+    let score = area;
+    score += (alerts - alerts0) * 1e7;                       // 能力不足の枠を増やさない
+    if (!bayFits(a, name, ev)) score += 1e10;                // 同じ時間帯に空きバースがない
+    if (c.cap <= 0) score += 1e8;                            // 人員なし
+    score += (ev.prefer.length && !ev.prefer.includes(name) ? 1 : 0) * 3e6;   // 条件ルールの「優先」
+    score += floorCost(name, R) * (RULES.strategy === "balance" ? 300 : 1e6); // 方針
+    // 均等：同じ時間帯に重なる便の割合と、フロアの1日の台数の割合が低いところへ（上位階に偏らない）
+    const lim = floorLimit(name, F.bays) || 1;
+    const w = winOf(a); let ovl = 0, tot = 0;
+    S.appts.forEach(x => { if (x === a || cellOf(x).f !== name) return; tot++; const v = winOf(x); if (v.s < w.e && w.s < v.e) ovl++; });
+    const nUse = S.floors.filter(f => floorRule(f.name).use).length || 1;
+    const share = tot / Math.max(1, S.appts.length / nUse);   // 均等配分に対する割合
+    score += (RULES.strategy === "balance" ? 1 : 0.02) * (ovl / lim * 4000 + share * 3000);
+    if (!best || score < best.score) best = { score, name };
+  });
+  return best && best.name;
+}
+
+/* ---- ドラッグ（マウス・タッチ共通） ---- */
+let drag = null;
+document.addEventListener("pointerdown", e => {
+  const chip = e.target.closest(".chip, .pbar"); if (!chip || e.button > 0) return;
+  drag = { key: chip.dataset.k, x: e.clientX, y: e.clientY, chip, started: false, ghost: null, over: null };
+});
+document.addEventListener("pointermove", e => {
+  if (!drag) return;
+  if (!drag.started) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    drag.started = true;
+    const g = drag.chip.cloneNode(true); g.classList.add("ghost"); g.style.width = "190px"; document.body.appendChild(g); drag.ghost = g;
+    drag.chip.classList.add("dragging"); document.body.classList.add("dragmode");
+  }
+  e.preventDefault();
+  drag.lastX = e.clientX;
+  drag.ghost.style.left = e.clientX + "px"; drag.ghost.style.top = e.clientY + "px";
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const td = el && (el.closest(".lane-line") || el.closest("td.drop"));
+  if (drag.over !== td) { if (drag.over) drag.over.classList.remove("hover"); if (td) td.classList.add("hover"); drag.over = td; }
+  const w = document.getElementById("gridWrap"), r = w.getBoundingClientRect();
+  if (e.clientY > r.bottom - 50) w.scrollTop += 14; else if (e.clientY < r.top + 90) w.scrollTop -= 14;
+  if (e.clientX > r.right - 50) w.scrollLeft += 14; else if (e.clientX < r.left + 80) w.scrollLeft -= 14;
+}, { passive: false });
+document.addEventListener("pointerup", e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.started) { S.sel = S.sel === d.key ? null : d.key; render(); return; }
+  if (d.ghost) d.ghost.remove();
+  d.chip.classList.remove("dragging"); document.body.classList.remove("dragmode");
+  if (d.over) {
+    d.over.classList.remove("hover");
+    const isLane = d.over.classList.contains("lane-line");
+    let h = isLane ? hourAtX(d.lastX) : +d.over.dataset.h;
+    if (d.chip.classList.contains("pbar")) {
+      // バーは横位置＝時刻。横に動かした列数だけ時間帯をずらす（縦移動だけならフロアのみ変更）
+      const a = S.appts.find(x => x.key === d.key); const th = document.querySelector("thead th[data-hh]");
+      const colW = th ? th.getBoundingClientRect().width : 178;
+      const R = LAST; h = cellOf(a).h + Math.round((d.lastX - d.x) / colW);
+      h = Math.max(R.H[0], Math.min(R.H[R.H.length - 1], h));
+    }
+    if (isLane) setAssign(d.key, d.over.dataset.f, h, d.over.dataset.b || "");   // バースの段に落とす → そのバースに固定（不足段は自動）
+    else setAssign(d.key, d.over.dataset.f, h);
+  }
+});
+// 画面上のX座標 → 時間帯
+function hourAtX(x) {
+  const ths = [...document.querySelectorAll("thead th[data-hh]")];
+  for (const th of ths) { const r = th.getBoundingClientRect(); if (x >= r.left && x < r.right) return +th.dataset.hh; }
+  const R = LAST; return ths.length && x >= ths[ths.length - 1].getBoundingClientRect().right ? R.H[R.H.length - 1] : R.H[0];
+}
+document.addEventListener("pointercancel", () => { document.body.classList.remove("dragmode"); if (drag) { if (drag.ghost) drag.ghost.remove(); if (drag.over) drag.over.classList.remove("hover"); drag.chip.classList.remove("dragging"); drag = null; } });
+// 選択→セルクリックでも移動
+document.addEventListener("click", e => {
+  if (!S.sel || e.target.closest(".chip, .pbar")) return;
+  const ln = e.target.closest(".lane-line");
+  if (ln) { const a = S.appts.find(x => x.key === S.sel); setAssign(S.sel, ln.dataset.f, a ? cellOf(a).h : hourAtX(e.clientX), ln.dataset.b || ""); return; }
+  const td = e.target.closest("td.drop"); if (!td) return;
+  setAssign(S.sel, td.dataset.f, +td.dataset.h);
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && S.sel) { S.sel = null; render(); } });
+
+/* ============ 保存（/dock/plans/<date>） ============ */
+let saveTimer = null;
+function setSaveSt(t) { document.getElementById("saveSt").textContent = t; }
+function savePlan() {
+  if (!fbDB) { setSaveSt("未保存（未接続）"); return; }
+  setSaveSt("保存中…");
+  clearTimeout(saveTimer);
+  const date = S.date, data = { date, assign: S.plan.assign, uph: S.plan.uph || null, updatedAt: Date.now() };
+  saveTimer = setTimeout(() => {
+    fbDB.ref(DOCK_ROOT + "/plans/" + date).set(data).then(() => setSaveSt("保存済")).catch(e => { setSaveSt("保存失敗"); toast("保存失敗: " + (e.message || e)); });
+  }, 500);
+}
+let planReady = Promise.resolve();
+function loadPlan() {
+  const date = S.date;
+  if (S.planLoadedFor === date) { render(); return planReady; }
+  S.planLoadedFor = date;
+  S.plan = { assign: {}, uph: null };
+  if (!fbDB) { render(); return (planReady = Promise.resolve()); }
+  setSaveSt("読込中…");
+  planReady = fbDB.ref(DOCK_ROOT + "/plans/" + date).once("value").then(s => {
+    if (S.date !== date) return;
+    const v = s.val() || {};
+    S.plan = { assign: v.assign || {}, uph: v.uph || null };
+    setSaveSt(v.updatedAt ? "保存済" : "");
+    render();
+  }).catch(e => { setSaveSt("読込失敗"); showMsg("保存済みの計画を読み込めませんでした: " + (e.message || e)); render(); });
+  return planReady;
+}
+document.getElementById("planDate").addEventListener("change", e => { if (!e.target.value) return; S.date = e.target.value; rebuildAppts(false); });
+document.getElementById("srcSel").addEventListener("change", e => { S.src = e.target.value; rebuildAppts(true); });
+
+/* ============ 設定 ============ */
+function openSettings() {
+  document.getElementById("uphDay").value = (S.plan.uph && S.plan.uph.日勤) || "";
+  document.getElementById("uphNight").value = (S.plan.uph && S.plan.uph.夜勤) || "";
+  document.getElementById("uphDay").placeholder = (S.targetUPH.日勤 && S.targetUPH.日勤.in) || "未設定";
+  document.getElementById("uphNight").placeholder = (S.targetUPH.夜勤 && S.targetUPH.夜勤.in) || "未設定";
+  document.getElementById("uphNote").textContent = `空欄は配置ダッシュボードの目標UPH（IN）を使用：日勤 ${fmt(S.targetUPH.日勤.in)} / 夜勤 ${fmt(S.targetUPH.夜勤.in)}。入力するとこの日の計画にだけ保存されます。`;
+  const subs = inSubsecs();
+  document.getElementById("subsecBox").innerHTML = subs.length ? subs.map(s => `<label class="chk"><input type="checkbox" data-s="${esc(s)}" ${CFG.subsecOff.includes(s) ? "" : "checked"}>${esc(s)}</label>`).join("") : `<span class="note">IN工程が見つかりません</span>`;
+  document.getElementById("axS").value = CFG.axS == null ? "" : CFG.axS;
+  document.getElementById("axE").value = CFG.axE == null ? "" : CFG.axE;
+  document.getElementById("settings").classList.add("show");
+}
+function closeSettings() {
+  const d = num(document.getElementById("uphDay").value), n = num(document.getElementById("uphNight").value);
+  const uph = (d > 0 || n > 0) ? { 日勤: d > 0 ? d : 0, 夜勤: n > 0 ? n : 0 } : null;
+  const uphChanged = JSON.stringify(uph) !== JSON.stringify(S.plan.uph || null);
+  S.plan.uph = uph;
+  CFG.subsecOff = [...document.querySelectorAll("#subsecBox input[data-s]")].filter(x => !x.checked).map(x => x.dataset.s);
+  const as = document.getElementById("axS").value, ae = document.getElementById("axE").value;
+  CFG.axS = as === "" ? null : Math.max(0, Math.min(29, +as));
+  CFG.axE = ae === "" ? null : Math.max(1, Math.min(30, +ae));
+  saveCfg();
+  document.getElementById("settings").classList.remove("show");
+  render(); if (uphChanged) savePlan();
+}
+document.getElementById("settings").addEventListener("click", e => { if (e.target.id === "settings") closeSettings(); });
+
+/* ============ テキスト（Slack貼付用） ============ */
+function copyText() {
+  const R = compute();
+  const tu = S.appts.reduce((s, a) => s + (a.units || 0), 0);
+  let t = `【着車プラン ${dateLabel(S.date)}】予約 ${S.appts.length}台 / ${fmt(tu)}U\n`;
+  S.floors.forEach(fl => {
+    const T = R.F[fl.name].tot;
+    const peak = R.H.filter(h => R.F[fl.name].cells[h].lvl).map(h => hl(h));
+    t += `${fl.name}: ${T.n}台 ${fmt(T.u)}U（IN LH ${fmt1(T.lh)} / 能力 ${fmt(T.cap)}U / 最終持越 ${fmt(T.end)}U）${peak.length ? " 要注意 " + peak.join(",") : ""}\n`;
+  });
+  const un = S.appts.filter(a => !cellOf(a).f).length;
+  if (un) t += `未割当: ${un}台\n`;
+  const done = () => toast("クリップボードにコピーしました");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(() => fallbackCopy(t, done));
+  else fallbackCopy(t, done);
+}
+function fallbackCopy(t, cb) { const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); cb(); } catch (e) { toast("コピーできませんでした"); } ta.remove(); }
+
+/* ============ PDF ============ */
+function pdfHeader(sub) {
+  const now = new Date();
+  return `<div class="ph"><h1>着車プラン</h1><span class="d">${dateLabel(S.date)}</span><span style="font-size:14px;color:#697a8c">${esc(sub || "")}</span>
+    <span class="g">作成 ${now.getMonth() + 1}/${now.getDate()} ${hm(now)}</span></div>`;
+}
+function buildPdfPages() {
+  const R = compute();
+  const root = document.getElementById("pdfRoot"); root.innerHTML = "";
+  const pages = [];
+  const tu = S.appts.reduce((s, a) => s + (a.units || 0), 0);
+  const tlh = S.floors.reduce((s, f) => s + R.F[f.name].tot.lh, 0);
+  const tcap = S.floors.reduce((s, f) => s + R.F[f.name].tot.cap, 0);
+  const unN = S.appts.filter(a => !cellOf(a).f).length;
+  const sumHTML = `<div class="sum"><span>予約 <b>${S.appts.length}</b>台 / <b>${fmt(tu)}</b>U</span><span>IN LH <b>${fmt1(tlh)}</b></span><span>処理能力 <b>${fmt(tcap)}</b>U</span>
+    <span>目標UPH 日勤 <b>${fmt(uphOf("日勤"))}</b> / 夜勤 <b>${fmt(uphOf("夜勤"))}</b></span>${unN ? `<span style="background:#fde8e8">未割当 <b>${unN}</b>台</span>` : ""}</div>`;
+  function newPage(sub, withSum) { const pg = document.createElement("div"); pg.className = "pg"; pg.innerHTML = pdfHeader(sub) + (withSum ? sumHTML : ""); root.appendChild(pg); pages.push(pg); return pg; }
+  function fits(pg) { return pg.scrollHeight <= pg.clientHeight; }
+
+  // --- 1. フロア×時間表（全時間帯を1ページに・縦長の枠） ---
+  const pl = a => `<div class="gt"><div class="g1"><span>${hmm(winOf(a).s)}-${hmm(winOf(a).e)}${R.BY[cellOf(a).f] && R.BY[cellOf(a).f].pos[a.key] && R.BY[cellOf(a).f].pos[a.key].bay ? ` [${esc(R.BY[cellOf(a).f].pos[a.key].bay)}]` : ""}</span><b>${a.units == null ? "U?" : fmt(a.units)}</b></div><div class="g2">${esc(a.cname)}</div></div>`;
+  let pg = newPage(`フロア別 時間帯割当（${hl(R.H[0])}〜${hl(R.H[R.H.length - 1] + 1)}）`, true);
+  pg.classList.add("fit");
+  {
+    const cols = `<colgroup><col style="width:104px">${R.H.map(() => "<col>").join("")}</colgroup>`;
+    const thead = `<thead><tr><th>フロア</th>${R.H.map(h => `<th class="hc">${hl(h)}</th>`).join("")}</tr></thead>`;
+    const rows = S.floors.map((fl, i) => {
+      const T = R.F[fl.name].tot;
+      let x = `<th class="rh" style="--fc:${floorColor(i)}"><span class="fn" style="color:${floorColor(i)}">${esc(fl.name)}</span><div class="pm">${T.n}台<br>${fmt(T.u)}U<br>LH ${fmt1(T.lh)}<br>能力 ${fmt(T.cap)}<br>最終残 ${fmt(T.end)}</div></th>`;
+      R.H.forEach(h => {
+        const c = R.F[fl.name].cells[h]; const lv = barLvl(c);
+        x += `<td class="gc"><div class="pm" style="white-space:nowrap">HC<b>${c.hc}</b> LH<b>${fmt1(c.lh)}</b><br>能力 <b>${fmt(c.cap)}</b></div>
+          <div class="pb"><i class="${lv === "ok" ? "" : lv}" style="width:${Math.min(100, c.ratio * 100)}%"></i></div>
+          ${c.trucks.length || c.backlog ? `<div class="pm"><b>${c.trucks.length}台 ${fmt(c.units)}U</b>${c.backlog > 0 ? `<br>残${fmt(c.backlog)}` : ""}${c.over ? ` <b style="color:#b33">超過</b>` : ""}</div>` : ""}
+          ${c.trucks.map(pl).join("")}</td>`;
+      });
+      return x;
+    });
+    if (unN) rows.unshift(`<th class="rh" style="--fc:#9aa8b8"><span class="fn" style="color:#697a8c">未割当</span><div class="pm">${unN}台</div></th>${R.H.map(h => `<td class="gc">${R.un[h].map(pl).join("")}</td>`).join("")}`);
+    const t = document.createElement("table"); t.className = "gtab";
+    t.innerHTML = cols + thead + "<tbody>" + rows.map(x => `<tr>${x}</tr>`).join("") + "</tbody>";
+    pg.appendChild(t);
+    const foot = document.createElement("div"); foot.className = "foot";
+    foot.textContent = "バー = (前時間の残 + 着車Units) ÷ 能力（能力 = IN人員LH × 目標UPH）／ 緑 = 処理可能、黄 = 次の1時間で解消、赤 = 能力不足";
+    pg.appendChild(foot);
+  }
+
+  // --- 2. フロア別 着車一覧 ---
+  const listHead = `<thead><tr><th style="width:70px">予定</th><th style="width:70px">計画</th><th>キャリア</th><th style="width:150px">Appointment Id</th><th style="width:80px">タイプ</th><th class="num" style="width:70px">P</th><th class="num" style="width:80px">C</th><th class="num" style="width:90px">Units</th></tr></thead>`;
+  pg = newPage("フロア別 着車一覧");
+  const groups = S.floors.map((fl, i) => ({ name: fl.name, color: floorColor(i), list: S.appts.filter(a => cellOf(a).f === fl.name) }));
+  if (unN) groups.push({ name: "未割当", color: "#9aa8b8", list: S.appts.filter(a => !cellOf(a).f) });
+  groups.forEach(g => {
+    if (!g.list.length) return;
+    const T = g.list.reduce((s, a) => s + (a.units || 0), 0);
+    const addHead = (cont) => { const hd = document.createElement("div"); hd.className = "fh"; hd.style.setProperty("--fc", g.color); hd.style.color = g.color; hd.textContent = `${g.name}　${g.list.length}台 / ${fmt(T)}U${cont ? "（続き）" : ""}`; pg.appendChild(hd); const t = document.createElement("table"); t.innerHTML = listHead + "<tbody></tbody>"; pg.appendChild(t); return { hd, tb: t.tBodies[0], t }; };
+    let cur = addHead(false);
+    if (!fits(pg)) { cur.hd.remove(); cur.t.remove(); pg = newPage("フロア別 着車一覧"); cur = addHead(false); }
+    g.list.slice().sort((a, b) => cellOf(a).h - cellOf(b).h || a.dt - b.dt).forEach(a => {
+      const tr = document.createElement("tr"); const c = cellOf(a);
+      tr.innerHTML = `<td>${hm(a.dt)}</td><td>${c.h !== a.h0 ? `<b style="color:#b35c00">${hl(c.h)}台</b>` : hl(c.h) + "台"}</td><td>${esc(a.carrier)}</td><td>${esc(a.id)}</td><td>${esc(a.type)}</td>
+        <td class="num">${a.pallets == null ? "" : fmt(a.pallets)}</td><td class="num">${a.cartons == null ? "" : fmt(a.cartons)}</td><td class="num"><b>${a.units == null ? "?" : fmt(a.units)}</b></td>`;
+      cur.tb.appendChild(tr);
+      if (!fits(pg)) { tr.remove(); pg = newPage("フロア別 着車一覧"); cur = addHead(true); cur.tb.appendChild(tr); }
+    });
+  });
+  return pages;
+}
+async function makePDF() {
+  if (!S.appts.length) { toast("予約データがありません"); return; }
+  if (!window.html2canvas || !window.jspdf) { toast("PDFライブラリを読み込めませんでした。ネット接続を確認して再読込してください"); return; }
+  toast("PDF作成中…");
+  try {
+    const pages = buildPdfPages();
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    for (let i = 0; i < pages.length; i++) {
+      const cv = await html2canvas(pages[i], { scale: 2, backgroundColor: "#ffffff", logging: false });
+      if (i) pdf.addPage();
+      // A4横に収まるよう縦横比を保って縮小（1ページに収める）
+      let w = 297, h = 297 * cv.height / cv.width, x = 0;
+      if (h > 210) { h = 210; w = 210 * cv.width / cv.height; x = (297 - w) / 2; }
+      pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", x, 0, w, h);
+      pdf.setFontSize(8); pdf.setTextColor(120); pdf.text(`${i + 1} / ${pages.length}`, 287, 206, { align: "right" });
+    }
+    const fname = `着車プラン_${S.date.replace(/-/g, "")}.pdf`;
+    const dl = window.claude && window.claude.use ? await window.claude.use("downloads").catch(() => null) : null;
+    if (dl) { try { await dl.save({ filename: fname, data: pdf.output("blob") }); } catch (e) { if (e.code !== "declined") toast("PDFを保存できませんでした（" + e.code + "）"); document.getElementById("pdfRoot").innerHTML = ""; return; } }
+    else pdf.save(fname);
+    document.getElementById("pdfRoot").innerHTML = "";
+    toast("PDFを保存しました（" + pages.length + "ページ）");
+  } catch (e) { console.error(e); toast("PDF作成に失敗しました: " + (e.message || e.code || e)); }
+}
+
+/* ============ 割当ルール ============
+   RULES = { strategy, floors:{名前:{use,prio,max}}, conds:[{on,name,col,op,val,act,floors,bays}] }
+   act: only=このフロアに限定 / prefer=このフロアを優先 / avoid=このフロアに入れない / bay=バースを指定 */
+const PRIO_LABEL = { 5: "高", 4: "やや高", 3: "普通", 2: "やや低", 1: "低" };
+const STRAT_LABEL = { balance: "均等に分散", priority: "優先フロアから", capacity: "TPの高いフロアに集中" };
+const ACT_LABEL = { only: "このフロアに限定", prefer: "このフロアを優先", avoid: "このフロアに入れない", bay: "フロア別にバースを指定" };
+const OP_LABEL = { eq: "が次と等しい", contains: "に次を含む", gte: "が次以上", lte: "が次以下", empty: "が空欄", notempty: "が空欄でない" };
+let RULES = { strategy: "balance", floors: {}, conds: [] };
+function floorRule(name) { const r = RULES.floors[name] || {}; return { use: r.use !== false, prio: r.prio || 3, max: r.max > 0 ? +r.max : null }; }
+// 同時着車の上限：フロア別の指定 > 全フロア共通の指定 > バース数（バース数は超えない）
+function floorLimit(name, bays) {
+  const r = floorRule(name); const n = typeof bays === "number" ? bays : (S.floors.find(f => f.name === name) || { bays: [] }).bays.length;
+  const lim = r.max || (RULES.conc > 0 ? +RULES.conc : 0) || n;
+  return Math.min(lim, n || lim);
+}
+function estU(a) { return a.units != null ? a.units : (a.cartons ? a.cartons * 10 : 0); }
+function condHit(a, r) {
+  const v = r.col === "Units" ? a.units : r.col === "Pallets" ? a.pallets : r.col === "Cartons" ? a.cartons : (a.raw ? a.raw[r.col] : "");
+  const sv = String(v == null ? "" : v).trim(), tv = String(r.val == null ? "" : r.val).trim();
+  if (r.op === "empty") return sv === "";
+  if (r.op === "notempty") return sv !== "";
+  if (r.op === "eq") return sv.toLowerCase() === tv.toLowerCase();
+  if (r.op === "contains") return tv !== "" && sv.toLowerCase().includes(tv.toLowerCase());
+  const n = num(sv), t = num(tv); if (n == null || t == null) return false;
+  return r.op === "gte" ? n >= t : n <= t;
+}
+// 予約1件に対するルール評価：候補フロア・優先フロア・フロア別バース・該当ルール名
+function ruleEval(a) {
+  let allowed = S.floors.map(f => f.name).filter(n => floorRule(n).use);
+  const prefer = [], bay = {}, hits = [];
+  RULES.conds.forEach(r => {
+    if (!r.on || !condHit(a, r)) return;
+    hits.push(r.name || ACT_LABEL[r.act]);
+    const fl = r.floors || [];
+    if (r.act === "only") allowed = allowed.filter(n => fl.includes(n));
+    else if (r.act === "avoid") allowed = allowed.filter(n => !fl.includes(n));
+    else if (r.act === "prefer") fl.forEach(n => { if (!prefer.includes(n)) prefer.push(n); });
+    else if (r.act === "bay") { const bm = r.bays || {}; const has = Object.keys(bm).filter(n => bm[n]); allowed = allowed.filter(n => has.includes(n)); has.forEach(n => { if (!bay[n]) bay[n] = bm[n]; }); }
+  });
+  return { allowed, prefer, bay, hits, conflict: !allowed.length };
+}
+// 自動で置いた便がルールに反しているか（手で動かした便は対象外）
+function isManual(a) { const x = S.plan.assign[a.key]; return !!(x && x.m); }
+function ruleNg(a) {
+  const c = cellOf(a); if (!c.f || isManual(a)) return false;
+  const ev = ruleEval(a);
+  return !ev.allowed.includes(c.f) || !!(c.b && reservedBays().has(c.b) && ev.bay[c.f] !== c.b);
+}
+function bayFor(a, f) { return ruleEval(a).bay[f] || null; }
+// 方針ごとのフロアのコスト（小さいほど先に使う）
+function floorCost(name, R) {
+  if (RULES.strategy === "capacity") {
+    const order = S.floors.map(f => f.name).sort((x, y) => R.F[y].tot.cap - R.F[x].tot.cap);
+    return order.indexOf(name);
+  }
+  return 5 - floorRule(name).prio;
+}
+function loadRules(v) {
+  const d = v || {};
+  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [] };
+}
+function saveRules() {
+  if (fbDB) fbDB.ref(DOCK_ROOT + "/planRules").set(RULES).catch(e => toast("ルールの保存に失敗: " + (e.message || e)));
+  else toast("Firebase未接続のため、ルールはこのページを閉じると消えます");
+}
+function rulesText() {
+  // ルールの要約（テキスト）
+  const L = [];
+  L.push(`方針: ${STRAT_LABEL[RULES.strategy]}`);
+  S.floors.forEach(f => { const r = floorRule(f.name); L.push(`${f.name}: ${r.use ? "使用" : "使用しない"}／優先度 ${PRIO_LABEL[r.prio]}／同時着車の上限 ${floorLimit(f.name, f.bays.length)}台／バース ${f.bays.join(",")}`); });
+  RULES.conds.filter(r => r.on).forEach(r => {
+    const c = (r.op === "empty" || r.op === "notempty") ? `${r.col}${OP_LABEL[r.op]}` : `${r.col}${OP_LABEL[r.op]}「${r.val}」`;
+    const t = r.act === "bay" ? Object.keys(r.bays || {}).filter(n => r.bays[n]).map(n => `${n}→${r.bays[n]}`).join(", ") : (r.floors || []).join(",");
+    L.push(`条件ルール「${r.name || ""}」: ${c} の予約は ${ACT_LABEL[r.act]}（${t}）`);
+  });
+  return L.join("\n");
+}
+// ---- ルール画面
+let RDRAFT = null;
+function csvCols() {
+  const M = S.masters[S.src];
+  const cols = (M && M.headers ? M.headers : []).filter(h => h && h !== ID_FIELD);
+  ["Type", "Carrier", "Pallets", "Cartons", "Units"].forEach(c => { if (!cols.includes(c)) cols.unshift(c); });
+  return cols;
+}
+function openRules() {
+  RDRAFT = JSON.parse(JSON.stringify(RULES));
+  document.querySelectorAll('input[name="rlStrat"]').forEach(x => x.checked = x.value === RDRAFT.strategy);
+  document.getElementById("rlConc").value = RDRAFT.conc || "";
+  renderRuleFloors(); renderRuleList();
+  document.getElementById("rulesModal").classList.add("show");
+}
+function renderRuleFloors() {
+  let h = `<thead><tr><th>フロア</th><th>使用</th><th>優先度</th><th>同時着車の上限</th><th>バース</th></tr></thead><tbody>`;
+  S.floors.forEach((f, i) => {
+    const r = Object.assign({ use: true, prio: 3, max: "" }, RDRAFT.floors[f.name] || {});
+    h += `<tr><td><b style="color:${floorColor(i)}">${esc(f.name)}</b></td>
+      <td><input type="checkbox" id="rfUse_${i}" ${r.use !== false ? "checked" : ""} onchange="rfSet('${esc(f.name)}','use',this.checked)"></td>
+      <td><select id="rfPrio_${i}" onchange="rfSet('${esc(f.name)}','prio',+this.value)">${[5, 4, 3, 2, 1].map(p => `<option value="${p}" ${+r.prio === p ? "selected" : ""}>${PRIO_LABEL[p]}</option>`).join("")}</select></td>
+      <td><input type="number" id="rfMax_${i}" min="1" max="${f.bays.length}" step="1" value="${r.max || ""}" placeholder="${Math.min(RDRAFT.conc || f.bays.length, f.bays.length)}" onchange="rfSet('${esc(f.name)}','max',+this.value||null)"> 台</td>
+      <td class="note">${f.bays.map(esc).join(" / ")}（${f.bays.length}）</td></tr>`;
+  });
+  document.getElementById("rlFloors").innerHTML = h + "</tbody>";
+}
+function rfSet(name, k, v) { RDRAFT.floors[name] = Object.assign({ use: true, prio: 3 }, RDRAFT.floors[name] || {}, { [k]: v }); updRuleSummary(); }
+function renderRuleList() {
+  const cols = csvCols();
+  const box = document.getElementById("rlList");
+  if (!RDRAFT.conds.length) { box.innerHTML = `<div class="note" style="padding:6px 2px">条件ルールはまだありません。</div>`; updRuleSummary(); return; }
+  box.innerHTML = RDRAFT.conds.map((r, i) => {
+    const colOpts = [...new Set([...cols, r.col].filter(Boolean))].map(c => `<option ${c === r.col ? "selected" : ""}>${esc(c)}</option>`).join("");
+    const hitN = S.appts.filter(a => condHit(a, r)).length;
+    const target = r.act === "bay"
+      ? `<div class="rl-bays">${S.floors.map(f => `<label>${esc(f.name)} <select id="rb_${i}_${esc(f.name)}" onchange="rcBay(${i},'${esc(f.name)}',this.value)"><option value="">使わない</option>${f.bays.map(b => `<option ${r.bays && r.bays[f.name] === b ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`).join("")}</div>
+        <label class="chk"><input type="checkbox" id="rex_${i}" ${r.excl !== false ? "checked" : ""} onchange="rcSet(${i},'excl',this.checked,true)">指定したバースはこのルールの便の専用にする（他の便は使わない）</label>`
+      : `<div class="rl-row">${S.floors.map(f => `<label class="chk"><input type="checkbox" id="rf_${i}_${esc(f.name)}" ${(r.floors || []).includes(f.name) ? "checked" : ""} onchange="rcFloor(${i},'${esc(f.name)}',this.checked)">${esc(f.name)}</label>`).join("")}</div>`;
+    return `<div class="rl-card ${r.on ? "" : "off"}">
+      <div class="rl-row"><input type="checkbox" id="ron_${i}" ${r.on ? "checked" : ""} onchange="rcSet(${i},'on',this.checked)" title="有効">
+        <input type="text" class="rl-name" id="rname_${i}" value="${esc(r.name || "")}" placeholder="ルール名（例: コンテナ便）" oninput="rcSet(${i},'name',this.value,true)">
+        <span class="rl-hit">該当 ${hitN}台</span>
+        <button class="btn sm" onclick="rcMove(${i},-1)" ${i ? "" : "disabled"} title="上へ">↑</button><button class="btn sm" onclick="rcMove(${i},1)" ${i < RDRAFT.conds.length - 1 ? "" : "disabled"} title="下へ">↓</button>
+        <button class="btn sm danger" onclick="rcDel(${i})">削除</button></div>
+      <div class="rl-row"><span class="lb">条件</span><select id="rcol_${i}" onchange="rcSet(${i},'col',this.value)">${colOpts}</select>
+        <select id="rop_${i}" onchange="rcSet(${i},'op',this.value)">${Object.keys(OP_LABEL).map(o => `<option value="${o}" ${o === r.op ? "selected" : ""}>${OP_LABEL[o]}</option>`).join("")}</select>
+        ${r.op === "empty" || r.op === "notempty" ? "" : `<input type="text" id="rval_${i}" value="${esc(r.val || "")}" placeholder="値" style="width:140px" oninput="rcSet(${i},'val',this.value,true)" onchange="renderRuleList()">`}</div>
+      <div class="rl-row"><span class="lb">動作</span><select id="ract_${i}" onchange="rcSet(${i},'act',this.value)">${Object.keys(ACT_LABEL).map(o => `<option value="${o}" ${o === r.act ? "selected" : ""}>${ACT_LABEL[o]}</option>`).join("")}</select></div>
+      ${target}</div>`;
+  }).join("");
+  updRuleSummary();
+}
+function rcSet(i, k, v, noRender) { RDRAFT.conds[i][k] = v; if (!noRender) renderRuleList(); else updRuleSummary(); }
+function rcFloor(i, f, on) { const r = RDRAFT.conds[i]; r.floors = (r.floors || []).filter(x => x !== f); if (on) r.floors.push(f); updRuleSummary(); }
+function rcBay(i, f, b) { const r = RDRAFT.conds[i]; r.bays = Object.assign({}, r.bays || {}); if (b) r.bays[f] = b; else delete r.bays[f]; updRuleSummary(); }
+function rcDel(i) { RDRAFT.conds.splice(i, 1); renderRuleList(); }
+function rcMove(i, d) { const c = RDRAFT.conds; const j = i + d; if (j < 0 || j >= c.length) return; [c[i], c[j]] = [c[j], c[i]]; renderRuleList(); }
+function addRule() { RDRAFT.conds.push({ on: true, name: "", col: "Type", op: "eq", val: "", act: "only", floors: [], bays: {} }); renderRuleList(); }
+function updRuleSummary() {
+  const keep = RULES; RULES = RDRAFT;
+  const conflict = S.appts.filter(a => ruleEval(a).conflict).length;
+  RULES = keep;
+  document.getElementById("rlSummary").innerHTML = conflict ? `<span style="color:var(--alert);font-weight:700">置けるフロアが無くなる予約が ${conflict}台 あります（ルールが重なって候補が0）</span>` : "";
+}
+async function closeRules(save) {
+  if (save) {
+    const st = document.querySelector('input[name="rlStrat"]:checked');
+    RDRAFT.strategy = st ? st.value : "balance";
+    RULES = RDRAFT; saveRules(); render();
+    RDRAFT = null;
+    document.getElementById("rulesModal").classList.remove("show");
+    const k = modeCounts();
+    if (k.un < S.appts.length) {   // 割当済みがあれば置き直しを提案
+      const v = await askChoice("ルールを保存しました", `今の配置でルール外・バース不足・未割当の便は ${k.ng}台です。新しいルールで置き直しますか？（「元に戻す」で取り消せます）`, [
+        { value: "auto", label: `自動割当で置き直す（固定以外 ${k.free}台）`, sub: "すぐに計算で配置", rec: true },
+        { value: "autoNg", label: `自動割当で問題のある便だけ置き直す（${k.ng}台）`, sub: "今の配置をなるべく残す", disabled: !k.ng },
+        { value: null, label: "今は置き直さない", sub: "ルール外の便には「ルール外」と表示されます" },
+      ]);
+      if (v === "auto" || v === "autoNg") {
+        const mode = v === "auto" ? "free" : "ng";
+        pushUndo(); const list = targetsFor(mode); unplace(list.filter(a => cellOf(a).f)); autoAssignCore(true, true, list.length);
+      }
+    } else toast("ルールを保存しました");
+    return;
+  }
+  RDRAFT = null;
+  document.getElementById("rulesModal").classList.remove("show");
+}
+
+/* ---- 配置の評価（件数） ---- */
+function planScore() {
+  const R = compute();
+  let alert = 0, warn = 0, end = 0, over = 0;
+  S.floors.forEach(f => { const F = R.F[f.name]; R.H.forEach(h => { const c = F.cells[h]; if (c.lvl === "alert") alert++; else if (c.lvl === "warn") warn++; }); end += F.tot.end; over += R.BY[f.name].over; });
+  const un = S.appts.filter(a => !cellOf(a).f).length;
+  const rsv = reservedBays();
+  const ng = S.appts.filter(ruleNg).length;
+  return { alert, warn, end, over, un, ng };
+}
+
+/* ============ Firebase ============ */
+let dbStarted = false;
+function setupDB() {
+  if (dbStarted) return; dbStarted = true;
+  fbDB = firebase.database();
+  // 読込エラー（権限など）を画面上部に表示
+  const errs = {};
+  const onErr = path => e => { errs[path] = e.message || String(e); showMsg("Firebaseの読込に失敗: " + Object.keys(errs).map(k => `${k}（${errs[k]}）`).join(" / ")); };
+  const listen = (ref, path, cb) => ref.on("value", cb, onErr(path));
+  fbDB.ref(".info/connected").on("value", s => { fbReady = s.val() === true; document.getElementById("syncDot").classList.toggle("on", fbReady); });
+  const dock = fbDB.ref(DOCK_ROOT);
+  let gotNext = false, gotCur = false;
+  const first = () => { if (gotNext && gotCur && !S.appts.length && !S.date) { if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; } rebuildAppts(true); } };
+  listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; if (S.date && S.src === "next") rebuildAppts(false); else first(); });
+  listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
+  listen(dock.child("planRules"), "dock/planRules", s => { if (!RDRAFT) { loadRules(s.val()); if (S.date) render(); } });
+  listen(dock.child("floors"), "dock/floors", s => { const f = s.val(); if (Array.isArray(f) && f.length) { S.floors = f.filter(Boolean).map(x => ({ name: x.name, bays: Array.isArray(x.bays) ? x.bays : [] })); if (S.date) render(); } });
+  // 配置ダッシュボード（ルート直下）
+  const rr = () => { if (S.date) render(); };
+  listen(fbDB.ref("roster"), "roster", s => { const v = s.val(); S.roster = Array.isArray(v) ? v : (v ? Object.values(v) : []); rr(); });
+  listen(fbDB.ref("custom"), "custom", s => { S.custom = s.val() || {}; rr(); });
+  listen(fbDB.ref("layout"), "layout", s => { S.layout = s.val() || {}; rr(); });
+  listen(fbDB.ref("floorMove"), "floorMove", s => { S.floorMove = s.val() || {}; rr(); });
+  listen(fbDB.ref("master"), "master", s => { S.pmaster = s.val() || null; rr(); });
+  listen(fbDB.ref("targetUPH"), "targetUPH", s => {
+    const v = s.val() || {};
+    S.targetUPH = { 日勤: { in: +(v.日勤 && v.日勤.in) || 0 }, 夜勤: { in: +(v.夜勤 && v.夜勤.in) || 0 } }; rr();
+  });
+}
+function initFirebase() {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.auth().onAuthStateChanged(u => { if (u) setupDB(); });
+    firebase.auth().signInAnonymously().catch(e => { console.error(e); toast("Firebase認証に失敗しました"); });
+  } catch (e) { console.error(e); toast("Firebaseに接続できません"); }
+}
+
+/* ============ 起動 ============ */
+function showMsg(t) { const m = document.getElementById("msgBar"); m.textContent = t; m.hidden = !t; }
+if (typeof firebase === "undefined") {
+  showMsg("Firebaseを読み込めませんでした。ネット接続を確認して再読込してください（この状態では配置ロスター・保存が使えません）。");
+  render();
+} else initFirebase();
+</script>
+</body>
+</html>
