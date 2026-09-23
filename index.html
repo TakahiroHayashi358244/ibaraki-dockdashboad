@@ -161,7 +161,34 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .bay.occupied .bay-label{color:#fff;}
 .bay-slot.full.dragover{background:rgba(224,80,80,.30);cursor:not-allowed;}
 .bay-slot .card{width:100%;min-width:0;}
-.bay-slot .c-id,.bay-slot .c-main,.bay-slot .c-row span{word-break:break-word;overflow-wrap:anywhere;}
+/* バースの中のカードは、枠に収まるように小さくまとめる（詳しい数量は「詳細」で見る） */
+.bay-slot .card{
+  padding:5px 7px 6px;border-radius:7px;border-left-width:3px;
+  font-size:11px;box-shadow:0 1px 3px rgba(40,60,80,.12);
+  display:flex;flex-direction:column;gap:3px;overflow:hidden;
+}
+.bay-slot .card .c-topright{position:static;order:-1;align-self:flex-end;gap:4px;}
+.bay-slot .card .c-detail{font-size:10px;padding:1px 7px;border-radius:5px;}
+.bay-slot .card .c-memo{
+  margin:0;padding:2px 6px;font-size:10px;line-height:1.35;border-radius:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.bay-slot .card .c-idx{
+  margin:0;font-size:8.5px;line-height:1.25;padding:1px 5px;border-radius:7px;
+  align-self:stretch;max-width:100%;text-align:center;letter-spacing:-.2px;
+  white-space:normal;overflow-wrap:anywhere;    /* 狭いバースでは折り返して全部見せる（切らない） */
+}
+.bay-slot .card .c-id{
+  font-size:10px;line-height:1.15;letter-spacing:-.2px;
+  white-space:normal;word-break:break-all;      /* 幅の狭いバースでは折り返して全桁見せる（省略しない） */
+}
+.bay-slot .card .c-main{
+  font-size:10.5px;margin:0;line-height:1.25;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;
+}
+.bay-slot .card .c-row{display:none;}          /* 数量などはカードでは出さない */
+.bay-slot .card .c-late{position:static;align-self:flex-start;font-size:9.5px;padding:1px 6px;}
+.bay-slot .c-id,.bay-slot .c-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ===== Card ===== */
 .card{
@@ -1285,7 +1312,9 @@ function idxBadgeOf(c){
   if(!text) return '';
   const closed=/(^|[^A-Za-z])CLOSED?([^A-Za-z]|$)/i.test(text);
   const checked=/CHECK(ED)?[_ -]?IN/i.test(text);              // CHECKED_IN だけ青で目立たせる
-  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}">IDX ${esc(text)}</span>`;
+  // バースの枠に収まるよう、頭の APPOINTMENT_／ARRIVAL_ は省いて短く出す（元の値はツールチップ）
+  const short=String(text).replace(/^APPOINTMENT[_ ]/i,'').replace(/^ARRIVAL[_ ]/i,'').replace(/_/g,' ');
+  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}" title="IDX ${escAttr(text)}">IDX ${esc(short)}</span>`;
 }
 // IDXへ反映できなかったカードの件数表示
 function refreshIdxTrouble(){
