@@ -330,6 +330,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
           <button class="btn sm" onclick="dpSelectAll(true)">全て選択</button>
           <button class="btn sm" onclick="dpSelectAll(false)">選択を外す</button>
           <button class="btn sm" onclick="dpSelectFirst(1)">先頭1台だけ</button>
+          <button class="btn sm" id="dpCancel" onclick="dpCancelPending()" title="実行されないまま残っている指示を取り消して、送り直せるようにします">待機中を取消</button>
           <span class="note" id="dpSel"></span>
         </span>
         <span style="display:flex;gap:8px">
@@ -1619,6 +1620,7 @@ function dpAdopt(all) {
     if (idxCode && c.code && c.code !== idxCode) return;
     if (c.site && c.site !== "HFO1") return;
     if (now - (c.at || 0) > DOOR_TTL) return;
+    if (c.state === "canceled") return;
     const p = byId[c.id];
     if (!p || (c.at || 0) > (all[p].at || 0)) byId[c.id] = k;
   });
@@ -1635,6 +1637,21 @@ function dpAdopt(all) {
     }
   });
 }
+// 実行されないまま残っている指示を取り消して、選び直せるようにする
+function dpCancelPending() {
+  if (!fbDB) return;
+  const wait = dpList.filter(x => x.key && ["pending", "expired"].includes(dpEff(x)));
+  if (!wait.length) { toast("待機中の指示はありません"); return; }
+  wait.forEach(x => {
+    const k = x.key;
+    fbDB.ref(DOOR_PATH + "/" + k).update({ state: "canceled", doneAt: Date.now(), message: "着車プランから取り消しました" })
+      .catch(e => toast("取り消しに失敗: " + (e.message || e)));
+    delete dpState[k]; delete dpKeys[x.a.key];
+    x.key = null; x.sel = false;
+  });
+  toast(`${wait.length}件の指示を取り消しました`);
+  dpStatusUpdate(); renderDoorTab();
+}
 function dpStatusUpdate() {
   const el = document.getElementById("dpStatus");
   if (!el) return;
@@ -1643,7 +1660,12 @@ function dpStatusUpdate() {
   const fin = sent.filter(x => ["done", "error", "expired", "stalled"].includes(dpEff(x))).length;
   const ng = sent.filter(x => ["error", "expired", "stalled"].includes(dpEff(x))).length;
   if (fin >= sent.length) { el.textContent = `完了しました（成功 ${sent.length - ng}件 / 失敗 ${ng}件）`; el.className = "ai-status"; }
-  else { el.textContent = `実行中… ${fin}/${sent.length}件（IDXを開いたマスターPCが順番に変更します。1件30〜60秒）`; el.className = "ai-status busy"; }
+  else {
+    const stuck = sent.some(x => dpEff(x) === "pending" && dpState[x.key] && Date.now() - (dpState[x.key].at || 0) > 10 * 60000);
+    el.textContent = `実行中… ${fin}/${sent.length}件（IDXを開いたマスターPCが順番に変更します。1件30〜60秒）`
+      + (stuck ? " ／ 10分以上進んでいません。マスターPCでIDXのDay Scheduleが開いているか確認し、進まなければ「待機中を取消」してから送り直してください" : "");
+    el.className = "ai-status busy";
+  }
 }
 function dpWatchStart() {
   if (!fbDB) return;
@@ -1695,6 +1717,12 @@ function dpUpdateBtn() {
   if (el) el.textContent = `選択 ${n} / 実行できる ${able}台`;
   const all = document.getElementById("dpAll");
   if (all) { all.checked = able > 0 && n === able; all.indeterminate = n > 0 && n < able; }
+  const cx = document.getElementById("dpCancel");
+  if (cx) {
+    const w = dpList.filter(x => x.key && ["pending", "expired"].includes(dpEff(x))).length;
+    cx.disabled = !w;
+    cx.textContent = w ? `待機中 ${w}件 を取消` : "待機中を取消";
+  }
 }
 function renderDoorTab() {
   const rows = dpList.map((x, i) => {
