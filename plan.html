@@ -1052,8 +1052,12 @@ function savePlan() {
   if (!fbDB) { setSaveSt("未保存（未接続）"); return; }
   setSaveSt("保存中…");
   clearTimeout(saveTimer);
-  const date = S.date, data = { date, assign: S.plan.assign, uph: S.plan.uph || null, updatedAt: Date.now() };
+  const date = S.date;
   saveTimer = setTimeout(() => {
+    // 自動で決まったバースも含めて保存（ドックダッシュボードの計画バッジ用）
+    const BY = computeBays(), bays = {};
+    S.appts.forEach(x => { const c = cellOf(x); const p = c.f && BY[c.f] && BY[c.f].pos[x.key]; if (p && p.bay) bays[x.key] = p.bay; });
+    const data = { date, assign: S.plan.assign, bays, uph: S.plan.uph || null, updatedAt: Date.now() };
     fbDB.ref(DOCK_ROOT + "/plans/" + date).set(data).then(() => setSaveSt("保存済")).catch(e => { setSaveSt("保存失敗"); toast("保存失敗: " + (e.message || e)); });
   }, 500);
 }
