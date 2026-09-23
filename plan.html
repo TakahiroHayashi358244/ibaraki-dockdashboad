@@ -260,13 +260,11 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
     <span class="sp"></span>
     <button class="btn" onclick="openRules()">ルール</button>
     <button class="btn" onclick="autoAssign()">自動割当</button>
-    <button class="btn" id="undoBtn" onclick="undo()" disabled>元に戻す</button>
+    <button class="btn" onclick="openDoorPush()" title="計画のバースをドックマスタのDock Door Numberへ反映">ドック反映</button>
     <button class="btn" id="viewBtn" onclick="toggleView()" title="カードの表示を切り替えます">バー表示</button>
     <span class="zoom-ctl" title="表の表示サイズ"><button class="zbtn" onclick="setZoom(-1)" aria-label="縮小">−</button><span class="zval" id="zoomVal" onclick="setZoom(0)" title="クリックで100%に戻す">100%</span><button class="zbtn" onclick="setZoom(1)" aria-label="拡大">＋</button></span>
     <button class="btn danger" onclick="clearAssign()">割当解除</button>
-    <button class="btn" onclick="copyText()" title="Slack貼付用の要約をコピー">テキスト</button>
     <button class="btn primary" onclick="makePDF()">PDF作成</button>
-    <button class="btn" onclick="openDoorPush()" title="計画のバースをドックマスタのDock Door Numberへ反映">ドック反映</button>
     <button class="btn" onclick="openSettings()">設定</button>
     <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none">
   </header>
@@ -492,7 +490,7 @@ function ingestCSVText(text, name) {
   const valueRows = rows.slice(1).map(r => headers.map((h, i) => (r[i] || "").trim()));
   const payload = { headers, rows: valueRows, name, savedAt: Date.now() };
   S.masters.next = payload; S.src = "next"; document.getElementById("srcSel").value = "next";
-  undoStack = []; document.getElementById("undoBtn").disabled = true;
+  undoStack = [];
   rebuildAppts(true);
   if (fbDB) {
     fbDB.ref(DOCK_ROOT + "/nextMaster").set(payload)
@@ -914,15 +912,9 @@ function askConfirm(msg, title) {
     ov.classList.add("show");
   });
 }
-// 元に戻す（直前の一括操作・移動）
+// 直前の状態の控え（「割当解除」の確認などで使う。画面のボタンは廃止）
 let undoStack = [];
-function pushUndo() { undoStack.push(JSON.stringify(S.plan.assign)); if (undoStack.length > 30) undoStack.shift(); document.getElementById("undoBtn").disabled = false; }
-function undo() {
-  if (!undoStack.length) return;
-  S.plan.assign = JSON.parse(undoStack.pop());
-  document.getElementById("undoBtn").disabled = !undoStack.length;
-  render(); savePlan(); toast("元に戻しました");
-}
+function pushUndo() { undoStack.push(JSON.stringify(S.plan.assign)); if (undoStack.length > 30) undoStack.shift(); }
 async function clearAssign() {
   if (!Object.keys(S.plan.assign).length) return;
   if (!(await askConfirm("この日の割当をすべて解除しますか？"))) return;
@@ -1206,24 +1198,6 @@ function closeSettings() {
   render(); if (uphChanged) savePlan();
 }
 document.getElementById("settings").addEventListener("click", e => { if (e.target.id === "settings") closeSettings(); });
-
-/* ============ テキスト（Slack貼付用） ============ */
-function copyText() {
-  const R = compute();
-  const tu = S.appts.reduce((s, a) => s + (a.units || 0), 0);
-  let t = `【着車プラン ${dateLabel(S.date)}】予約 ${S.appts.length}台 / ${fmt(tu)}U\n`;
-  S.floors.forEach(fl => {
-    const T = R.F[fl.name].tot;
-    const peak = R.H.filter(h => R.F[fl.name].cells[h].lvl).map(h => hl(h));
-    t += `${fl.name}: ${T.n}台 ${fmt(T.u)}U（IN LH ${fmt1(T.lh)} / 能力 ${fmt(T.cap)}U / 最終持越 ${fmt(T.end)}U）${peak.length ? " 要注意 " + peak.join(",") : ""}\n`;
-  });
-  const un = S.appts.filter(a => !cellOf(a).f).length;
-  if (un) t += `未割当: ${un}台\n`;
-  const done = () => toast("クリップボードにコピーしました");
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(() => fallbackCopy(t, done));
-  else fallbackCopy(t, done);
-}
-function fallbackCopy(t, cb) { const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); cb(); } catch (e) { toast("コピーできませんでした"); } ta.remove(); }
 
 /* ============ PDF ============ */
 function pdfHeader(sub) {
