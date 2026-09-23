@@ -199,6 +199,9 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 .dp-tab th{font-size:11px;color:var(--sub);font-weight:600;position:sticky;top:0;background:#fff;}
 .dp-tab td.ar{text-align:right;}
 .dp-wrap{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;}
+.dp-tab td:last-child{white-space:normal;min-width:130px;}
+.dp-tab td:nth-child(4){white-space:normal;max-width:190px;}
+.dp-tab .note{font-size:10.5px;line-height:1.4;}
 .dp-st{font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;white-space:nowrap;}
 .dp-st.wait{background:#eceff1;color:#546e7a;}
 .dp-st.run{background:#e3f2fd;color:#0d47a1;}
@@ -318,15 +321,23 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 </div>
 
 <div class="overlay" id="dpModal">
-  <div class="modal" style="width:720px">
+  <div class="modal" style="width:880px;max-width:96vw">
     <h2>ドックマスタへ反映<span class="x" onclick="closeDoorPush()">×</span></h2>
     <div class="modal-body">
       <div class="note">計画のバースを、ドックマスタの Dock Door Number へ書き込みます。IDXを開いた「マスターPC」が1件ずつ編集画面を開いて変更します。実データを書き換えるので、内容を確認してから実行してください。</div>
       <div class="ai-status" id="dpStatus"></div>
       <div class="dp-wrap"><table class="dp-tab" id="dpTab"></table></div>
-      <div class="dlg-actions">
-        <button class="btn" onclick="closeDoorPush()">閉じる</button>
-        <button class="btn primary" id="dpRun" onclick="runDoorPush()">反映する</button>
+      <div class="dlg-actions" style="justify-content:space-between">
+        <span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn sm" onclick="dpSelectAll(true)">全て選択</button>
+          <button class="btn sm" onclick="dpSelectAll(false)">選択を外す</button>
+          <button class="btn sm" onclick="dpSelectFirst(1)">先頭1台だけ</button>
+          <span class="note" id="dpSel"></span>
+        </span>
+        <span style="display:flex;gap:8px">
+          <button class="btn" onclick="closeDoorPush()">閉じる</button>
+          <button class="btn primary" id="dpRun" onclick="runDoorPush()">反映する</button>
+        </span>
       </div>
     </div>
   </div>
@@ -1521,7 +1532,7 @@ function openDoorPush() {
   else if (!dpList.length) { st.textContent = "ドックマスタと計画は一致しています（変更する予約はありません）"; run.disabled = true; }
   else if (!idxCode) { st.textContent = "連携コードが未設定です。ドックダッシュボードの設定で「逆連携」の連携コードを入れてください"; run.disabled = true; }
   else if (!okN) { st.textContent = `ドックマスタに無い番号ばかりです（${bad}台）。「ルール」の「ドックマスタのドア番号」を直してください`; run.disabled = true; }
-  else { st.textContent = `${okN}台のドック番号を変更します` + (bad ? `（ドックマスタに無い番号の ${bad}台 は送りません）` : ""); run.disabled = false; }
+  else { st.textContent = `変更できるのは ${okN}台` + (bad ? `（ドックマスタに無い番号の ${bad}台 を除く）` : "") + "。反映する便にチェックを入れてください（試すときは「先頭1台だけ」）"; }
   if (!S.doorOpts.list.length) st.textContent += " ／ 番号の一覧が未取得です（IDX側の設定で「ドア番号一覧を保存」を押すと照合できます）";
   st.className = "ai-status";
   renderDoorTab();
@@ -1531,27 +1542,56 @@ function closeDoorPush() {
   document.getElementById("dpModal").classList.remove("show");
   if (dpWatch) { try { dpWatch.off(); } catch (e) {} dpWatch = null; }
 }
+// 選べる行か（番号ありで、まだ送っていない／失敗した行）
+function dpSelectable(x) {
+  if (x.ng) return false;
+  const st = x.key && dpState[x.key] ? dpState[x.key].state : null;
+  return !st || st === "error";
+}
+function dpToggle(i, on) { if (dpList[i]) dpList[i].sel = !!on; dpUpdateBtn(); }
+function dpSelectAll(on) { dpList.forEach(x => { x.sel = on && dpSelectable(x); }); renderDoorTab(); }
+function dpSelectFirst(n) {
+  let c = 0;
+  dpList.forEach(x => { x.sel = dpSelectable(x) && c < n; if (x.sel) c++; });
+  renderDoorTab();
+}
+function dpUpdateBtn() {
+  const n = dpList.filter(x => x.sel && dpSelectable(x)).length;
+  const run = document.getElementById("dpRun");
+  const canRun = !!fbDB && !!idxCode && n > 0;
+  run.disabled = !canRun;
+  run.textContent = n ? `選択した ${n}台 を反映` : "反映する";
+  const el = document.getElementById("dpSel");
+  const able = dpList.filter(dpSelectable).length;
+  if (el) el.textContent = `選択 ${n} / 実行できる ${able}台`;
+  const all = document.getElementById("dpAll");
+  if (all) { all.checked = able > 0 && n === able; all.indeterminate = n > 0 && n < able; }
+}
 function renderDoorTab() {
-  const rows = dpList.map(x => {
+  const rows = dpList.map((x, i) => {
     const c = cellOf(x.a), w = winOf(x.a);
     const s = x.key ? (dpState[x.key] || { state: "pending" }) : null;
     const cls = x.ng ? "err" : !s ? "wait" : s.state === "done" ? "ok" : s.state === "error" ? "err" : s.state === "running" ? "run" : "wait";
     const label = x.ng ? "番号なし" : !s ? "未実行" : s.state === "done" ? "反映済" : s.state === "error" ? "失敗" : s.state === "running" ? "実行中" : "待機中";
-    return `<tr><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
+    const can = dpSelectable(x);
+    return `<tr><td><input type="checkbox" ${x.sel && can ? "checked" : ""} ${can ? "" : "disabled"} onchange="dpToggle(${i},this.checked)"></td><td>${hmm(w.s)}–${hmm(w.e)}</td><td>${esc(x.a.id)}</td><td>${esc(x.a.cname)}</td>
       <td>${esc(c.f)} ${esc((LAST && LAST.BY[c.f] && LAST.BY[c.f].pos[x.a.key] && LAST.BY[c.f].pos[x.a.key].bay) || "")}</td>
       <td class="ar">${esc(x.from || "—")} <span class="dp-arrow">→</span> <span class="dp-to"${x.ng ? ' style="color:var(--alert)"' : ""}>${esc(x.to)}</span></td>
-      <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに この番号がありません</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
+      <td><span class="dp-st ${cls}">${label}</span>${x.ng ? `<br><span class="note">ドックマスタに無い番号</span>` : ""}${s && s.message ? `<br><span class="note">${esc(s.message)}</span>` : ""}</td></tr>`;
   }).join("");
   document.getElementById("dpTab").innerHTML =
-    `<thead><tr><th>受入枠</th><th>Appointment Id</th><th>キャリア</th><th>計画</th><th class="ar">Dock Door</th><th>状態</th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="note" style="padding:14px">変更する予約はありません</td></tr>`}</tbody>`;
+    `<thead><tr><th style="width:28px"><input type="checkbox" id="dpAll" onchange="dpSelectAll(this.checked)" title="すべて選択"></th><th>受入枠</th><th>Appointment Id</th><th>キャリア</th><th>計画</th><th class="ar">Dock Door</th><th>状態</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="note" style="padding:14px">変更する予約はありません</td></tr>`}</tbody>`;
+  dpUpdateBtn();
 }
 function runDoorPush() {
-  if (!fbDB || !dpList.length || !idxCode) return;
-  const run = document.getElementById("dpRun"); run.disabled = true;
+  if (!fbDB || !idxCode) return;
+  const send = dpList.filter(x => x.sel && dpSelectable(x));
+  if (!send.length) return;
+  document.getElementById("dpRun").disabled = true;
   document.getElementById("dpStatus").textContent = "指示を送っています…";
   const ref = fbDB.ref(DOOR_PATH);
-  const send = dpList.filter(x => !x.ng);
   send.forEach(x => {
+    x.sel = false;
     const r = ref.push();
     x.key = r.key; dpKeys[x.a.key] = r.key; dpState[r.key] = { state: "pending" };
     r.set({ id: x.a.id, door: x.to, from: x.from || null, code: idxCode, site: "HFO1",
@@ -1566,9 +1606,9 @@ function runDoorPush() {
   ref.on("value", snap => {
     const all = snap.val() || {};
     Object.keys(dpState).forEach(k => { if (all[k]) dpState[k] = { state: all[k].state || "pending", message: all[k].message || "" }; });
-    const ks = Object.keys(dpState);
-    const fin = ks.filter(k => dpState[k].state === "done" || dpState[k].state === "error").length;
-    const ng = ks.filter(k => dpState[k].state === "error").length;
+    const ks = dpList.filter(x => x.key).map(x => x.key);
+    const fin = ks.filter(k => dpState[k] && (dpState[k].state === "done" || dpState[k].state === "error")).length;
+    const ng = ks.filter(k => dpState[k] && dpState[k].state === "error").length;
     const el = document.getElementById("dpStatus");
     if (fin >= ks.length) { el.textContent = `完了しました（成功 ${ks.length - ng}件 / 失敗 ${ng}件）`; el.className = "ai-status"; }
     else { el.textContent = `実行中… ${fin}/${ks.length}件`; el.className = "ai-status busy"; }
