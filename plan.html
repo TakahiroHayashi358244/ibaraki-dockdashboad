@@ -43,6 +43,8 @@ table.grid{border-collapse:separate;border-spacing:0;}
 .grid th,.grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top;}
 .grid thead th{position:sticky;top:0;z-index:3;background:#fff;padding:7px 8px;text-align:left;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;min-width:178px;width:178px;}
 .grid thead th.next{color:#6a5acd;}
+.grid thead th.brk{background:#fdf6e3;}
+.grid thead th .brk-mk{margin-left:6px;font-size:10px;font-weight:700;color:#9a7b00;background:#fff3cd;border:1px solid #f0e3a8;border-radius:5px;padding:0 5px;}
 .grid thead th.corner{left:0;z-index:5;min-width:170px;width:170px;color:var(--sub);font-size:12px;}
 .grid th.rh{position:sticky;left:0;z-index:2;background:#fff;min-width:170px;width:170px;padding:8px 10px;text-align:left;border-left:5px solid var(--fc);}
 .grid th.rh .fn{font-size:18px;font-weight:800;color:var(--fc);}
@@ -239,9 +241,30 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 .pg table.gtab td.gc{height:150px;}
 .pg table.gtab .pm{font-size:9.5px;line-height:1.3;}
 .pg .gt{border-top:1px solid #e3e8ee;padding:2px 0 1px;}
-.pg .gt .g1{display:flex;justify-content:space-between;font-size:10px;line-height:1.25;font-variant-numeric:tabular-nums;}
+.pg .gt .g1{display:flex;justify-content:space-between;gap:4px;font-size:10px;line-height:1.25;font-variant-numeric:tabular-nums;}
+.pg .gt .g1 .gid{font-size:9.5px;letter-spacing:-.3px;white-space:nowrap;}
 .pg .gt .g2{font-size:9.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#37474f;}
 .pg .foot{margin-top:8px;font-size:11px;color:#697a8c;}
+
+/* ===== サマリの窓（ドラッグで移動できる） ===== */
+.fwin{position:fixed;z-index:2500;background:#fff;border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 14px 40px rgba(30,43,56,.28);min-width:520px;max-width:96vw;overflow:hidden;}
+.fwin[hidden]{display:none;}
+.fw-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:move;
+  background:#eef4f7;border-bottom:1px solid var(--line);padding:7px 10px;font-weight:800;font-size:13px;color:#24506a;
+  -webkit-user-select:none;user-select:none;touch-action:none;}
+.fw-head .x{cursor:pointer;font-size:17px;line-height:1;color:var(--sub);padding:0 3px;}
+.fw-head .x:hover{color:var(--alert);}
+.fw-body{padding:10px 12px 12px;max-height:72vh;overflow:auto;}
+.sum-tab{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.sum-tab th,.sum-tab td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right;white-space:nowrap;}
+.sum-tab th{background:#f5f8fa;color:var(--sub);font-weight:700;font-size:11.5px;text-align:right;position:sticky;top:0;}
+.sum-tab th:first-child,.sum-tab td:first-child{text-align:left;}
+.sum-tab tr.tot td{border-top:2px solid #cfd8e0;font-weight:800;background:#f7fafb;}
+.sum-tab td .fnm{font-weight:800;}
+.sum-tab .neg{color:var(--alert);font-weight:800;}
+.sum-tab .pos{color:#2e7d32;}
+.sum-note{margin-top:8px;font-size:11px;color:var(--sub);line-height:1.5;}
 </style>
 </head>
 <body>
@@ -260,6 +283,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
     <span class="sp"></span>
     <button class="btn" onclick="openRules()">ルール</button>
     <button class="btn" onclick="autoAssign()">自動割当</button>
+    <button class="btn" onclick="toggleSummary()">サマリ</button>
     <button class="btn" onclick="openDoorPush()" title="計画のバースをドックマスタのDock Door Numberへ反映">ドック反映</button>
     <button class="btn" id="viewBtn" onclick="toggleView()" title="カードの表示を切り替えます">バー表示</button>
     <span class="zoom-ctl" title="表の表示サイズ"><button class="zbtn" onclick="setZoom(-1)" aria-label="縮小">−</button><span class="zval" id="zoomVal" onclick="setZoom(0)" title="クリックで100%に戻す">100%</span><button class="zbtn" onclick="setZoom(1)" aria-label="拡大">＋</button></span>
@@ -277,6 +301,11 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 <div class="toast" id="toast"></div>
 <div id="pdfRoot"></div>
 
+<div class="fwin" id="sumWin" hidden>
+  <div class="fw-head" id="sumHead"><span>サマリ（1日の合計）</span><span class="x" onclick="closeSummary()">×</span></div>
+  <div class="fw-body" id="sumBody"></div>
+</div>
+
 <div class="overlay" id="rulesModal">
   <div class="modal" style="width:760px">
     <h2>割当ルール<span class="x" onclick="closeRules(false)">×</span></h2>
@@ -292,6 +321,9 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
       <div class="row-inp"><label>同時着車の上限（全フロア共通） <input type="number" id="rlConc" min="1" step="1" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" oninput="RDRAFT.conc=+this.value||null;renderRuleFloors()"> 台</label>
         <span class="note">空欄はバース数まで。フロア別に入れた値が優先されます。同じ時間に着車できる台数がこれを超えると「同時上限超え」になり、自動割当は別フロアへ回します。</span></div>
       <div style="overflow-x:auto"><table class="rl-tab" id="rlFloors"></table></div>
+      <div class="sec-title">休憩</div>
+      <div class="row-inp"><label>休憩の時間 <input type="text" id="rlBreaks" style="width:240px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" placeholder="12:00-12:45,15:00-15:15" oninput="RDRAFT.breaks=this.value"></label>
+        <span class="note">この時間はLHを積まず、処理が後ろの時間にずれます（人数＝HCはそのまま）。カンマ区切りで複数指定できます。空欄にすると既定（12:00-12:45,15:00-15:15）になります。</span></div>
       <div class="sec-title">ドックマスタのドア番号</div>
       <div class="note">フロアごとに使う Dock Door Number。空欄なら、先頭の数字がそのフロアと同じ番号を自動で使います。着車の早い順に、空いているドアから順に割り当てます。同時着車の上限は「バース数」と「ドア数」の小さいほうになります。</div>
       <div class="note" id="rlDoorOpt"></div>
@@ -498,8 +530,15 @@ function ingestCSVText(text, name) {
       .then(() => toast(valueRows.length + "件を翌日分として保存しました"))
       .catch(e => toast("保存に失敗: " + (e.message || e)));
   } else toast(valueRows.length + "件 読込みました");
-  // 取込直後：割当がまだ無ければ自動割当で叩き台を作る（「元に戻す」で取り消し可）
-  planReady.then(() => { if (S.appts.length && !S.appts.some(a => cellOf(a).f)) { pushUndo(); autoAssignCore(true, true); } });
+  // 取込直後：これまでの割当は全部捨てて、新しいCSVで作り直す（保存も上書き）
+  planReady.then(() => {
+    if (!S.appts.length) return;
+    pushUndo();
+    const had = Object.keys(S.plan.assign || {}).length;
+    S.plan.assign = {};
+    autoAssignCore(true, true);      // 中で render と保存まで行う
+    if (had) toast("これまでの割当を解除して、取り込んだCSVで作り直しました");
+  });
 }
 function readCSVFile(file) {
   const rd = new FileReader();
@@ -611,6 +650,32 @@ function uphOf(shift) {
   if (o > 0) return o;
   return (S.targetUPH[shift] && +S.targetUPH[shift].in) || 0;
 }
+/* ---- 休憩（この時間は作業しない＝LHを積まず、後ろの時間へずれる） ---- */
+const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
+let brkCache = { src: null, list: [] };
+function breakRanges() {
+  const src = (RULES.breaks == null || RULES.breaks === "") ? BREAK_DEFAULT : String(RULES.breaks);
+  if (brkCache.src === src) return brkCache.list;
+  const list = [];
+  src.split(/[,、\s]+/).forEach(t => {
+    const m = String(t).match(/^(\d{1,2}):(\d{2})[-–~〜](\d{1,2}):(\d{2})$/);
+    if (!m) return;
+    let bs = +m[1] + +m[2] / 60, be = +m[3] + +m[4] / 60;
+    if (be <= bs) be += 24;
+    list.push([bs, be]);
+    list.push([bs + 24, be + 24]);      // 24時をまたぐ勤務にも同じ時刻で効かせる
+  });
+  brkCache = { src, list };
+  return list;
+}
+// s〜e（時。小数可）のうち休憩にあたる長さ
+function breakOv(s, e) {
+  let m = 0;
+  breakRanges().forEach(r => { m += Math.max(0, Math.min(e, r[1]) - Math.max(s, r[0])); });
+  return Math.min(m, Math.max(0, e - s));
+}
+const hourHasBreak = h => breakOv(h, h + 1) > 0;
+
 // IN人員を {floor, s, e, f(LH/時間), uph} に変換
 function inSpans() {
   const out = [], info = { total: 0, inCnt: 0, noTime: 0, offFloor: 0 };
@@ -626,14 +691,16 @@ function inSpans() {
     if (s == null || e == null) { info.noTime++; return; }
     if (e <= s) e += 24;
     if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
-    const dur = e - s; const lh = num(p.lh) > 0 ? num(p.lh) : dur;
-    out.push({ floor: fl, s, e, f: lh / dur, uph: uphOf(p.shift), shift: p.shift, lh });
+    const dur = e - s; const lh = num(p.lh) > 0 ? num(p.lh) : dur - breakOv(s, e);
+    const work = dur - breakOv(s, e);          // 休憩を除いた実働時間
+    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph: uphOf(p.shift), shift: p.shift, lh });
   });
   return { spans: out, info };
 }
 
 /* ============ 集計 ============ */
-function cellOf(a) { const x = S.plan.assign[a.key]; return { f: x && x.f ? x.f : null, h: x && x.h != null ? x.h : a.h0, b: x && x.b ? x.b : null }; }
+// 受入枠（Schedule Date）は動かせないので、時間はCSVの値で固定。フロアとバースだけを持つ
+function cellOf(a) { const x = S.plan.assign[a.key]; return { f: x && x.f ? x.f : null, h: a.h0, b: x && x.b ? x.b : null }; }
 function axis(spans) {
   let a = 24, b = 0;
   S.appts.forEach(x => { const h = cellOf(x).h; a = Math.min(a, h); b = Math.max(b, h + 1); });
@@ -658,9 +725,12 @@ function compute() {
     const fl = F[p.floor]; if (!fl) return;
     fl.hcDay = (fl.hcDay || 0) + 1;
     H.forEach(h => {
-      const ov = Math.max(0, Math.min(h + 1, p.e) - Math.max(h, p.s));
+      const s0 = Math.max(h, p.s), e0 = Math.min(h + 1, p.e);
+      const ov = Math.max(0, e0 - s0 - breakOv(s0, e0));      // 休憩の時間は働かない
+      const c = fl.cells[h];
+      if (e0 > s0) c.hc++;                                    // 在籍はしているのでHCは数える
       if (ov <= 0) return;
-      const c = fl.cells[h]; c.hc++; c.lh += ov * p.f; c.cap += ov * p.f * p.uph;
+      c.lh += ov * p.f; c.cap += ov * p.f * p.uph;
     });
   });
   const un = {}; H.forEach(h => un[h] = []);
@@ -698,6 +768,7 @@ function render() {
   const wrap = document.getElementById("gridWrap");
   const R = LAST = compute();
   renderStats(R);
+  renderSummary();
   if (!S.appts.length) {
     wrap.innerHTML = `<div class="empty">${dateLabel(S.date)} の予約がありません。<br>翌日分のCSVを「CSV読込」またはこの画面へドラッグ&ドロップしてください。<br>${S.outOfDate ? `（他の日付の予約 ${S.outOfDate}件 は計画日を変更すると表示されます）` : ""}</div>`;
     return;
@@ -709,7 +780,7 @@ function render() {
   document.getElementById("viewBtn").textContent = barMode ? "バー表示" : "カード表示";
   const BY = R.BY;
   let h = `<div class="gbox"><table class="grid${barMode ? " vbar" : ""}"><thead><tr><th class="corner">フロア ＼ 時刻</th>`;
-  R.H.forEach(hh => h += `<th data-hh="${hh}" class="${hh >= 24 ? "next" : ""}">${hl(hh)}</th>`);
+  R.H.forEach(hh => h += `<th data-hh="${hh}" class="${hh >= 24 ? "next" : ""}${hourHasBreak(hh) ? " brk" : ""}"${hourHasBreak(hh) ? ` title="この時間に休憩があります（${esc(RULES.breaks || BREAK_DEFAULT)}）"` : ""}>${hl(hh)}${hourHasBreak(hh) ? `<span class="brk-mk">休憩</span>` : ""}</th>`);
   h += `</tr></thead><tbody>`;
   // 未割当
   h += `<tr class="unrow"><th class="rh" style="--fc:#9aa8b8"><div class="fn" style="color:var(--sub);font-size:15px">未割当</div><div class="ft"><b>${unTotal}</b>台</div></th>`;
@@ -895,6 +966,8 @@ function renderStats(R) {
 // bay: undefined=ルールに従う / ""=自動（空いているバース） / "605A"等=そのバースに固定
 function setAssign(key, f, h, bay) {
   const a = S.appts.find(x => x.key === key); if (!a) return;
+  if (h != null && h !== a.h0) toast(`受入枠は変えられないので、${hl(a.h0)}のまま ${f || "未割当"} へ移しました`);
+  h = a.h0;          // 受入枠（Schedule Date）は変えられないので、時間はCSVのまま固定する
   pushUndo();
   if (!f && h === a.h0) delete S.plan.assign[key];
   else if (f && bay) S.plan.assign[key] = { f, h, b: bay, bm: true, m: true };
@@ -1095,6 +1168,84 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && S.sel) { S.sel = null; render(); } });
 
+
+
+/* ============ サマリ（フロア別の1日合計） ============ */
+function toggleSummary() {
+  const w = document.getElementById("sumWin");
+  if (w.hidden) openSummary(); else closeSummary();
+}
+function closeSummary() { document.getElementById("sumWin").hidden = true; }
+function openSummary() {
+  const w = document.getElementById("sumWin");
+  w.hidden = false;
+  let pos = null;
+  try { pos = JSON.parse(localStorage.getItem("planSumPos") || "null"); } catch (e) { pos = null; }
+  const r = w.getBoundingClientRect();
+  const x = pos ? Math.min(Math.max(0, pos.x), innerWidth - 120) : Math.max(8, (innerWidth - r.width) / 2);
+  const y = pos ? Math.min(Math.max(0, pos.y), innerHeight - 60) : 96;
+  w.style.left = x + "px"; w.style.top = y + "px";
+  renderSummary();
+}
+function renderSummary() {
+  const w = document.getElementById("sumWin");
+  if (w.hidden) return;
+  const R = LAST || compute();
+  const rows = [];
+  const T = { n: 0, hc: 0, lh: 0, u: 0, cap: 0 };
+  S.floors.forEach((fl, i) => {
+    const t = R.F[fl.name].tot;
+    T.n += t.n; T.hc += t.hc; T.lh += t.lh; T.u += t.u; T.cap += t.cap;
+    rows.push({ name: fl.name, color: floorColor(i), t });
+  });
+  const unN = S.appts.filter(a => !cellOf(a).f).length;
+  const unU = S.appts.filter(a => !cellOf(a).f).reduce((s, a) => s + estU(a), 0);
+  const line = (nm, color, t) => {
+    const tp = t.lh > 0 ? t.cap / t.lh : 0;                 // TP＝1人1時間あたりの処理数
+    const d = t.cap - t.u;                                   // 処理可能数 − 処理予定数
+    return `<tr${nm === "合計" ? ' class="tot"' : ""}><td><span class="fnm" style="color:${color}">${esc(nm)}</span></td>
+      <td>${fmt(t.n)}</td><td>${fmt(t.hc)}</td><td>${fmt1(t.lh)}</td><td>${fmt(Math.round(tp))}</td>
+      <td>${fmt(t.u)}</td><td>${fmt(Math.round(t.cap))}</td>
+      <td class="${d < 0 ? "neg" : "pos"}">${d >= 0 ? "+" : ""}${fmt(Math.round(d))}</td></tr>`;
+  };
+  document.getElementById("sumBody").innerHTML =
+    `<table class="sum-tab">
+      <thead><tr><th>フロア</th><th>着車</th><th>HC</th><th>LH</th><th>TP</th><th>処理予定数</th><th>処理可能数</th><th>過不足</th></tr></thead>
+      <tbody>${rows.map(r => line(r.name, r.color, r.t)).join("")}
+      ${unN ? `<tr><td><span class="fnm" style="color:#9aa8b8">未割当</span></td><td>${fmt(unN)}</td><td colspan="3"></td><td>${fmt(unU)}</td><td colspan="2"></td></tr>` : ""}
+      ${line("合計", "#24506a", T)}</tbody>
+    </table>
+    <div class="sum-note">HC＝そのフロアのIN人員の人数／LH＝休憩を除いた実働の合計／TP＝1人1時間あたりの処理数（処理可能数 ÷ LH）<br>
+      処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝LH × TP<br>
+      過不足＝処理可能数 − 処理予定数（マイナスはその日のうちに処理しきれない見込み）</div>`;
+}
+// 窓の移動
+(function () {
+  const w = document.getElementById("sumWin"), hd = document.getElementById("sumHead");
+  if (!w || !hd) return;
+  let d = null;
+  hd.addEventListener("pointerdown", e => {
+    if (e.target.classList.contains("x")) return;
+    const r = w.getBoundingClientRect();
+    d = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    hd.setPointerCapture(e.pointerId);
+  });
+  hd.addEventListener("pointermove", e => {
+    if (!d) return;
+    const x = Math.min(Math.max(0, e.clientX - d.dx), innerWidth - 60);
+    const y = Math.min(Math.max(0, e.clientY - d.dy), innerHeight - 40);
+    w.style.left = x + "px"; w.style.top = y + "px";
+  });
+  const end = () => {
+    if (!d) return;
+    d = null;
+    const r = w.getBoundingClientRect();
+    try { localStorage.setItem("planSumPos", JSON.stringify({ x: r.left, y: r.top })); } catch (e) { /* 無視 */ }
+  };
+  hd.addEventListener("pointerup", end);
+  hd.addEventListener("pointercancel", end);
+})();
+
 /* ============ 保存と共有（/dock/plans/<date>） ============
    他のPCが保存したら自動で反映する。ただし自分が操作している最中は
    画面が動かないように保留し、手が空いてから取り込む。            */
@@ -1217,10 +1368,13 @@ function buildPdfPages() {
   const sumHTML = `<div class="sum"><span>予約 <b>${S.appts.length}</b>台 / <b>${fmt(tu)}</b>U</span><span>IN LH <b>${fmt1(tlh)}</b></span><span>処理能力 <b>${fmt(tcap)}</b>U</span>
     <span>目標UPH 日勤 <b>${fmt(uphOf("日勤"))}</b> / 夜勤 <b>${fmt(uphOf("夜勤"))}</b></span>${unN ? `<span style="background:#fde8e8">未割当 <b>${unN}</b>台</span>` : ""}</div>`;
   function newPage(sub, withSum) { const pg = document.createElement("div"); pg.className = "pg"; pg.innerHTML = pdfHeader(sub) + (withSum ? sumHTML : ""); root.appendChild(pg); pages.push(pg); return pg; }
-  function fits(pg) { return pg.scrollHeight <= pg.clientHeight; }
 
   // --- 1. フロア×時間表（全時間帯を1ページに・縦長の枠） ---
-  const pl = a => `<div class="gt"><div class="g1"><span>${hmm(winOf(a).s)}-${hmm(winOf(a).e)}${R.BY[cellOf(a).f] && R.BY[cellOf(a).f].pos[a.key] && R.BY[cellOf(a).f].pos[a.key].bay ? ` [${esc(R.BY[cellOf(a).f].pos[a.key].bay)}]` : ""}</span><b>${a.units == null ? "U?" : fmt(a.units)}</b></div><div class="g2">${esc(a.cname)}</div></div>`;
+  const pl = a => {
+    const bay = R.BY[cellOf(a).f] && R.BY[cellOf(a).f].pos[a.key] && R.BY[cellOf(a).f].pos[a.key].bay;
+    return `<div class="gt"><div class="g1"><span class="gid">${esc(a.id)}</span><b>${a.units == null ? "U?" : fmt(a.units)}</b></div>`
+      + `<div class="g2">${bay ? `[${esc(bay)}] ` : ""}${esc(a.cname)}</div></div>`;
+  };
   let pg = newPage(`フロア別 時間帯割当（${hl(R.H[0])}〜${hl(R.H[R.H.length - 1] + 1)}）`, true);
   pg.classList.add("fit");
   {
@@ -1247,25 +1401,7 @@ function buildPdfPages() {
     pg.appendChild(foot);
   }
 
-  // --- 2. フロア別 着車一覧 ---
-  const listHead = `<thead><tr><th style="width:70px">予定</th><th style="width:70px">計画</th><th>キャリア</th><th style="width:150px">Appointment Id</th><th style="width:80px">タイプ</th><th class="num" style="width:70px">P</th><th class="num" style="width:80px">C</th><th class="num" style="width:90px">Units</th></tr></thead>`;
-  pg = newPage("フロア別 着車一覧");
-  const groups = S.floors.map((fl, i) => ({ name: fl.name, color: floorColor(i), list: S.appts.filter(a => cellOf(a).f === fl.name) }));
-  if (unN) groups.push({ name: "未割当", color: "#9aa8b8", list: S.appts.filter(a => !cellOf(a).f) });
-  groups.forEach(g => {
-    if (!g.list.length) return;
-    const T = g.list.reduce((s, a) => s + (a.units || 0), 0);
-    const addHead = (cont) => { const hd = document.createElement("div"); hd.className = "fh"; hd.style.setProperty("--fc", g.color); hd.style.color = g.color; hd.textContent = `${g.name}　${g.list.length}台 / ${fmt(T)}U${cont ? "（続き）" : ""}`; pg.appendChild(hd); const t = document.createElement("table"); t.innerHTML = listHead + "<tbody></tbody>"; pg.appendChild(t); return { hd, tb: t.tBodies[0], t }; };
-    let cur = addHead(false);
-    if (!fits(pg)) { cur.hd.remove(); cur.t.remove(); pg = newPage("フロア別 着車一覧"); cur = addHead(false); }
-    g.list.slice().sort((a, b) => cellOf(a).h - cellOf(b).h || a.dt - b.dt).forEach(a => {
-      const tr = document.createElement("tr"); const c = cellOf(a);
-      tr.innerHTML = `<td>${hm(a.dt)}</td><td>${c.h !== a.h0 ? `<b style="color:#b35c00">${hl(c.h)}台</b>` : hl(c.h) + "台"}</td><td>${esc(a.carrier)}</td><td>${esc(a.id)}</td><td>${esc(a.type)}</td>
-        <td class="num">${a.pallets == null ? "" : fmt(a.pallets)}</td><td class="num">${a.cartons == null ? "" : fmt(a.cartons)}</td><td class="num"><b>${a.units == null ? "?" : fmt(a.units)}</b></td>`;
-      cur.tb.appendChild(tr);
-      if (!fits(pg)) { tr.remove(); pg = newPage("フロア別 着車一覧"); cur = addHead(true); cur.tb.appendChild(tr); }
-    });
-  });
+  // 印刷は1ページのみ（フロア別の一覧は出さない）
   return pages;
 }
 async function makePDF() {
@@ -1470,7 +1606,7 @@ function floorCost(name, R) {
 function loadRules(v) {
   const d = v || {};
   const dd = {}; Object.keys(d.doors || {}).forEach(k => { if (!k.includes("|")) dd[k] = d.doors[k]; });   // 旧形式（フロア|バース）は使わない
-  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, doors: dd, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [] };
+  RULES = { strategy: STRAT_LABEL[d.strategy] ? d.strategy : "balance", conc: d.conc > 0 ? +d.conc : null, floors: d.floors || {}, doors: dd, conds: Array.isArray(d.conds) ? d.conds.filter(Boolean) : [], breaks: d.breaks == null ? BREAK_DEFAULT : String(d.breaks) };
 }
 function saveRules() {
   if (fbDB) fbDB.ref(DOCK_ROOT + "/planRules").set(RULES).catch(e => toast("ルールの保存に失敗: " + (e.message || e)));
@@ -1500,6 +1636,7 @@ function openRules() {
   RDRAFT = JSON.parse(JSON.stringify(RULES));
   document.querySelectorAll('input[name="rlStrat"]').forEach(x => x.checked = x.value === RDRAFT.strategy);
   document.getElementById("rlConc").value = RDRAFT.conc || "";
+  document.getElementById("rlBreaks").value = RDRAFT.breaks == null ? BREAK_DEFAULT : RDRAFT.breaks;
   renderRuleFloors(); renderRuleDoors(); renderRuleList();
   document.getElementById("rulesModal").classList.add("show");
 }
