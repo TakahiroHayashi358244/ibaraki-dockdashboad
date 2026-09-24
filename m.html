@@ -28,6 +28,8 @@ header b{font-size:16px;font-weight:800;letter-spacing:.02em;}
 header .dt{font-size:12.5px;opacity:.9;font-variant-numeric:tabular-nums;}
 header .dot{width:9px;height:9px;border-radius:50%;background:#ff8a8a;margin-left:auto;flex:none;align-self:center;}
 header .dot.on{background:#8ce99a;}
+header .dot.mst{margin-left:6px;}
+header .dot.mst.on{background:#4aa3ff;}
 
 .cols{flex:1;display:flex;gap:5px;padding:5px;min-height:0;}
 .col{
@@ -103,7 +105,7 @@ header .dot.on{background:#8ce99a;}
 </style>
 </head>
 <body>
-<header><b>ドック状況</b><span class="dt" id="now">--:--</span><span class="dot" id="dot"></span></header>
+<header><b>ドック状況</b><span class="dt" id="now">--:--</span><span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span></header>
 
 <div class="cols">
   <div class="col plan"><div class="col-h"><b id="n-plan">0</b>予定</div><div class="col-b" id="l-plan"></div></div>
@@ -143,6 +145,13 @@ let placement = {};
 let idxStatus = {};
 let cards = [];
 let openId = null;
+let idxMaster = null;
+const MASTER_ALIVE_MS = 3 * 60000;
+function refreshMasterDot() {
+  const m = idxMaster;
+  const ok = !!(m && m.at && Date.now() - m.at < MASTER_ALIVE_MS);
+  document.getElementById("dotM").classList.toggle("on", ok);
+}
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 const pad = n => String(n).padStart(2, "0");
@@ -206,6 +215,7 @@ function cardHTML(c) {
 }
 function render() {
   document.getElementById("now").textContent = hhmm(Date.now());
+  refreshMasterDot();
   const g = { plan: [], arrive: [], done: [] };
   cards.forEach(c => { if (g[c.status]) g[c.status].push(c); });
   g.plan.sort((a, b) => (a.start || 0) - (b.start || 0));
@@ -271,6 +281,7 @@ function start() {
   });
   root.child("placement").on("value", s => { placement = s.val() || {}; build(); });
   root.child("idxStatus").on("value", s => { idxStatus = s.val() || {}; build(); });
+  root.child("idxMaster").on("value", s => { idxMaster = s.val() || null; refreshMasterDot(); });
 }
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
