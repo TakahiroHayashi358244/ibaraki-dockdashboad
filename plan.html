@@ -536,14 +536,13 @@ function ingestCSVText(text, name) {
       .then(() => toast(valueRows.length + "件を翌日分として保存しました"))
       .catch(e => toast("保存に失敗: " + (e.message || e)));
   } else toast(valueRows.length + "件 読込みました");
-  // 取込直後：これまでの割当は全部捨てて、新しいCSVで作り直す（保存も上書き）
+  // 取込直後：これまでの割当は全部捨てて、すべて未割当にする（自動割当は押すまで行わない）
   planReady.then(() => {
     if (!S.appts.length) return;
     pushUndo();
-    const had = Object.keys(S.plan.assign || {}).length;
     S.plan.assign = {};
-    autoAssignCore(true, true);      // 中で render と保存まで行う
-    if (had) toast("これまでの割当を解除して、取り込んだCSVで作り直しました");
+    render(); savePlan();
+    toast(`${S.appts.length}台をすべて未割当にしました。「自動割当」か手作業で配置してください`);
   });
 }
 function readCSVFile(file) {
