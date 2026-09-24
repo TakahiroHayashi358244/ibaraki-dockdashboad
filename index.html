@@ -1314,7 +1314,7 @@ function idxBadgeOf(c){
   const checked=/CHECK(ED)?[_ -]?IN/i.test(text);              // CHECKED_IN だけ青で目立たせる
   // バースの枠に収まるよう、頭の APPOINTMENT_／ARRIVAL_ は省いて短く出す（元の値はツールチップ）
   const short=String(text).replace(/^APPOINTMENT[_ ]/i,'').replace(/^ARRIVAL[_ ]/i,'').replace(/_/g,' ');
-  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}" title="IDX ${escAttr(text)}">IDX ${esc(short)}</span>`;
+  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}" title="IDX ${escAttr(text)}">${esc(short)}</span>`;
 }
 // IDXへ反映できなかったカードの件数表示
 function refreshIdxTrouble(){
@@ -1802,12 +1802,14 @@ function openDetail(id){
   const bayChip = usedBay
     ? `<span class="dt-bay"${bayFi2>=0?` style="background:var(--f${bayFi2%5})"`:''}>${c.status==='arrive'?'着車中':'着車'} ${esc(usedBay)}</span>`
     : '';
+  const dtRow=(f,extra)=>`<div class="dt-row"><div class="dt-k">${esc(f)}</div><div class="dt-v">${esc(c.fields[f]||'—')}${extra||''}</div></div>`;
+  // Dock は Appointment ID のすぐ下に出す
+  const dockKey=fields.find(f=>/dock/i.test(f) && c.fields[f]!==undefined);
   let dockShown=false;
-  html+=fields.map(f=>{
-    const v=c.fields[f]; if(v===undefined) return '';
-    let extra='';
-    if(bayChip && /dock/i.test(f) && !dockShown){ extra=bayChip; dockShown=true; }
-    return `<div class="dt-row"><div class="dt-k">${esc(f)}</div><div class="dt-v">${esc(v||'—')}${extra}</div></div>`;
+  if(dockKey){ html+=dtRow(dockKey,bayChip); dockShown=!!bayChip; }
+  html+=fields.filter(f=>f!==dockKey).map(f=>{
+    if(c.fields[f]===undefined) return '';
+    return dtRow(f);
   }).join('');
   // Dock項目が表示対象に無い場合は独立した行として出す
   if(bayChip && !dockShown){
