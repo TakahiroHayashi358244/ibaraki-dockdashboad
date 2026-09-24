@@ -205,6 +205,14 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .card.dragging{opacity:.4;}
 .card.s-arrive{border-left-color:var(--accent);}
 .card.s-done{border-left-color:var(--green);}
+.card.noshow{background:#f4f6f8;border-color:#d3dae0;border-left-color:#9aa8b8;opacity:.72;cursor:not-allowed;}
+.card.noshow .c-id,.card.noshow .c-main{text-decoration:line-through;color:#8a97a3;}
+.card .c-abs{
+  font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;cursor:pointer;white-space:nowrap;
+  background:#eef2f5;color:#5c6b79;border:1px solid #d3dae0;line-height:1.4;
+}
+.card .c-abs:hover{background:#e2e8ee;}
+.card .c-abs.on{background:#b71c1c;color:#fff;border-color:#8e1515;}
 .card .c-id{font-weight:700;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
 .card .c-main{font-weight:700;font-size:13px;color:var(--ink);margin-bottom:3px;line-height:1.25;}
 .card .c-row{display:flex;justify-content:space-between;gap:6px;color:var(--sub);line-height:1.5;}
@@ -1052,7 +1060,7 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
       if(c.id===detailCardId){
         const ta=document.getElementById('memoInput');
         c.memo = ta ? ta.value : (p.memo||null);
@@ -1060,7 +1068,7 @@ function applyPlacement(placement){
         c.memo = p.memo||null;
       }
     }
-    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; c.doneBay=null; if(c.id!==detailCardId) c.memo=null; }
+    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; c.doneBay=null; c.noshow=false; if(c.id!==detailCardId) c.memo=null; }
   });
   render();
 }
@@ -1110,7 +1118,7 @@ function loadCSV(ev){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
             doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
+            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null};
         }
       });
       fbPlacement=carried;
@@ -1285,9 +1293,12 @@ function cardHTML(c){
   const idHtml = isManual
     ? `<div class="c-id c-id-manual">${esc(c.id)}</div>`
     : `<div class="c-id">${esc(c.id)}</div>`;
-  return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
+  const absBtn = c.status==='plan'
+    ? `<span class="c-abs${c.noshow?' on':''}" onclick="toggleNoshow(event,'${cssEsc(c.id)}')" title="欠車（この便は来ません）。チェック中はカードを動かせません">${c.noshow?'✓ 欠車':'欠車'}</span>` : '';
+  const movable = !(c.status==='plan' && c.noshow);
+  return `<div class="card ${cls} ${od}${c.noshow?' noshow':''}" draggable="${movable}" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
-    <div class="c-topright">${doneBay}${doneRow}${dur}${detailBtn}</div>
+    <div class="c-topright">${absBtn}${doneBay}${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
     ${planBadgeOf(c)}${idxRow}
@@ -1541,11 +1552,27 @@ function focusHit(i){
 
 /* ============ Drag & Drop ============ */
 let dragId=null;
-function dragStart(e){dragId=e.target.dataset.id;e.target.classList.add('dragging');e.dataTransfer.effectAllowed='move';}
+function dragStart(e){
+  const c=state.cards.find(x=>x.id===e.target.dataset.id);
+  if(c && c.status==='plan' && c.noshow){ e.preventDefault(); toast('欠車のカードは動かせません'); return; }
+  dragId=e.target.dataset.id;e.target.classList.add('dragging');e.dataTransfer.effectAllowed='move';
+}
 function dragEnd(e){e.target.classList.remove('dragging');document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));}
 function dragOver(e){e.preventDefault();e.currentTarget.classList.add('dragover');}
 function dragLeave(e){e.currentTarget.classList.remove('dragover');}
 
+// 欠車のチェック（予定のカードのみ）。チェック中は動かせない
+function toggleNoshow(ev, id){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(c.status!=='plan'){ toast('欠車にできるのは予定のカードだけです'); return; }
+  c.noshow=!c.noshow;
+  pushCards();
+  const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'') || c.id;
+  addLog({ ts:Date.now(), who:operator.trim()||'-', type:'move', cardId:c.id, carrier, from:'予定', to:c.noshow?'欠車':'予定（欠車を解除）' });
+  toast(c.noshow?`欠車にしました（${c.id}）。動かせなくなります`:`欠車を解除しました（${c.id}）`);
+  render();
+}
 // カードの現在位置を読みやすいラベルにする
 function locLabel(c){
   if(c.status==='plan') return '予定';
@@ -1629,6 +1656,7 @@ function cardTouchStart(e){
   if(!cardEl) return;
   const id=cardEl.dataset.id;
   const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(c.status==='plan' && c.noshow) return;      // 欠車は動かさない
   touchCard=c; touchMoved=false;
   const t=e.touches[0];
   touchStartXY={x:t.clientX,y:t.clientY};
@@ -2970,7 +2998,7 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
       // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
       // それ以外はFirebaseのメモを反映。
       if(c.id===detailCardId){
@@ -3292,7 +3320,7 @@ function pushCards(){
     status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
     arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
     doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null
+    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null
   }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
