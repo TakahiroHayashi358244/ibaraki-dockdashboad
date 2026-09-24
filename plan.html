@@ -43,8 +43,8 @@ table.grid{border-collapse:separate;border-spacing:0;}
 .grid th,.grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top;}
 .grid thead th{position:sticky;top:0;z-index:3;background:#fff;padding:7px 8px;text-align:left;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;min-width:178px;width:178px;}
 .grid thead th.next{color:#6a5acd;}
-.grid thead th.brk{background:#fdf6e3;}
-.grid thead th .brk-mk{margin-left:6px;font-size:10px;font-weight:700;color:#9a7b00;background:#fff3cd;border:1px solid #f0e3a8;border-radius:5px;padding:0 5px;}
+.grid thead th .brk-mk{color:#4a6b80;background:#eaf1f5;border-color:#cfdde5;}
+.grid thead th .brk-mk{margin-left:6px;font-size:10px;font-weight:700;border:1px solid;border-radius:5px;padding:0 5px;}
 .grid thead th.corner{left:0;z-index:5;min-width:170px;width:170px;color:var(--sub);font-size:12px;}
 .grid th.rh{position:sticky;left:0;z-index:2;background:#fff;min-width:170px;width:170px;padding:8px 10px;text-align:left;border-left:5px solid var(--fc);}
 .grid th.rh .fn{font-size:18px;font-weight:800;color:var(--fc);}
@@ -324,9 +324,6 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
       <div class="row-inp"><label>同時着車の上限（全フロア共通） <input type="number" id="rlConc" min="1" step="1" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" oninput="RDRAFT.conc=+this.value||null;renderRuleFloors()"> 台</label>
         <span class="note">空欄はバース数まで。フロア別に入れた値が優先されます。同じ時間に着車できる台数がこれを超えると「同時上限超え」になり、自動割当は別フロアへ回します。</span></div>
       <div style="overflow-x:auto"><table class="rl-tab" id="rlFloors"></table></div>
-      <div class="sec-title">休憩</div>
-      <div class="row-inp"><label>休憩の時間 <input type="text" id="rlBreaks" style="width:240px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" placeholder="12:00-12:45,15:00-15:15" oninput="RDRAFT.breaks=this.value"></label>
-        <span class="note">この時間はLHを積まず、処理が後ろの時間にずれます（人数＝HCはそのまま）。カンマ区切りで複数指定できます。空欄にすると既定（12:00-12:45,15:00-15:15）になります。</span></div>
       <div class="sec-title">ドックマスタのドア番号</div>
       <div class="note">フロアごとに使う Dock Door Number。空欄なら、先頭の数字がそのフロアと同じ番号を自動で使います。着車の早い順に、空いているドアから順に割り当てます。同時着車の上限は「バース数」と「ドア数」の小さいほうになります。</div>
       <div class="note" id="rlDoorOpt"></div>
@@ -406,6 +403,12 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
         <label>終了 <input type="number" id="axE" min="1" max="30" placeholder="18"> 時</label>
       </div>
       <div class="note">空欄は 8〜18時。範囲外の予約がある日は自動で広げます。24以降は翌日（例: 30 = 翌6時）。</div>
+      <div class="sec-title">休憩時間</div>
+      <div class="row-inp">
+        <label>休憩1 <input type="time" id="brk1s"> 〜 <input type="time" id="brk1e"></label>
+        <label>休憩2 <input type="time" id="brk2s"> 〜 <input type="time" id="brk2e"></label>
+      </div>
+      <div class="note">この時間はLHを積まず、処理が後ろの時間へずれます（人数＝HCはそのまま）。分単位で指定できます。両方空欄にするとその休憩は無しになります。全PCで共有します。</div>
       <div class="sec-title">判定の見方</div>
       <div class="note">
         処理能力 = その時間帯のIN人員のLH × 目標UPH。LHは各人の出勤〜退勤に比例配分（休憩分はLH値に含めて按分）。<br>
@@ -676,6 +679,16 @@ function breakRanges() {
   brkCache = { src, list };
   return list;
 }
+// 設定画面用：[["12:00","12:45"], ...]
+function breakList() {
+  const src = RULES.breaks == null ? BREAK_DEFAULT : String(RULES.breaks);
+  const out = [];
+  src.split(/[,、\s]+/).forEach(t => {
+    const m = String(t).match(/^(\d{1,2}:\d{2})[-–~〜](\d{1,2}:\d{2})$/);
+    if (m) out.push([m[1].padStart(5, "0"), m[2].padStart(5, "0")]);
+  });
+  return out.slice(0, 2);
+}
 // s〜e（時。小数可）のうち休憩にあたる長さ
 function breakOv(s, e) {
   let m = 0;
@@ -683,6 +696,24 @@ function breakOv(s, e) {
   return Math.min(m, Math.max(0, e - s));
 }
 const hourHasBreak = h => breakOv(h, h + 1) > 0;
+// その1時間のうち、休憩にあたる範囲だけを薄く塗る（分単位の幅）
+const BRK_C = "rgba(36,80,106,.035)";       // 画面の色に合わせた青灰色
+const BRK_C_PDF = "rgba(36,80,106,.035)";
+function brkBg(h, col) {
+  const c = col || BRK_C;
+  const segs = breakRanges().map(r => [Math.max(r[0], h), Math.min(r[1], h + 1)])
+    .filter(x => x[1] > x[0]).sort((a, b) => a[0] - b[0]);
+  if (!segs.length) return "";
+  const st = [];
+  let prev = 0;
+  segs.forEach(g => {
+    const a2 = (g[0] - h) * 100, b2 = (g[1] - h) * 100;
+    st.push(`transparent ${prev}%`, `transparent ${a2}%`, `${c} ${a2}%`, `${c} ${b2}%`);
+    prev = b2;
+  });
+  st.push(`transparent ${prev}%`, `transparent 100%`);
+  return `background-image:linear-gradient(90deg,${st.join(",")});`;
+}
 
 // IN人員を {floor, s, e, f(LH/時間), uph} に変換
 function inSpans() {
@@ -788,11 +819,11 @@ function render() {
   document.getElementById("viewBtn").textContent = barMode ? "バー表示" : "カード表示";
   const BY = R.BY;
   let h = `<div class="gbox"><table class="grid${barMode ? " vbar" : ""}"><thead><tr><th class="corner">フロア ＼ 時刻</th>`;
-  R.H.forEach(hh => h += `<th data-hh="${hh}" class="${hh >= 24 ? "next" : ""}${hourHasBreak(hh) ? " brk" : ""}"${hourHasBreak(hh) ? ` title="この時間に休憩があります（${esc(RULES.breaks || BREAK_DEFAULT)}）"` : ""}>${hl(hh)}${hourHasBreak(hh) ? `<span class="brk-mk">休憩</span>` : ""}</th>`);
+  R.H.forEach(hh => h += `<th data-hh="${hh}" class="${hh >= 24 ? "next" : ""}" style="${brkBg(hh)}"${hourHasBreak(hh) ? ` title="この時間に休憩があります（${esc(RULES.breaks || BREAK_DEFAULT)}）"` : ""}>${hl(hh)}${hourHasBreak(hh) ? `<span class="brk-mk">休憩</span>` : ""}</th>`);
   h += `</tr></thead><tbody>`;
   // 未割当
   h += `<tr class="unrow"><th class="rh" style="--fc:#9aa8b8"><div class="fn" style="color:var(--sub);font-size:15px">未割当</div><div class="ft"><b>${unTotal}</b>台</div></th>`;
-  R.H.forEach(hh => h += `<td class="drop" data-f="" data-h="${hh}"><div class="chips">${R.un[hh].map(chipHTML).join("")}</div></td>`);
+  R.H.forEach(hh => h += `<td class="drop" style="${brkBg(hh)}" data-f="" data-h="${hh}"><div class="chips">${R.un[hh].map(chipHTML).join("")}</div></td>`);
   h += `</tr>`;
   S.floors.forEach((fl, i) => {
     const t = R.F[fl.name].tot;
@@ -809,8 +840,8 @@ function render() {
       最終持越 <b>${fmt(t.end)}</b>U<br>バース ${fl.bays.length}</div></th>`;
     R.H.forEach(hh => {
       const c = R.F[fl.name].cells[hh];
-      if (barMode) h += `<td class="drop fcell" data-f="${esc(fl.name)}" data-h="${hh}"><div class="hd">${cellHead(c)}</div>${hh === R.H[0] ? `<div class="lane-sp" data-f="${esc(fl.name)}" style="height:${Math.max(1, BY[fl.name].lanes.length) * LANE_H + 4}px"></div>` : ""}</td>`;
-      else h += `<td class="drop" data-f="${esc(fl.name)}" data-h="${hh}">${cellHead(c)}<div class="chips">${c.trucks.map(chipHTML).join("")}</div></td>`;
+      if (barMode) h += `<td class="drop fcell" style="${brkBg(hh)}" data-f="${esc(fl.name)}" data-h="${hh}"><div class="hd">${cellHead(c)}</div>${hh === R.H[0] ? `<div class="lane-sp" data-f="${esc(fl.name)}" style="height:${Math.max(1, BY[fl.name].lanes.length) * LANE_H + 4}px"></div>` : ""}</td>`;
+      else h += `<td class="drop" style="${brkBg(hh)}" data-f="${esc(fl.name)}" data-h="${hh}">${cellHead(c)}<div class="chips">${c.trucks.map(chipHTML).join("")}</div></td>`;
     });
     h += `</tr>`;
   });
@@ -1350,6 +1381,11 @@ function openSettings() {
   document.getElementById("subsecBox").innerHTML = subs.length ? subs.map(s => `<label class="chk"><input type="checkbox" data-s="${esc(s)}" ${CFG.subsecOff.includes(s) ? "" : "checked"}>${esc(s)}</label>`).join("") : `<span class="note">IN工程が見つかりません</span>`;
   document.getElementById("axS").value = CFG.axS == null ? "" : CFG.axS;
   document.getElementById("axE").value = CFG.axE == null ? "" : CFG.axE;
+  const bl = breakList();
+  [["brk1s", "brk1e"], ["brk2s", "brk2e"]].forEach((ids, i) => {
+    document.getElementById(ids[0]).value = bl[i] ? bl[i][0] : "";
+    document.getElementById(ids[1]).value = bl[i] ? bl[i][1] : "";
+  });
   document.getElementById("settings").classList.add("show");
 }
 function closeSettings() {
@@ -1362,6 +1398,11 @@ function closeSettings() {
   CFG.axS = as === "" ? null : Math.max(0, Math.min(29, +as));
   CFG.axE = ae === "" ? null : Math.max(1, Math.min(30, +ae));
   saveCfg();
+  // 休憩（全PCで共有）
+  const bv = [["brk1s", "brk1e"], ["brk2s", "brk2e"]].map(ids => [document.getElementById(ids[0]).value, document.getElementById(ids[1]).value])
+    .filter(x => /^\d{1,2}:\d{2}$/.test(x[0]) && /^\d{1,2}:\d{2}$/.test(x[1]) && x[0] !== x[1])
+    .map(x => `${x[0]}-${x[1]}`).join(",");
+  if (bv !== (RULES.breaks || "")) { RULES.breaks = bv; saveRules(); }
   document.getElementById("settings").classList.remove("show");
   render(); if (uphChanged) savePlan();
 }
@@ -1395,20 +1436,20 @@ function buildPdfPages() {
   pg.classList.add("fit");
   {
     const cols = `<colgroup><col style="width:104px">${R.H.map(() => "<col>").join("")}</colgroup>`;
-    const thead = `<thead><tr><th>フロア</th>${R.H.map(h => `<th class="hc">${hl(h)}</th>`).join("")}</tr></thead>`;
+    const thead = `<thead><tr><th>フロア</th>${R.H.map(h => `<th class="hc" style="${brkBg(h, BRK_C_PDF)}">${hl(h)}</th>`).join("")}</tr></thead>`;
     const rows = S.floors.map((fl, i) => {
       const T = R.F[fl.name].tot;
       let x = `<th class="rh" style="--fc:${floorColor(i)}"><span class="fn" style="color:${floorColor(i)}">${esc(fl.name)}</span><div class="pm">${T.n}台<br>${fmt(T.u)}U<br>HC ${T.hc}名<br>LH ${fmt1(T.lh)}<br>能力 ${fmt(T.cap)}<br>最終残 ${fmt(T.end)}</div></th>`;
       R.H.forEach(h => {
         const c = R.F[fl.name].cells[h]; const lv = barLvl(c);
-        x += `<td class="gc"><div class="pm" style="white-space:nowrap">HC<b>${c.hc}</b> LH<b>${fmt1(c.lh)}</b><br>能力 <b>${fmt(c.cap)}</b></div>
+        x += `<td class="gc" style="${brkBg(h, BRK_C_PDF)}"><div class="pm" style="white-space:nowrap">HC<b>${c.hc}</b> LH<b>${fmt1(c.lh)}</b><br>能力 <b>${fmt(c.cap)}</b></div>
           <div class="pb"><i class="${lv === "ok" ? "" : lv}" style="width:${Math.min(100, c.ratio * 100)}%"></i></div>
           ${c.trucks.length || c.backlog ? `<div class="pm"><b>${c.trucks.length}台 ${fmt(c.units)}U</b>${c.backlog > 0 ? `<br>残${fmt(c.backlog)}` : ""}${c.over ? ` <b style="color:#b33">超過</b>` : ""}</div>` : ""}
           ${c.trucks.map(pl).join("")}</td>`;
       });
       return x;
     });
-    if (unN) rows.unshift(`<th class="rh" style="--fc:#9aa8b8"><span class="fn" style="color:#697a8c">未割当</span><div class="pm">${unN}台</div></th>${R.H.map(h => `<td class="gc">${R.un[h].map(pl).join("")}</td>`).join("")}`);
+    if (unN) rows.unshift(`<th class="rh" style="--fc:#9aa8b8"><span class="fn" style="color:#697a8c">未割当</span><div class="pm">${unN}台</div></th>${R.H.map(h => `<td class="gc" style="${brkBg(h, BRK_C_PDF)}">${R.un[h].map(pl).join("")}</td>`).join("")}`);
     const t = document.createElement("table"); t.className = "gtab";
     t.innerHTML = cols + thead + "<tbody>" + rows.map(x => `<tr>${x}</tr>`).join("") + "</tbody>";
     pg.appendChild(t);
@@ -1652,7 +1693,6 @@ function openRules() {
   RDRAFT = JSON.parse(JSON.stringify(RULES));
   document.querySelectorAll('input[name="rlStrat"]').forEach(x => x.checked = x.value === RDRAFT.strategy);
   document.getElementById("rlConc").value = RDRAFT.conc || "";
-  document.getElementById("rlBreaks").value = RDRAFT.breaks == null ? BREAK_DEFAULT : RDRAFT.breaks;
   renderRuleFloors(); renderRuleDoors(); renderRuleList();
   document.getElementById("rulesModal").classList.add("show");
 }
