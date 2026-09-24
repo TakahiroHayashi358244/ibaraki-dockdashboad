@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6f8b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ドック">
+<title>ドック状況（スマホ）</title>
+<style>
+:root{
+  --ink:#1f2b38; --sub:#697a8c; --line:#e3e8ee; --bg:#eef2f6; --panel:#fff;
+  --accent:#1f6f8b; --green:#2e7d32; --warn:#e0a030; --alert:#e05050;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.4;
+  display:flex;flex-direction:column;height:100%;
+}
+header{
+  background:var(--accent);color:#fff;flex:none;
+  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;
+  display:flex;align-items:baseline;gap:8px;
+}
+header b{font-size:16px;font-weight:800;letter-spacing:.02em;}
+header .dt{font-size:12.5px;opacity:.9;font-variant-numeric:tabular-nums;}
+header .dot{width:9px;height:9px;border-radius:50%;background:#ff8a8a;margin-left:auto;flex:none;align-self:center;}
+header .dot.on{background:#8ce99a;}
+
+.cols{flex:1;display:flex;gap:5px;padding:5px;min-height:0;}
+.col{
+  flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:10px;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.col-h{
+  flex:none;padding:6px 4px 5px;text-align:center;font-weight:800;font-size:12px;color:#fff;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.col-h b{font-size:15px;font-variant-numeric:tabular-nums;}
+.col.plan .col-h{background:#4a7f99;}
+.col.arrive .col-h{background:var(--green);}
+.col.done .col-h{background:#8a97a3;}
+.col-b{
+  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:5px;display:flex;flex-direction:column;gap:5px;
+}
+.col-b::-webkit-scrollbar{width:0;}
+.empty{color:var(--sub);font-size:11px;text-align:center;padding:14px 2px;}
+
+.c{
+  background:#fff;border:1px solid var(--line);border-left:3px solid var(--sub);border-radius:8px;
+  padding:5px 6px 6px;cursor:pointer;box-shadow:0 1px 2px rgba(40,60,80,.08);
+}
+.c:active{background:#f3f7f9;}
+.c .t1{display:flex;align-items:center;gap:4px;}
+.c .tm{font-weight:800;font-size:13px;font-variant-numeric:tabular-nums;}
+.c .u{margin-left:auto;font-weight:700;font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.c .cr{font-size:11.5px;font-weight:700;line-height:1.25;margin-top:1px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.c .id{font-size:10px;color:var(--sub);font-variant-numeric:tabular-nums;letter-spacing:-.3px;}
+.c.plan{border-left-color:#4a7f99;}
+.c.arrive{border-left-color:var(--green);}
+.c.done{border-left-color:#9aa8b8;}
+.c.late{border-left-color:var(--alert);background:#fff5f5;}
+.c.abs{background:#f4f6f8;opacity:.72;}
+.c.abs .cr,.c.abs .tm{text-decoration:line-through;color:#8a97a3;}
+.bay{
+  display:inline-block;background:var(--green);color:#fff;font-weight:800;font-size:11px;
+  padding:1px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
+}
+.el{font-size:10px;color:var(--sub);font-variant-numeric:tabular-nums;margin-top:1px;}
+.el.warn{color:#b3790c;font-weight:700;}
+.el.alert{color:var(--alert);font-weight:800;}
+.tag{
+  display:inline-block;font-size:9.5px;font-weight:800;border-radius:4px;padding:0 5px;margin-top:2px;
+  background:#eef2f5;color:#5c6b79;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.tag.abs{background:#b71c1c;color:#fff;}
+.tag.idx{background:#0277bd;color:#fff;}
+.tag.idx.ok{background:var(--green);}
+
+/* 詳細（下から出るシート） */
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;
+  border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(20,35,50,.35);
+  padding:12px 16px calc(env(safe-area-inset-bottom) + 18px);
+  transform:translateY(102%);transition:transform .22s ease-out;max-height:80%;overflow:auto;
+}
+.sheet.show{transform:translateY(0);}
+.mask{position:fixed;inset:0;background:rgba(20,35,50,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40;}
+.mask.show{opacity:1;pointer-events:auto;}
+.sheet .grip{width:38px;height:4px;border-radius:2px;background:#ccd5dc;margin:0 auto 10px;}
+.sheet h2{margin:0 0 2px;font-size:16px;}
+.sheet .sid{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;margin-bottom:10px;}
+.sheet dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13.5px;}
+.sheet dt{color:var(--sub);white-space:nowrap;}
+.sheet dd{margin:0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
+.sheet .cl{margin-top:14px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef2f5;
+  color:var(--ink);font:inherit;font-weight:700;cursor:pointer;}
+.ft{flex:none;padding:4px 8px calc(env(safe-area-inset-bottom) + 5px);color:var(--sub);font-size:10.5px;text-align:center;}
+</style>
+</head>
+<body>
+<header><b>ドック状況</b><span class="dt" id="now">--:--</span><span class="dot" id="dot"></span></header>
+
+<div class="cols">
+  <div class="col plan"><div class="col-h"><b id="n-plan">0</b>予定</div><div class="col-b" id="l-plan"></div></div>
+  <div class="col arrive"><div class="col-h"><b id="n-arrive">0</b>着車</div><div class="col-b" id="l-arrive"></div></div>
+  <div class="col done"><div class="col-h"><b id="n-done">0</b>完了</div><div class="col-b" id="l-done"></div></div>
+</div>
+<div class="ft">閲覧専用です。カードをタップすると詳細が出ます。</div>
+
+<div class="mask" id="mask" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <h2 id="s-cr">—</h2>
+  <div class="sid" id="s-id"></div>
+  <dl id="s-dl"></dl>
+  <button class="cl" onclick="closeSheet()">閉じる</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ===== スマホ用の閲覧専用ページ（ドックダッシュボードと同じデータを読むだけ） ===== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD01thIqlq4VQpSe8fxU-0a_M9ynO6p0IM",
+  authDomain: "gworker-haichi.firebaseapp.com",
+  databaseURL: "https://gworker-haichi-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gworker-haichi",
+  storageBucket: "gworker-haichi.firebasestorage.app",
+  messagingSenderId: "218653712277",
+  appId: "1:218653712277:web:af850c4143bbf88983209c"
+};
+const DOCK_ROOT = "dock";
+const ID_FIELD = "Appointment Id";
+
+let master = { headers: [], data: [] };
+let placement = {};
+let idxStatus = {};
+let cards = [];
+let openId = null;
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const pad = n => String(n).padStart(2, "0");
+const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const fmt = n => (n == null || n === "" || isNaN(+n)) ? "" : (+n).toLocaleString();
+function schedStart(v) {
+  const m = String(v || "").match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+  const h = String(v || "").match(/(\d{1,2}):(\d{2})/);
+  if (!h) return null;
+  const d = new Date(); d.setHours(+h[1], +h[2], 0, 0); return d.getTime();
+}
+const carrierName = v => String(v || "").replace(/^\[[^\]]*\]/, "").trim() || "（キャリア不明）";
+const shortIdx = v => String(v || "").replace(/^APPOINTMENT[_ ]/i, "").replace(/^ARRIVAL[_ ]/i, "").replace(/_/g, " ");
+
+function build() {
+  const rows = Array.isArray(master.data) ? master.data : [];
+  cards = rows.map(o => {
+    const id = String(o[ID_FIELD] || "");
+    const p = placement[id] || {};
+    const st = idxStatus[id];
+    return {
+      id, raw: o,
+      carrier: carrierName(o.Carrier),
+      units: o.Units,
+      start: schedStart(o["Schedule Date"] || o["Expected Arrival Date"]),
+      status: p.status || "plan",
+      bay: p.bay || null,
+      arriveAt: p.arriveAt || null,
+      doneAt: p.doneAt || null,
+      doneBay: p.doneBay || p.arriveBay || null,
+      memo: p.memo || "",
+      noshow: !!p.noshow,
+      idx: (st && (st.raw || st.status)) || "",
+    };
+  }).filter(c => c.id);
+  render();
+}
+function idxTag(c) {
+  if (!c.idx) return "";
+  return `<span class="tag idx${/CLOSED?/i.test(c.idx) ? " ok" : ""}">${esc(shortIdx(c.idx))}</span>`;
+}
+function elapsedHTML(from) {
+  const m = Math.max(0, Math.round((Date.now() - from) / 60000));
+  return `<div class="el ${m >= 60 ? "alert" : m >= 30 ? "warn" : ""}">${m}分経過</div>`;
+}
+function cardHTML(c) {
+  const late = c.status === "arrive" && c.arriveAt && Date.now() - c.arriveAt >= 60 * 60000;
+  const head = c.status === "arrive"
+    ? `<span class="bay">${esc(c.bay || "—")}</span>`
+    : `<span class="tm">${c.status === "done" ? (c.doneAt ? hhmm(c.doneAt) : "--:--") : (c.start ? hhmm(c.start) : "--:--")}</span>`;
+  const sub = c.status === "arrive" ? (c.arriveAt ? elapsedHTML(c.arriveAt) : "")
+    : c.status === "done" ? `<div class="el">${c.doneBay ? esc(c.doneBay) : ""}${c.arriveAt && c.doneAt ? " ・所要" + Math.round((c.doneAt - c.arriveAt) / 60000) + "分" : ""}</div>`
+      : "";
+  return `<div class="c ${c.status}${late ? " late" : ""}${c.noshow ? " abs" : ""}" onclick="openSheet('${esc(c.id)}')">
+    <div class="t1">${head}<span class="u">${fmt(c.units) || "—"}U</span></div>
+    <div class="cr">${esc(c.carrier)}</div>
+    <div class="id">${esc(c.id)}</div>
+    ${sub}${c.noshow ? '<span class="tag abs">欠車</span>' : ""}${idxTag(c)}
+  </div>`;
+}
+function render() {
+  document.getElementById("now").textContent = hhmm(Date.now());
+  const g = { plan: [], arrive: [], done: [] };
+  cards.forEach(c => { if (g[c.status]) g[c.status].push(c); });
+  g.plan.sort((a, b) => (a.start || 0) - (b.start || 0));
+  g.arrive.sort((a, b) => String(a.bay || "").localeCompare(String(b.bay || "")));
+  g.done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  ["plan", "arrive", "done"].forEach(k => {
+    document.getElementById("n-" + k).textContent = g[k].length;
+    document.getElementById("l-" + k).innerHTML = g[k].length ? g[k].map(cardHTML).join("") : `<div class="empty">なし</div>`;
+  });
+  if (openId) fillSheet(openId);
+}
+
+/* ===== 詳細（タップで下から出る） ===== */
+function row(k, v) { return v ? `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>` : ""; }
+function fillSheet(id) {
+  const c = cards.find(x => x.id === id);
+  if (!c) { closeSheet(); return; }
+  document.getElementById("s-cr").textContent = c.carrier;
+  document.getElementById("s-id").textContent = c.id;
+  const o = c.raw || {};
+  const stLabel = c.status === "plan" ? (c.noshow ? "予定（欠車）" : "予定") : c.status === "arrive" ? "着車中" : "完了";
+  let h = row("状態", stLabel);
+  h += row("受入枠", o["Schedule Date"] || "");
+  if (c.status === "arrive") { h += row("バース", c.bay || ""); h += row("着車", c.arriveAt ? hhmm(c.arriveAt) + `（${Math.round((Date.now() - c.arriveAt) / 60000)}分経過）` : ""); }
+  if (c.status === "done") {
+    h += row("バース", c.doneBay || "");
+    h += row("着車", c.arriveAt ? hhmm(c.arriveAt) : "");
+    h += row("完了", c.doneAt ? hhmm(c.doneAt) : "");
+    if (c.arriveAt && c.doneAt) h += row("所要", Math.round((c.doneAt - c.arriveAt) / 60000) + "分");
+  }
+  h += row("Units", fmt(o.Units));
+  h += row("Cartons", fmt(o.Cartons));
+  h += row("Pallets", fmt(o.Pallets));
+  h += row("Dock", o.Dock || "");
+  h += row("タイプ", o.Type || "");
+  h += row("IDX", c.idx ? shortIdx(c.idx) : "");
+  h += row("メモ", c.memo || "");
+  document.getElementById("s-dl").innerHTML = h;
+}
+function openSheet(id) {
+  openId = id;
+  fillSheet(id);
+  document.getElementById("sheet").classList.add("show");
+  document.getElementById("mask").classList.add("show");
+}
+function closeSheet() {
+  openId = null;
+  document.getElementById("sheet").classList.remove("show");
+  document.getElementById("mask").classList.remove("show");
+}
+
+/* ===== Firebase（読むだけ） ===== */
+function start() {
+  const db = firebase.database();
+  const root = db.ref(DOCK_ROOT);
+  db.ref(".info/connected").on("value", s => document.getElementById("dot").classList.toggle("on", s.val() === true));
+  root.child("master").on("value", s => {
+    const v = s.val();
+    master = (v && Array.isArray(v.rows))
+      ? { headers: v.headers || [], data: v.rows.map(r => Object.fromEntries((v.headers || []).map((h, i) => [h, r[i]]))) }
+      : (v && Array.isArray(v.data) ? v : { headers: [], data: [] });
+    build();
+  });
+  root.child("placement").on("value", s => { placement = s.val() || {}; build(); });
+  root.child("idxStatus").on("value", s => { idxStatus = s.val() || {}; build(); });
+}
+try {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().onAuthStateChanged(u => { if (u) start(); });
+  firebase.auth().signInAnonymously().catch(() => {
+    document.getElementById("l-plan").innerHTML = '<div class="empty">接続できませんでした</div>';
+  });
+} catch (e) { /* 無視 */ }
+setInterval(render, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+</script>
+</body>
+</html>
