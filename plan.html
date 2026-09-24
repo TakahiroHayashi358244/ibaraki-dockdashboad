@@ -247,14 +247,14 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 .pg .foot{margin-top:8px;font-size:11px;color:#697a8c;}
 
 /* ===== サマリの窓（ドラッグで移動できる） ===== */
-.fwin{position:fixed;z-index:2500;background:#fff;border:1px solid var(--line);border-radius:10px;
-  box-shadow:0 14px 40px rgba(30,43,56,.28);min-width:520px;max-width:96vw;overflow:hidden;}
+.fwin{position:fixed;z-index:2500;background:#fff;border:2px solid #24506a;border-radius:10px;
+  box-shadow:0 18px 48px rgba(20,35,50,.42);min-width:520px;max-width:96vw;overflow:hidden;}
 .fwin[hidden]{display:none;}
 .fw-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:move;
-  background:#eef4f7;border-bottom:1px solid var(--line);padding:7px 10px;font-weight:800;font-size:13px;color:#24506a;
+  background:#24506a;border-bottom:1px solid #1b3d52;padding:8px 11px;font-weight:800;font-size:13px;color:#fff;
   -webkit-user-select:none;user-select:none;touch-action:none;}
-.fw-head .x{cursor:pointer;font-size:17px;line-height:1;color:var(--sub);padding:0 3px;}
-.fw-head .x:hover{color:var(--alert);}
+.fw-head .x{cursor:pointer;font-size:17px;line-height:1;color:rgba(255,255,255,.75);padding:0 3px;}
+.fw-head .x:hover{color:#ffd0d0;}
 .fw-body{padding:10px 12px 12px;max-height:72vh;overflow:auto;}
 .sum-tab{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;}
 .sum-tab th,.sum-tab td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right;white-space:nowrap;}
@@ -265,6 +265,9 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 .sum-tab .neg{color:var(--alert);font-weight:800;}
 .sum-tab .pos{color:#2e7d32;}
 .sum-note{margin-top:8px;font-size:11px;color:var(--sub);line-height:1.5;}
+.sum-tab .uph-in{width:62px;text-align:right;font:inherit;font-variant-numeric:tabular-nums;
+  border:1px solid var(--line);border-radius:6px;padding:2px 5px;background:#fff;}
+.sum-tab .uph-in:focus{outline:none;border-color:var(--accent);}
 </style>
 </head>
 <body>
@@ -455,7 +458,7 @@ const S = {
   masters: { next: null, current: null },
   appts: [], outOfDate: 0,
   date: "",
-  plan: { assign: {}, uph: null },
+  plan: { assign: {}, uph: null, uphF: {} },
   planLoadedFor: "",
   // 配置ダッシュボード
   roster: [], custom: {}, admins: [], layout: {}, floorMove: {}, pmaster: null,
@@ -650,6 +653,11 @@ function uphOf(shift) {
   if (o > 0) return o;
   return (S.targetUPH[shift] && +S.targetUPH[shift].in) || 0;
 }
+// フロア別UPH。未設定なら設定のUPH（日勤/夜勤）を使う
+function uphFor(floor, shift) {
+  const o = S.plan.uphF && +S.plan.uphF[floor];
+  return o > 0 ? o : uphOf(shift);
+}
 /* ---- 休憩（この時間は作業しない＝LHを積まず、後ろの時間へずれる） ---- */
 const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
 let brkCache = { src: null, list: [] };
@@ -693,7 +701,7 @@ function inSpans() {
     if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
     const dur = e - s; const lh = num(p.lh) > 0 ? num(p.lh) : dur - breakOv(s, e);
     const work = dur - breakOv(s, e);          // 休憩を除いた実働時間
-    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph: uphOf(p.shift), shift: p.shift, lh });
+    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph: uphFor(fl, p.shift), shift: p.shift, lh });
   });
   return { spans: out, info };
 }
@@ -950,7 +958,7 @@ function renderStats(R) {
     <span class="stat ${assigned < S.appts.length ? "warn" : ""}">割当<b>${assigned}</b>/${S.appts.length}</span>
     <span class="stat">IN LH<b>${fmt1(tlh)}</b></span>
     <span class="stat">能力<b>${fmt(tcap)}</b>U</span>
-    <span class="stat ${noUph ? "alert" : ""}">UPH 日<b>${fmt(uphOf("日勤"))}</b> 夜<b>${fmt(uphOf("夜勤"))}</b></span>
+    <span class="stat ${noUph ? "alert" : ""}" title="フロア別に設定した場合はその加重平均。設定値は 日勤 ${fmt(uphOf("日勤"))} / 夜勤 ${fmt(uphOf("夜勤"))}">UPH<b>${fmt(Math.round(tlh > 0 ? tcap / tlh : uphOf("日勤")))}</b>${Object.keys(S.plan.uphF || {}).length ? "（フロア別）" : ""}</span>
     <span class="stat">IN人員<b>${i.inCnt}</b>名${i.noTime ? `（時刻なし${i.noTime}）` : ""}${i.offFloor ? `（階不明${i.offFloor}）` : ""}</span>`;
   if (alertN) h += `<span class="stat alert">能力不足<b>${alertN}</b>枠</span>`;
   if (overN) h += `<span class="stat alert">バース不足<b>${overN}</b>台</span>`;
@@ -1200,24 +1208,32 @@ function renderSummary() {
   });
   const unN = S.appts.filter(a => !cellOf(a).f).length;
   const unU = S.appts.filter(a => !cellOf(a).f).reduce((s, a) => s + estU(a), 0);
-  const line = (nm, color, t) => {
-    const tp = t.lh > 0 ? t.cap / t.lh : 0;                 // TP＝1人1時間あたりの処理数
+  const line = (nm, color, t, editable) => {
     const d = t.cap - t.u;                                   // 処理可能数 − 処理予定数
+    const uphCell = editable
+      ? `<input class="uph-in" type="number" min="0" step="1" value="${(S.plan.uphF && S.plan.uphF[nm]) || ""}" placeholder="${fmt(uphOf("日勤"))}" onchange="setFloorUph('${esc(nm)}',this.value)">`
+      : `<b>${fmt(Math.round(t.lh > 0 ? t.cap / t.lh : 0))}</b>`;   // 合計は加重平均
     return `<tr${nm === "合計" ? ' class="tot"' : ""}><td><span class="fnm" style="color:${color}">${esc(nm)}</span></td>
-      <td>${fmt(t.n)}</td><td>${fmt(t.hc)}</td><td>${fmt1(t.lh)}</td><td>${fmt(Math.round(tp))}</td>
+      <td>${fmt(t.n)}</td><td>${fmt(t.hc)}</td><td>${fmt1(t.lh)}</td><td>${uphCell}</td>
       <td>${fmt(t.u)}</td><td>${fmt(Math.round(t.cap))}</td>
       <td class="${d < 0 ? "neg" : "pos"}">${d >= 0 ? "+" : ""}${fmt(Math.round(d))}</td></tr>`;
   };
   document.getElementById("sumBody").innerHTML =
     `<table class="sum-tab">
-      <thead><tr><th>フロア</th><th>着車</th><th>HC</th><th>LH</th><th>TP</th><th>処理予定数</th><th>処理可能数</th><th>過不足</th></tr></thead>
-      <tbody>${rows.map(r => line(r.name, r.color, r.t)).join("")}
+      <thead><tr><th>フロア</th><th>着車</th><th>HC</th><th>LH</th><th>UPH</th><th>処理予定数</th><th>処理可能数</th><th>過不足</th></tr></thead>
+      <tbody>${rows.map(r => line(r.name, r.color, r.t, true)).join("")}
       ${unN ? `<tr><td><span class="fnm" style="color:#9aa8b8">未割当</span></td><td>${fmt(unN)}</td><td colspan="3"></td><td>${fmt(unU)}</td><td colspan="2"></td></tr>` : ""}
       ${line("合計", "#24506a", T)}</tbody>
     </table>
-    <div class="sum-note">HC＝そのフロアのIN人員の人数／LH＝休憩を除いた実働の合計／TP＝1人1時間あたりの処理数（処理可能数 ÷ LH）<br>
-      処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝LH × TP<br>
+    <div class="sum-note">HC＝そのフロアのIN人員の人数／LH＝休憩を除いた実働の合計／UPH＝フロアごとに設定できます（空欄は設定のUPH＝${fmt(uphOf("日勤"))}）。合計は実績の加重平均<br>
+      処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝LH × UPH<br>
       過不足＝処理可能数 − 処理予定数（マイナスはその日のうちに処理しきれない見込み）</div>`;
+}
+function setFloorUph(name, v) {
+  const n = +v;
+  S.plan.uphF = S.plan.uphF || {};
+  if (n > 0) S.plan.uphF[name] = n; else delete S.plan.uphF[name];
+  render(); savePlan();
 }
 // 窓の移動
 (function () {
@@ -1264,7 +1280,7 @@ function savePlan() {
     // 自動で決まったバースも含めて保存（ドックダッシュボードの計画バッジ用）
     const BY = computeBays(), bays = {};
     S.appts.forEach(x => { const c = cellOf(x); const p = c.f && BY[c.f] && BY[c.f].pos[x.key]; if (p && p.bay) bays[x.key] = p.bay; });
-    const data = { date, assign: S.plan.assign, bays, uph: S.plan.uph || null, updatedAt: Date.now(), by: CLIENT_ID };
+    const data = { date, assign: S.plan.assign, bays, uph: S.plan.uph || null, uphF: S.plan.uphF || null, updatedAt: Date.now(), by: CLIENT_ID };
     saveTimer = null;
     planPend = null;      // 自分の変更のほうが新しいので、保留していた古い内容は捨てる
     fbDB.ref(DOCK_ROOT + "/plans/" + date).set(data)
@@ -1284,7 +1300,7 @@ function planBusy() {
   return false;
 }
 function applyPlan(v, notify) {
-  S.plan = { assign: v.assign || {}, uph: v.uph || null };
+  S.plan = { assign: v.assign || {}, uph: v.uph || null, uphF: v.uphF || {} };
   setSaveSt(v.updatedAt ? "保存済" : "");
   render();
   if (notify) toast("他のPCの変更を反映しました");
@@ -1293,7 +1309,7 @@ function loadPlan() {
   const date = S.date;
   if (S.planLoadedFor === date) { render(); return planReady; }
   S.planLoadedFor = date;
-  S.plan = { assign: {}, uph: null };
+  S.plan = { assign: {}, uph: null, uphF: {} };
   if (planRef) { try { planRef.off(); } catch (e) { /* 無視 */ } planRef = null; }
   planGot = false; planPend = null;
   if (!fbDB) { render(); return (planReady = Promise.resolve()); }
@@ -1366,7 +1382,7 @@ function buildPdfPages() {
   const tcap = S.floors.reduce((s, f) => s + R.F[f.name].tot.cap, 0);
   const unN = S.appts.filter(a => !cellOf(a).f).length;
   const sumHTML = `<div class="sum"><span>予約 <b>${S.appts.length}</b>台 / <b>${fmt(tu)}</b>U</span><span>IN LH <b>${fmt1(tlh)}</b></span><span>処理能力 <b>${fmt(tcap)}</b>U</span>
-    <span>目標UPH 日勤 <b>${fmt(uphOf("日勤"))}</b> / 夜勤 <b>${fmt(uphOf("夜勤"))}</b></span>${unN ? `<span style="background:#fde8e8">未割当 <b>${unN}</b>台</span>` : ""}</div>`;
+    <span>UPH <b>${fmt(Math.round(tlh > 0 ? tcap / tlh : uphOf("日勤")))}</b>${Object.keys(S.plan.uphF || {}).length ? "（フロア別）" : ""}</span>${unN ? `<span style="background:#fde8e8">未割当 <b>${unN}</b>台</span>` : ""}</div>`;
   function newPage(sub, withSum) { const pg = document.createElement("div"); pg.className = "pg"; pg.innerHTML = pdfHeader(sub) + (withSum ? sumHTML : ""); root.appendChild(pg); pages.push(pg); return pg; }
 
   // --- 1. フロア×時間表（全時間帯を1ページに・縦長の枠） ---
