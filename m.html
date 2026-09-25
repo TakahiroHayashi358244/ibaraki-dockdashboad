@@ -302,7 +302,7 @@ function setView(v) {
   document.getElementById("navName").textContent = (VIEWS.find(x => x.id === v) || {}).name || "";
   VIEWS.forEach(x => { document.getElementById("v-" + x.id).hidden = x.id !== v;
     document.getElementById("v-" + x.id).scrollTop = 0; });
-  document.getElementById("sw").hidden = v !== "haichi";
+  document.getElementById("sw").hidden = v !== "haichi" && v !== "plan";
   closeMenu();
   try { localStorage.setItem("mView", v); } catch (e) { /* 無視 */ }
   render();
@@ -450,19 +450,17 @@ function buildPlan() {
   const pl = D.plans[planDate] || {};
   planAssign = pl.assign || {}; planUph = pl.uph || null; planUphF = pl.uphF || {};
 }
+// HC・LHは配置ダッシュボードの配置サマリ（IN）と同じ数え方（PC版の着車プランと同じ）
+//   選択シフトの人だけ／管理者は除外／LH＝各人のLHの合計（未入力は0）／出退勤時刻が無い人も数える
 function planCalc() {
   const F = {};
   D.floors.forEach(f => F[f.name] = { hc: 0, lh: 0, cap: 0, n: 0, u: 0 });
   people().forEach(p => {
+    if (p.admin || p.shift !== shift) return;
     if (!locOf(p).startsWith("IN|")) return;
     const fl = F[floorOfP(p)]; if (!fl) return;
-    let s = tnum(p.startT), e = tnum(p.endT);
-    if (s == null || e == null) return;
-    if (e <= s) e += 24;
-    if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
-    const work = (e - s) - breakOv(s, e);
-    const lh = num(p.lh) > 0 ? num(p.lh) : work;
-    fl.hc++; fl.lh += lh; fl.cap += lh * uphFor(floorOfP(p), p.shift);
+    const lh = num(p.lh) > 0 ? num(p.lh) : 0;
+    fl.hc++; fl.lh += lh; fl.cap += lh * uphFor(floorOfP(p), shift);
   });
   planAppts.forEach(a => {
     const f = (planAssign[a.key] || {}).f;
@@ -498,6 +496,9 @@ function reflectState(a) {
 }
 function toggleNg() { showNg = !showNg; render(); }
 function renderPlan() {
+  const sh = shifts();
+  if (!sh.includes(shift)) shift = sh[0];
+  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
   const F = planCalc();
   const tot = { n: 0, u: 0, hc: 0, lh: 0, cap: 0 };
   D.floors.forEach(f => { const x = F[f.name]; tot.n += x.n; tot.u += x.u; tot.hc += x.hc; tot.lh += x.lh; tot.cap += x.cap; });
@@ -508,7 +509,7 @@ function renderPlan() {
     `<div class="kpi"><span>予約</span><b>${fmtN(planAppts.length)}</b></div>
      <div class="kpi"><span>Units</span><b>${fmtN(tot.u)}</b></div>
      <div class="kpi ${un ? "alert" : ""}"><span>未割当</span><b>${fmtN(un)}</b></div>
-     <div class="kpi"><span>IN HC</span><b>${fmtN(tot.hc)}</b></div>
+     <div class="kpi"><span>IN HC（${esc(shift)}）</span><b>${fmtN(tot.hc)}</b></div>
      <div class="kpi"><span>IN LH</span><b>${fmt1(tot.lh)}</b></div>
      <div class="kpi"><span>処理可能</span><b>${fmtN(tot.cap)}</b></div>`;
 
