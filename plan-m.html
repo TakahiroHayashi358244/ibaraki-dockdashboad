@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#24506a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="着車プラン">
+<title>着車プラン（スマホ）</title>
+<style>
+:root{
+  --ink:#1f2b38; --sub:#697a8c; --line:#e3e8ee; --bg:#eef2f6; --panel:#fff;
+  --accent:#24506a; --green:#2e7d32; --warn:#e0a030; --alert:#e05050;
+  --f0:#1f6f8b; --f1:#2e7d5b; --f2:#a07b16; --f3:#a0522d; --f4:#5b54a8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.35;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 6px);
+}
+header{
+  position:sticky;top:0;z-index:10;background:var(--accent);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 7px) 12px 7px;
+  display:flex;align-items:baseline;gap:8px;
+}
+header b{font-size:16px;font-weight:800;}
+header .dt{font-size:12.5px;opacity:.92;}
+header .dot{width:9px;height:9px;border-radius:50%;background:#ff8a8a;flex:none;align-self:center;}
+header .dot.on{background:#8ce99a;}
+header .dot.mst{margin-left:6px;}
+header .dot.mst.on{background:#4aa3ff;}
+header .sp{margin-left:auto;}
+.wrap{padding:7px 8px 10px;}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px;}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;}
+.kpi span{display:block;font-size:10px;color:var(--sub);line-height:1.2;}
+.kpi b{font-size:16px;line-height:1.25;font-variant-numeric:tabular-nums;}
+.kpi.alert b{color:var(--alert);}
+.sec{font-weight:800;font-size:11.5px;color:var(--sub);margin:9px 3px 5px;}
+.fl{
+  background:#fff;border:1px solid var(--line);border-left:5px solid var(--sub);border-radius:10px;
+  padding:5px 9px 6px;margin-bottom:5px;
+}
+.fl .r1{display:flex;align-items:baseline;gap:8px;}
+.fl .nm{font-weight:800;font-size:15px;}
+.fl .n{font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;}
+.fl .n small{font-weight:600;color:var(--sub);font-size:11px;}
+.fl .u{margin-left:auto;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.fl .r2{display:flex;gap:8px;margin-top:1px;font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;flex-wrap:wrap;}
+.fl .r2 b{color:var(--ink);font-size:12px;}
+.bar{height:5px;border-radius:3px;background:#eceff2;margin-top:4px;overflow:hidden;}
+.bar i{display:block;height:100%;background:var(--green);}
+.bar i.warn{background:var(--warn);}
+.bar i.alert{background:var(--alert);}
+.st{display:flex;gap:6px;margin-bottom:8px;}
+.st div{flex:1;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 2px;text-align:center;}
+.st b{display:block;font-size:17px;line-height:1.2;font-variant-numeric:tabular-nums;}
+.st span{font-size:10px;color:var(--sub);}
+.st .ok b{color:var(--green);} .st .run b{color:#0277bd;} .st .wait b{color:#b3790c;} .st .ng b{color:var(--alert);}
+.row{
+  background:#fff;border:1px solid var(--line);border-left:4px solid var(--sub);border-radius:9px;
+  padding:6px 9px;margin-bottom:6px;display:flex;align-items:center;gap:9px;
+}
+.row .fx{font-weight:800;font-size:13px;min-width:30px;}
+.row .mid{flex:1;min-width:0;}
+.row .id{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.2px;}
+.row .cr{font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.row .rt{text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;}
+.row.run{border-left-color:#0277bd;} .row.wait{border-left-color:var(--warn);}
+.row.ng{border-left-color:var(--alert);background:#fff5f5;} .row.no{border-left-color:#9aa8b8;}
+.tag{display:inline-block;font-size:10px;font-weight:800;border-radius:4px;padding:0 5px;}
+.tag.run{background:#0277bd;color:#fff;} .tag.wait{background:#fff3cd;color:#8a6d00;}
+.tag.ng{background:#b71c1c;color:#fff;} .tag.no{background:#eef2f5;color:#5c6b79;}
+.note{color:var(--sub);font-size:11.5px;text-align:center;padding:10px 4px;}
+.ft{color:var(--sub);font-size:10px;text-align:center;padding:7px 6px 0;}
+</style>
+</head>
+<body>
+<header><b>着車プラン</b><span class="dt" id="day">—</span><span class="sp"></span><span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span></header>
+<div class="wrap">
+  <div class="kpis" id="kpis"></div>
+  <div class="sec">フロア別</div>
+  <div id="floors"><div class="note">読み込み中…</div></div>
+  <div class="sec">ドックマスタへの反映</div>
+  <div class="st" id="dpst"></div>
+  <div class="ft">閲覧専用です。変更はPCの着車プランから行ってください。</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ===== 着車プランのスマホ用（閲覧専用。PC版と同じデータを読むだけ） ===== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD01thIqlq4VQpSe8fxU-0a_M9ynO6p0IM",
+  authDomain: "gworker-haichi.firebaseapp.com",
+  databaseURL: "https://gworker-haichi-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gworker-haichi",
+  storageBucket: "gworker-haichi.firebasestorage.app",
+  messagingSenderId: "218653712277",
+  appId: "1:218653712277:web:af850c4143bbf88983209c"
+};
+const DOCK_ROOT = "dock", ID_FIELD = "Appointment Id";
+const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
+const DOOR_TTL = 3 * 3600000, DOORSTATE_TTL = 7 * 24 * 3600000;
+
+const S = {
+  masters: { next: null, current: null }, floors: [], rules: {}, plans: {},
+  roster: [], custom: {}, layout: {}, floorMove: {}, pmaster: null,
+  targetUPH: { 日勤: 0, 夜勤: 0 }, doorCmds: {}, doorNow: {}, idxMaster: null,
+  date: "", plan: { assign: {}, uph: null, uphF: {} }, appts: [],
+};
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const pad = n => String(n).padStart(2, "0");
+const fmt = n => (n == null || isNaN(+n)) ? "—" : Math.round(+n).toLocaleString();
+const fmt1 = n => (n == null || isNaN(+n)) ? "—" : (Math.round(+n * 10) / 10).toLocaleString(undefined, { minimumFractionDigits: 1 });
+const num = v => { const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "")); return isNaN(n) ? null : n; };
+const keyEnc = k => String(k).replace(/[.#$\[\]\/]/g, "_");
+const uidEnc = p => String(p.no + "_" + p.name).replace(/[.#$\[\]\/]/g, "_");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+function parseSched(v) {
+  const m = String(v || "").match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+}
+function tnum(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return v < 1 ? v * 24 : v;
+  const m = String(v).match(/(\d{1,2})\s*[:：]\s*(\d{2})/); if (m) return +m[1] + m[2] / 60;
+  const n = parseFloat(v); return isNaN(n) ? null : (n < 1 ? n * 24 : n);
+}
+
+/* ---- 休憩 ---- */
+function breakRanges() {
+  const src = S.rules.breaks == null ? BREAK_DEFAULT : String(S.rules.breaks);
+  const out = [];
+  src.split(/[,、\s]+/).forEach(t => {
+    const m = String(t).match(/^(\d{1,2}):(\d{2})[-–~〜](\d{1,2}):(\d{2})$/);
+    if (!m) return;
+    let a = +m[1] + +m[2] / 60, b = +m[3] + +m[4] / 60;
+    if (b <= a) b += 24;
+    out.push([a, b], [a + 24, b + 24]);
+  });
+  return out;
+}
+function breakOv(s, e) {
+  let m = 0;
+  breakRanges().forEach(r => { m += Math.max(0, Math.min(e, r[1]) - Math.max(s, r[0])); });
+  return Math.min(m, Math.max(0, e - s));
+}
+
+/* ---- 人員（配置ダッシュボードのデータ） ---- */
+const pmasterOk = () => S.pmaster && ["OUT", "IN", "ICQA"].some(k => Array.isArray(S.pmaster[k]) && S.pmaster[k].length);
+function people() {
+  const list = Array.isArray(S.roster) ? S.roster.filter(Boolean).slice() : [];
+  Object.values(S.custom || {}).forEach(c => { if (c && !list.some(p => p.no === c.no)) list.push(c); });
+  return list;
+}
+function locOf(p) {
+  const k = uidEnc(p), L = S.layout[k];
+  const valid = (pl, sub) => !pmasterOk() || (Array.isArray(S.pmaster[pl]) && S.pmaster[pl].includes(sub));
+  if (L !== undefined && L !== null) {
+    if (["WAIT", "ABSENT", "HOLIDAY", "other"].includes(L)) return L;
+    const pt = String(L).split("|");
+    return valid(pt[0], pt[1]) ? pt[0] + "|" + pt[1] : "WAIT";
+  }
+  return valid(p.section, p.subsec) ? p.section + "|" + p.subsec : "WAIT";
+}
+const floorOf = p => (S.floorMove[uidEnc(p)] !== undefined ? S.floorMove[uidEnc(p)] : p.floor);
+const uphOf = shift => (S.plan.uph && S.plan.uph[shift] > 0) ? +S.plan.uph[shift] : (+S.targetUPH[shift] || 0);
+const uphFor = (floor, shift) => ((S.plan.uphF && +S.plan.uphF[floor] > 0) ? +S.plan.uphF[floor] : uphOf(shift));
+
+/* ---- 集計（PC版と同じ考え方：休憩を除いた実働でLHを配分） ---- */
+function calc() {
+  const F = {};
+  S.floors.forEach(f => F[f.name] = { name: f.name, hc: 0, lh: 0, cap: 0, n: 0, u: 0 });
+  people().forEach(p => {
+    if (!locOf(p).startsWith("IN|")) return;
+    const fl = F[floorOf(p)]; if (!fl) return;
+    let s = tnum(p.startT), e = tnum(p.endT);
+    if (s == null || e == null) return;
+    if (e <= s) e += 24;
+    if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
+    const dur = e - s, work = dur - breakOv(s, e);
+    const lh = num(p.lh) > 0 ? num(p.lh) : work;
+    fl.hc++; fl.lh += lh; fl.cap += lh * uphFor(fl.name, p.shift);
+  });
+  S.appts.forEach(a => {
+    const f = (S.plan.assign[a.key] || {}).f;
+    if (f && F[f]) { F[f].n++; F[f].u += (a.units != null ? a.units : (a.cartons ? a.cartons * 10 : 0)); }
+  });
+  return F;
+}
+
+/* ---- 予約（CSV） ---- */
+function rebuild() {
+  const M = S.masters.next || S.masters.current;
+  const all = [];
+  if (M && Array.isArray(M.headers) && Array.isArray(M.rows)) {
+    const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
+    const g = (r, k) => hi[k] == null ? "" : r[hi[k]];
+    M.rows.forEach(r => {
+      const id = String(g(r, ID_FIELD) || "").trim(); if (!id) return;
+      const dt = parseSched(g(r, "Schedule Date")) || parseSched(g(r, "Expected Arrival Date"));
+      all.push({
+        id, key: keyEnc(id), dt,
+        cname: String(g(r, "Carrier") || "").replace(/^\[[^\]]*\]/, "").trim(),
+        units: num(g(r, "Units")), cartons: num(g(r, "Cartons")), dock: String(g(r, "Dock") || "").split("[")[0].trim(),
+      });
+    });
+  }
+  // 計画日 = いちばん多い日付
+  const cnt = {};
+  all.forEach(a => { if (a.dt) { const k = ymd(a.dt); cnt[k] = (cnt[k] || 0) + 1; } });
+  S.date = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || "";
+  S.appts = all;
+  const pl = S.plans[S.date] || {};
+  S.plan = { assign: pl.assign || {}, uph: pl.uph || null, uphF: pl.uphF || {}, bays: pl.bays || {} };
+  render();
+}
+
+/* ---- ドックマスタへの反映状況 ---- */
+const floorDigit = f => ((String(f).match(/(\d)/) || [])[1] || "");
+function curDoor(a) {
+  const v = S.doorNow[a.id];
+  if (v && v.door && Date.now() - (v.at || 0) < DOORSTATE_TTL) return String(v.door);
+  return a.dock || "";
+}
+function latestCmd(id) {
+  let best = null;
+  Object.values(S.doorCmds || {}).forEach(c => {
+    if (!c || c.id !== id) return;
+    if (Date.now() - (c.at || 0) > DOOR_TTL) return;
+    if (!best || (c.at || 0) > (best.at || 0)) best = c;
+  });
+  return best;
+}
+function reflectState(a) {
+  const f = (S.plan.assign[a.key] || {}).f;
+  if (!f) return null;                       // 未割当は対象外
+  const c = latestCmd(a.id);
+  if (c && c.state === "running") return "run";
+  if (c && c.state === "pending") return "wait";
+  if (c && c.state === "error") return "ng";
+  const d = curDoor(a);
+  return (d && floorDigit(f) && String(d)[0] === floorDigit(f)) ? "ok" : "no";
+}
+
+/* ---- 描画 ---- */
+function render() {
+  document.getElementById("day").textContent = S.date ? S.date.replace(/^\d{4}-/, "").replace("-", "/") + " の計画" : "計画なし";
+  const F = calc();
+  const tot = { n: 0, u: 0, hc: 0, lh: 0, cap: 0 };
+  S.floors.forEach(f => { const x = F[f.name]; tot.n += x.n; tot.u += x.u; tot.hc += x.hc; tot.lh += x.lh; tot.cap += x.cap; });
+  const un = S.appts.filter(a => !(S.plan.assign[a.key] || {}).f).length;
+
+  document.getElementById("kpis").innerHTML =
+    `<div class="kpi"><span>予約</span><b>${fmt(S.appts.length)}</b></div>
+     <div class="kpi"><span>Units</span><b>${fmt(tot.u)}</b></div>
+     <div class="kpi ${un ? "alert" : ""}"><span>未割当</span><b>${fmt(un)}</b></div>
+     <div class="kpi"><span>IN HC</span><b>${fmt(tot.hc)}</b></div>
+     <div class="kpi"><span>IN LH</span><b>${fmt1(tot.lh)}</b></div>
+     <div class="kpi"><span>処理可能</span><b>${fmt(tot.cap)}</b></div>`;
+
+  document.getElementById("floors").innerHTML = S.floors.length ? S.floors.map((f, i) => {
+    const x = F[f.name], col = `var(--f${i % 5})`;
+    const ratio = x.cap > 0 ? x.u / x.cap : (x.u > 0 ? 9 : 0);
+    const lv = ratio > 1 ? "alert" : ratio > .85 ? "warn" : "";
+    const uph = x.lh > 0 ? x.cap / x.lh : 0;
+    const d = x.cap - x.u;
+    return `<div class="fl" style="border-left-color:${col}">
+      <div class="r1"><span class="nm" style="color:${col}">${esc(f.name)}</span>
+        <span class="n">${fmt(x.n)}<small>台</small></span>
+        <span class="u">${fmt(x.u)}U</span></div>
+      <div class="r2"><span>HC <b>${fmt(x.hc)}</b></span><span>LH <b>${fmt1(x.lh)}</b></span>
+        <span>UPH <b>${fmt(uph)}</b></span><span>処理可能 <b>${fmt(x.cap)}</b></span>
+        <span style="color:${d < 0 ? "var(--alert)" : "var(--green)"}">過不足 <b style="color:inherit">${d >= 0 ? "+" : ""}${fmt(d)}</b></span></div>
+      <div class="bar"><i class="${lv}" style="width:${Math.min(100, ratio * 100)}%"></i></div>
+    </div>`;
+  }).join("") : `<div class="note">フロア情報がありません</div>`;
+
+  // ドック反映
+  const g = { ok: [], run: [], wait: [], ng: [], no: [] };
+  S.appts.forEach(a => { const s = reflectState(a); if (s) g[s].push(a); });
+  document.getElementById("dpst").innerHTML =
+    `<div class="ok"><b>${g.ok.length}</b><span>反映済</span></div>
+     <div class="run"><b>${g.run.length}</b><span>実行中</span></div>
+     <div class="wait"><b>${g.wait.length}</b><span>待機中</span></div>
+     <div class="ng"><b>${g.ng.length}</b><span>失敗</span></div>
+     <div><b>${g.no.length}</b><span>未反映</span></div>`;
+
+  const m = S.idxMaster;
+  document.getElementById("dotM").classList.toggle("on", !!(m && m.at && Date.now() - m.at < 3 * 60000));
+}
+
+/* ---- Firebase（読むだけ） ---- */
+function start() {
+  const db = firebase.database(), root = db.ref(DOCK_ROOT);
+  db.ref(".info/connected").on("value", s => document.getElementById("dot").classList.toggle("on", s.val() === true));
+  root.child("nextMaster").on("value", s => { S.masters.next = s.val(); rebuild(); });
+  root.child("master").on("value", s => { S.masters.current = s.val(); rebuild(); });
+  root.child("plans").on("value", s => { S.plans = s.val() || {}; rebuild(); });
+  root.child("floors").on("value", s => { const v = s.val(); S.floors = Array.isArray(v) ? v.filter(Boolean) : []; render(); });
+  root.child("planRules").on("value", s => { S.rules = s.val() || {}; render(); });
+  root.child("doorCommands").on("value", s => { S.doorCmds = s.val() || {}; render(); });
+  root.child("doorState").on("value", s => { S.doorNow = s.val() || {}; render(); });
+  root.child("idxMaster").on("value", s => { S.idxMaster = s.val() || null; render(); });
+  db.ref("roster").on("value", s => { const v = s.val(); S.roster = Array.isArray(v) ? v : (v ? Object.values(v) : []); render(); });
+  db.ref("custom").on("value", s => { S.custom = s.val() || {}; render(); });
+  db.ref("layout").on("value", s => { S.layout = s.val() || {}; render(); });
+  db.ref("floorMove").on("value", s => { S.floorMove = s.val() || {}; render(); });
+  db.ref("master").on("value", s => { S.pmaster = s.val() || null; render(); });
+  db.ref("targetUPH").on("value", s => {
+    const v = s.val() || {};
+    S.targetUPH = { 日勤: +(v.日勤 && v.日勤.in) || 0, 夜勤: +(v.夜勤 && v.夜勤.in) || 0 };
+    render();
+  });
+}
+try {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().onAuthStateChanged(u => { if (u) start(); });
+  firebase.auth().signInAnonymously().catch(() => {
+    document.getElementById("floors").innerHTML = '<div class="note">接続できませんでした</div>';
+  });
+} catch (e) { /* 無視 */ }
+setInterval(render, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+</script>
+</body>
+</html>
