@@ -29,6 +29,7 @@ header{
 }
 body[data-v="plan"] header{background:#24506a;}
 body[data-v="haichi"] header{background:#2e7d5b;}
+body[data-v="att"] header{background:#111;}
 .h1{display:flex;align-items:center;gap:8px;}
 .navbtn{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:16px;font-weight:800;color:#fff;}
 .navbtn .cr{font-size:10px;opacity:.75;}
@@ -163,6 +164,42 @@ body[data-v="haichi"] header{background:#2e7d5b;}
 .sheet dt{color:var(--sub);white-space:nowrap;}
 .sheet dd{margin:0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
 .sheet .cl{margin-top:14px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef2f5;color:var(--ink);font:inherit;font-weight:700;cursor:pointer;}
+
+/* --- 出勤者（無線管理システムの出勤者一覧） --- */
+#v-att .wrap{padding-top:0;}
+.at-bar{position:sticky;top:0;z-index:4;background:var(--bg);padding:8px 0 6px;margin:0 -8px 0;padding-left:8px;padding-right:8px;border-bottom:1px solid var(--line);}
+.at-srch{display:flex;gap:6px;}
+.at-srch input{flex:1;min-width:0;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;}
+.at-srch input:focus{border-color:#1f3864;box-shadow:0 0 0 3px rgba(31,56,100,.12);}
+.at-srch button{flex:none;font:inherit;font-size:13px;padding:0 11px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;color:#374151;}
+.at-chips{display:flex;gap:6px;margin-top:7px;align-items:center;}
+.at-chips button{font:inherit;font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px;border:1px solid #cfd6e0;background:#fff;color:#4b5563;}
+.at-chips button.on{background:#1f3864;border-color:#1f3864;color:#fff;}
+.at-chips .cnt{margin-left:auto;font-size:11.5px;color:var(--sub);white-space:nowrap;}
+.at-sum{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:8px 0 4px;}
+.at-sum div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:4px 2px;text-align:center;}
+.at-sum span{display:block;font-size:10px;color:var(--sub);font-weight:700;}
+.at-sum b{font-size:16px;font-variant-numeric:tabular-nums;}
+.at-leg{font-size:10.5px;color:var(--sub);display:flex;gap:9px;flex-wrap:wrap;margin:2px 3px 6px;}
+.at-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-2px;margin-right:3px;background:#fff3cd;border:1px solid #f0d98a;}
+.at-tb{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:10px;table-layout:fixed;}
+.at-tb th{position:sticky;top:var(--atBarH,78px);z-index:3;background:#eef1f6;color:#4b5563;font-size:11px;font-weight:700;padding:6px 3px;border-bottom:1px solid var(--line);text-align:center;}
+.at-tb th.l{text-align:left;padding-left:8px;} .at-tb th.cid{width:28%;} .at-tb th.cdv{width:15%;font-size:10.5px;letter-spacing:-.3px;}
+.at-tb td{padding:7px 3px;border-bottom:1px solid #eef0f4;font-size:13px;vertical-align:middle;}
+.at-tb tr:last-child td{border-bottom:0;}
+.at-tb td.id{padding-left:8px;font-variant-numeric:tabular-nums;word-break:break-all;}
+.at-tb td.id .al{display:block;font-size:11px;color:#2563eb;margin-top:1px;font-weight:700;}
+.at-tb td.nm{word-break:break-all;} .at-tb td.nm .n{font-weight:700;}
+.at-tb td.nm.lent .n{background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px;box-shadow:inset 0 0 0 1px #f0d98a;}
+.at-tb td.nm small{display:block;font-size:10.5px;color:var(--sub);margin-top:1px;}
+.at-tb td.dv{text-align:center;} .at-tb td.dv b{display:block;font-size:16px;line-height:1.05;color:#1f7a5a;}
+.at-tb td.dv small{display:block;font-size:10px;color:#374151;font-weight:700;font-variant-numeric:tabular-nums;}
+.at-tb tr.off td{color:#9ca3af;background:#fafafa;} .at-tb tr.off td.nm.lent .n{opacity:.7;}
+.at-tb mark{background:#dbeafe;color:inherit;border-radius:2px;padding:0 1px;}
+.at-orph{display:flex;flex-wrap:wrap;gap:5px;}
+.at-orph span{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12px;}
+.at-orph span b{color:#1f7a5a;margin-right:4px;}
+.at-err{margin:6px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
 </style>
 </head>
 <body data-v="dock">
@@ -205,6 +242,28 @@ body[data-v="haichi"] header{background:#2e7d5b;}
     <div class="kpis4" id="hKpis"></div>
     <div id="hBody"><div class="empty">読み込み中…</div></div>
     <div class="ft">閲覧専用です。配置の変更はPCの配置ダッシュボードから行ってください。</div>
+  </div>
+</div>
+
+<!-- ④ 出勤者（無線管理システムの出勤者一覧・閲覧専用） -->
+<div class="view" id="v-att" hidden>
+  <div class="wrap">
+    <div class="at-bar" id="atBar">
+      <div class="at-srch">
+        <input id="atQ" type="search" inputmode="search" autocomplete="off" placeholder="バッチID・名前・エイリアス・機器番号">
+        <button type="button" onclick="attLoad()">更新</button>
+      </div>
+      <div class="at-chips" id="atChips">
+        <button type="button" data-f="all">全員</button><button type="button" data-f="work">勤務中</button><button type="button" data-f="dev">機器あり</button>
+        <span class="cnt" id="atCnt"></span>
+      </div>
+    </div>
+    <div id="atErr"></div>
+    <div class="at-sum" id="atSum"></div>
+    <div class="at-leg"><span><i></i>貸しアカウント（手入力名）</span><span style="color:#2563eb;font-weight:700">青字＝Amazonエイリアス</span><span>灰色＝IDカード返却済</span><span>◯＝貸出中</span></div>
+    <div id="atList"><div class="empty">読み込み中…</div></div>
+    <div id="atOrph"></div>
+    <div class="ft" id="atFt">閲覧専用です。貸出・返却は無線管理の受付PCから行ってください。</div>
   </div>
 </div>
 
@@ -295,6 +354,7 @@ const VIEWS = [
   { id: "dock", name: "ドック状況" },
   { id: "plan", name: "着車プラン" },
   { id: "haichi", name: "配置" },
+  { id: "att", name: "出勤者" },
 ];
 function setView(v) {
   view = v;
@@ -305,6 +365,7 @@ function setView(v) {
   document.getElementById("sw").hidden = v !== "haichi" && v !== "plan";
   closeMenu();
   try { localStorage.setItem("mView", v); } catch (e) { /* 無視 */ }
+  attActivate(v === "att");
   render();
 }
 function closeMenu() { document.getElementById("navMenu").hidden = true; document.getElementById("navMask").hidden = true; }
@@ -644,9 +705,134 @@ function render() {
     document.getElementById("dotM").classList.toggle("on", !!(m && m.at && Date.now() - m.at < 3 * 60000));
     if (view === "dock") renderDock();
     else if (view === "plan") renderPlan();
+    else if (view === "att") renderAtt();
     else renderHaichi();
   });
 }
+
+/* ==========================================================
+   ④ 出勤者（無線管理システム radio-lending の出勤者一覧を読むだけ）
+   出勤者（IDカード）＋ 貸出中の機器 ＋ バッチIDに紐づくAmazonエイリアス
+   この画面を開いている間だけ取得・更新する（他の画面では通信しない）
+   ========================================================== */
+const RADIO_URL = "https://radio-lending.takahiro884.workers.dev";   // 無線管理システムのURL
+const AT_KINDS = [["radio", "無線"], ["mobile", "モバイル"], ["pc", "PC"]];
+let AT = null, atFilter = "all", atQ = "", atLoading = false, atAgain = false, atWs = null, atRetry = 0, atT = null, atPoll = null, atOn = false;
+try { atFilter = localStorage.getItem("mAtt_filter") || "all"; } catch (e) { /* 無視 */ }
+const atNorm = s => String(s == null ? "" : s).trim().replace(/\s+/g, "").toUpperCase();
+// 検索用：全角英数→半角、カタカナ→ひらがな、空白除去、小文字
+const atFold = s => String(s == null ? "" : s)
+  .replace(/[Ａ-Ｚａ-ｚ０-９＃]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+  .replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
+  .replace(/[\s　]+/g, "").toLowerCase();
+function atHl(text, q) {
+  const t = String(text == null ? "" : text);
+  if (!q) return esc(t);
+  const f = atFold(t), i = f.indexOf(q);
+  if (i < 0 || f.length !== t.length) return esc(t);
+  return esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.length)) + "</mark>" + esc(t.slice(i + q.length));
+}
+function attLoad() {
+  if (atLoading) { atAgain = true; return; }
+  atLoading = true;
+  fetch(RADIO_URL + "/api/mobile/attendees", { cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(j => { AT = j; AT.emp = j.emp || {}; AT.aliases = j.aliases || {}; AT.err = ""; AT.at = Date.now(); })
+    .catch(e => { AT = AT || { list: [], boards: {}, emp: {}, aliases: {} }; AT.err = "無線管理システムから読み込めませんでした（" + e.message + "）"; })
+    .then(() => { atLoading = false; if (view === "att") render(); if (atAgain) { atAgain = false; attLoad(); } });
+}
+// 受付PCと同じWebSocketで変更を受け取る（画面を開いている間だけ）
+function atConnect() {
+  if (!atOn || document.hidden) return;
+  try { atWs = new WebSocket(RADIO_URL.replace(/^http/, "ws") + "/ws"); } catch (e) { atReconnect(); return; }
+  atWs.onopen = () => { atRetry = 0; };
+  atWs.onmessage = ev => { let m = {}; try { m = JSON.parse(ev.data); } catch (e) { /* 無視 */ }
+    if (m && m.type === "changed") { clearTimeout(atT); atT = setTimeout(attLoad, 400); } };
+  atWs.onclose = atReconnect;
+  atWs.onerror = () => { try { atWs.close(); } catch (e) { /* 無視 */ } };
+}
+function atReconnect() {
+  if (!atOn || document.hidden) return;
+  atRetry = Math.min(atRetry + 1, 6);
+  setTimeout(() => { if (atOn && (!atWs || atWs.readyState > 1)) atConnect(); }, Math.min(1000 * atRetry, 8000));
+}
+function atDisconnect() { const w = atWs; atWs = null; if (w) { w.onclose = null; try { w.close(); } catch (e) { /* 無視 */ } } }
+function attActivate(on) {
+  if (on === atOn) return;
+  atOn = on;
+  clearInterval(atPoll);
+  if (on) {
+    attLoad(); atConnect();
+    atPoll = setInterval(() => { if (!document.hidden && (!atWs || atWs.readyState !== 1)) attLoad(); }, 60000);
+  } else atDisconnect();
+}
+document.addEventListener("visibilitychange", () => {
+  if (!atOn) return;
+  if (document.hidden) atDisconnect(); else { attLoad(); if (!atWs) atConnect(); }
+});
+function atBuild() {
+  const boards = AT.boards || {}, byName = {}, used = {};
+  const nameOf = a => (a.inputName || "").trim() || (a.accountName || "").trim() || ((AT.emp[atNorm(a.key)] || {}).name || "");
+  AT_KINDS.forEach(([k]) => (boards[k] || []).forEach(r => {
+    if (!r.name || !r.out || r.ret) return;
+    (byName[r.name.trim()] = byName[r.name.trim()] || []).push({ kind: k, no: r.no, id: k + "|" + r.no });
+  }));
+  const rows = (AT.list || []).map(a => {
+    const name = nameOf(a), devs = byName[name.trim()] || [];
+    devs.forEach(d => { used[d.id] = 1; });
+    const dv = {}; AT_KINDS.forEach(([k]) => { dv[k] = devs.filter(d => d.kind === k).map(d => d.no); });
+    const alias = AT.aliases[atNorm(a.key)] || "";
+    return { key: a.key || "", name, lent: !!(a.inputName && a.inputName.trim()), account: a.accountName || "", company: a.company || "",
+      alias, lend: a.lendTime || "", ret: a.returnTime || "", dv, nDev: devs.length,
+      text: atFold([a.key, name, a.accountName, a.company, alias].concat(devs.map(d => d.no)).join(" ")) };
+  });
+  rows.sort((x, y) => (!!x.ret - !!y.ret) || (x.company < y.company ? -1 : x.company > y.company ? 1 : 0) || x.name.localeCompare(y.name, "ja"));
+  const orphan = [];
+  AT_KINDS.forEach(([k, lb]) => (boards[k] || []).forEach(r => {
+    if (r.name && r.out && !r.ret && !used[k + "|" + r.no]) orphan.push({ kind: lb, k, no: r.no, name: r.name });
+  }));
+  return { rows, orphan };
+}
+function renderAtt() {
+  document.querySelectorAll("#atChips button").forEach(b => b.classList.toggle("on", b.dataset.f === atFilter));
+  document.getElementById("atErr").innerHTML = AT && AT.err ? `<div class="at-err">${esc(AT.err)}</div>` : "";
+  if (!AT || !AT.list) { document.getElementById("sub").textContent = "読み込み中…"; return; }
+  const B = atBuild(), q = atFold(atQ);
+  const work = B.rows.filter(r => !r.ret).length;
+  document.getElementById("sub").textContent = (AT.businessDate ? "業務日 " + AT.businessDate.slice(5).replace("-", "/") + " ・ " : "") + `勤務中 ${work}名`;
+  const cK = {}; AT_KINDS.forEach(([k]) => { cK[k] = B.orphan.filter(o => o.k === k).length; });
+  B.rows.forEach(r => AT_KINDS.forEach(([k]) => { cK[k] += r.dv[k].length; }));
+  document.getElementById("atSum").innerHTML =
+    `<div><span>出勤</span><b>${B.rows.length}</b></div><div><span>勤務中</span><b>${work}</b></div>` +
+    AT_KINDS.map(([k, lb]) => `<div><span>${lb}貸出</span><b>${cK[k]}</b></div>`).join("");
+  const rows = B.rows.filter(r => !(atFilter === "work" && r.ret) && !(atFilter === "dev" && !r.nDev) && (!q || r.text.indexOf(q) >= 0));
+  document.getElementById("atCnt").textContent = `${rows.length} / ${B.rows.length}名`;
+  document.getElementById("atList").innerHTML = !rows.length
+    ? `<div class="empty">${B.rows.length ? "該当する人がいません" : "この業務日の出勤者はまだいません"}</div>`
+    : `<table class="at-tb"><thead><tr><th class="l cid">バッチID</th><th class="l">名前</th>${AT_KINDS.map(([, lb]) => `<th class="cdv">${lb}</th>`).join("")}</tr></thead><tbody>` +
+      rows.map(r => {
+        const sub = [];
+        if (r.lent && r.account) sub.push(esc(r.account));
+        if (r.ret) sub.push("返却 " + esc(r.ret)); else if (r.lend) sub.push("出勤 " + esc(r.lend));
+        return `<tr class="${r.ret ? "off" : ""}"><td class="id">${atHl(r.key, q)}${r.alias ? `<span class="al">${atHl(r.alias, q)}</span>` : ""}</td>` +
+          `<td class="nm${r.lent ? " lent" : ""}"><span class="n">${atHl(r.name || "（名前なし）", q)}</span>${sub.length ? `<small>${sub.join(" ・ ")}</small>` : ""}</td>` +
+          AT_KINDS.map(([k]) => `<td class="dv">${r.dv[k].length ? `<b>◯</b><small>${r.dv[k].map(n => atHl(n, q)).join("<br>")}</small>` : ""}</td>`).join("") + `</tr>`;
+      }).join("") + `</tbody></table>`;
+  const orph = B.orphan.filter(o => !q || atFold(o.no + " " + o.name + " " + o.kind).indexOf(q) >= 0);
+  document.getElementById("atOrph").innerHTML = orph.length ? `<div class="sec">出勤者一覧に名前がない貸出中の機器（${orph.length}）</div><div class="at-orph">` +
+    orph.map(o => `<span><b>${esc(o.kind)} ${esc(o.no)}</b>${esc(o.name)}</span>`).join("") + `</div>` : "";
+  const t = new Date(AT.at || Date.now());
+  document.getElementById("atFt").textContent = `最終取得 ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}` +
+    (AT.aliasError ? "（エイリアス取得不可）" : "") + " ／ 閲覧専用です。貸出・返却は無線管理の受付PCから行ってください。";
+  document.documentElement.style.setProperty("--atBarH", document.getElementById("atBar").offsetHeight + "px");
+}
+(function () {
+  let qt = null;
+  document.getElementById("atQ").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { atQ = e.target.value; render(); }, 120); });
+  document.querySelectorAll("#atChips button").forEach(b => b.addEventListener("click", () => {
+    atFilter = b.dataset.f; try { localStorage.setItem("mAtt_filter", atFilter); } catch (e) { /* 無視 */ } render();
+  }));
+})();
 
 /* ---------- Firebase（接続は1回だけ・読むだけ） ---------- */
 function start() {
