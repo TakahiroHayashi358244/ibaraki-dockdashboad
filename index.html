@@ -162,7 +162,34 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .bay.occupied .bay-label{color:#fff;}
 .bay-slot.full.dragover{background:rgba(224,80,80,.30);cursor:not-allowed;}
 .bay-slot .card{width:100%;min-width:0;}
-.bay-slot .c-id,.bay-slot .c-main,.bay-slot .c-row span{word-break:break-word;overflow-wrap:anywhere;}
+/* バースの中のカードは、枠に収まるように小さくまとめる（詳しい数量は「詳細」で見る） */
+.bay-slot .card{
+  padding:5px 7px 6px;border-radius:7px;border-left-width:3px;
+  font-size:11px;box-shadow:0 1px 3px rgba(40,60,80,.12);
+  display:flex;flex-direction:column;gap:3px;overflow:hidden;
+}
+.bay-slot .card .c-topright{position:static;order:-1;align-self:flex-end;gap:4px;}
+.bay-slot .card .c-detail{font-size:10px;padding:1px 7px;border-radius:5px;}
+.bay-slot .card .c-memo{
+  margin:0;padding:2px 6px;font-size:10px;line-height:1.35;border-radius:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.bay-slot .card .c-idx{
+  margin:0;font-size:8.5px;line-height:1.25;padding:1px 5px;border-radius:7px;
+  align-self:stretch;max-width:100%;text-align:center;letter-spacing:-.2px;
+  white-space:normal;overflow-wrap:anywhere;    /* 狭いバースでは折り返して全部見せる（切らない） */
+}
+.bay-slot .card .c-id{
+  font-size:10px;line-height:1.15;letter-spacing:-.2px;
+  white-space:normal;word-break:break-all;      /* 幅の狭いバースでは折り返して全桁見せる（省略しない） */
+}
+.bay-slot .card .c-main{
+  font-size:10.5px;margin:0;line-height:1.25;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;
+}
+.bay-slot .card .c-row{display:none;}          /* 数量などはカードでは出さない */
+.bay-slot .card .c-late{position:static;align-self:flex-start;font-size:9.5px;padding:1px 6px;}
+.bay-slot .c-id,.bay-slot .c-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ===== Card ===== */
 .card{
@@ -179,6 +206,14 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .card.dragging{opacity:.4;}
 .card.s-arrive{border-left-color:var(--accent);}
 .card.s-done{border-left-color:var(--green);}
+.card.noshow{background:#f4f6f8;border-color:#d3dae0;border-left-color:#9aa8b8;opacity:.72;cursor:not-allowed;}
+.card.noshow .c-id,.card.noshow .c-main{text-decoration:line-through;color:#8a97a3;}
+.card .c-abs{
+  font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;cursor:pointer;white-space:nowrap;
+  background:#eef2f5;color:#5c6b79;border:1px solid #d3dae0;line-height:1.4;
+}
+.card .c-abs:hover{background:#e2e8ee;}
+.card .c-abs.on{background:#b71c1c;color:#fff;border-color:#8e1515;}
 .card .c-id{font-weight:700;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
 .card .c-main{font-weight:700;font-size:13px;color:var(--ink);margin-bottom:3px;line-height:1.25;}
 .card .c-row{display:flex;justify-content:space-between;gap:6px;color:var(--sub);line-height:1.5;}
@@ -204,6 +239,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 }
 .empty-hint{color:#a4b1bd;font-size:12px;text-align:center;padding:18px 6px;}
 /* IDXへの反映状況（逆連携） */
+.c-plan{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;margin:0 4px 4px 0;color:#fff;background:var(--pfc,#697a8c);}
+.c-plan.mv{background:#fff;color:var(--pfc,#697a8c);border:1px solid var(--pfc,#697a8c);}
 .c-idx{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:9px;margin:0 0 4px;}
 .c-idx.ok{background:#2e7d32;color:#fff;box-shadow:0 0 0 2px rgba(46,125,50,.18);}
 .c-idx.info{background:#eceff1;color:#37474f;}
@@ -211,6 +248,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .c-idx.wait{background:#e3f2fd;color:#0d47a1;}
 .c-idx.err{background:#ffebee;color:#b71c1c;}
 .stat.idx-warn{display:none;cursor:pointer;background:#ffebee;color:#b71c1c;}
+.stat.idx-queue{display:none;background:#e8f1f7;color:#1f5f7d;}
+.stat.idx-queue.show{display:flex;}
 .stat.idx-warn.show{display:flex;}
 .c-memo{margin:0 0 6px;font-size:11px;color:#7a5c00;background:#fffbe6;
   border:1px solid #f0e3a8;border-radius:6px;padding:4px 7px;line-height:1.4;
@@ -573,6 +612,9 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="stat idx-warn" id="st-idx" onclick="openIdxTrouble()" title="IDXへ反映できていないカード">
         <b id="st-idx-n">0</b>IDX未反映
       </div>
+      <div class="stat idx-queue" id="st-idxq" title="IDXへ送った指示のうち、まだ実行されていない件数">
+        <b id="st-idxq-n">0</b>IDX順番待ち
+      </div>
       <div class="spacer"></div>
       <div class="zoom-ctl" title="表示倍率">
         <button class="zbtn" onclick="bumpZoom(-10)">−</button>
@@ -614,6 +656,18 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 </div>
 
 <!-- Settings modal -->
+<div class="overlay" id="nmConfirm" style="z-index:1200">
+  <div class="modal" style="max-width:480px">
+    <h2 id="nmTitle">CSVの取込</h2>
+    <div class="modal-body">
+      <div id="nmMsg" style="font-size:14px;line-height:1.8;white-space:pre-wrap"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <button class="btn" id="nmNo">キャンセル</button>
+        <button class="btn primary" id="nmYes">取り込む</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="settings">
   <div class="modal">
     <h2>設定<span class="x" onclick="closeSettings()">×</span></h2>
@@ -622,10 +676,12 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="settings-actions">
         <button class="btn" onclick="closeSettings();openLogs()">📋 操作ログ</button>
         <button class="btn" onclick="closeSettings();document.getElementById('csvFile').click()">CSV読込</button>
+        <button class="btn" onclick="switchToNextMaster()">翌日CSVを取込</button>
+        <button class="btn" onclick="location.href='plan.html'">着車プラン</button>
         <button class="btn" onclick="exportState()">状態を保存</button>
         <button class="btn" onclick="document.getElementById('stateFile').click()">状態を復元</button>
       </div>
-      <div class="note">CSV読込は予約データの取り込み、保存/復元は現在の配置状態をファイルに書き出し/読み込みします。</div>
+      <div class="note">CSV読込は予約データの取り込み、保存/復元は現在の配置状態をファイルに書き出し/読み込みします。「翌日CSVを取込」は着車プランで読み込んだ翌日分の予約を取り込みます（当日の作業完了後に実行してください）。</div>
 
       <div class="sec-title">IDX連携（自動完了）</div>
       <div class="row-inp">
@@ -1006,7 +1062,7 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
       if(c.id===detailCardId){
         const ta=document.getElementById('memoInput');
         c.memo = ta ? ta.value : (p.memo||null);
@@ -1014,7 +1070,7 @@ function applyPlacement(placement){
         c.memo = p.memo||null;
       }
     }
-    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; c.doneBay=null; if(c.id!==detailCardId) c.memo=null; }
+    else { c.status='plan'; c.bay=null; c.arriveAt=null; c.arriveBay=null; c.arriveOp=null; c.doneAt=null; c.doneOp=null; c.idxClosedAt=null; c.doneBay=null; c.noshow=false; if(c.id!==detailCardId) c.memo=null; }
   });
   render();
 }
@@ -1064,7 +1120,7 @@ function loadCSV(ev){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
             doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
+            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null};
         }
       });
       fbPlacement=carried;
@@ -1134,6 +1190,75 @@ function isOverdue(c){
   const end=scheduleEnd(c);
   return end ? (Date.now() > end.getTime()) : false;
 }
+/* ============ 着車プラン連携（plan.html） ============
+   /dock/plans/<YYYY-MM-DD>/assign/<Appointment Id> = {f:"5F", h:13}
+   /dock/nextMaster = 翌日分CSV（着車プランで読込） */
+let planMap = {};   // apptId -> {f, h, date}
+function planBadgeOf(c){
+  if(c.status!=='plan') return '';   // 着車したら計画は役目を終える（実績バースの表示はそのまま）
+  const p=planMap[String(c.id).replace(/[.#$\[\]\/]/g,'_')];
+  if(!p || !p.f) return '';
+  const fi=state.floors.findIndex(f=>f.name===p.f);
+  const col=fi>=0?`var(--f${fi%5})`:'#697a8c';
+  const label = '計画 '+esc(p.f)+(p.b?'・'+esc(p.b):'');
+  return `<span class="c-plan" style="--pfc:${col}" title="着車プランの割当">${label}</span>`;
+}
+function switchToNextMaster(){
+  if(!fbReady||!fbDB){ toast('Firebase未接続のため取り込めません'); return; }
+  fbDB.ref(DOCK_ROOT+'/nextMaster').once('value').then(s=>{
+    const m=s.val();
+    if(!m||!Array.isArray(m.headers)||!Array.isArray(m.rows)||!m.rows.length){ toast('翌日分のCSVがありません（着車プランで読込んでください）'); return; }
+    const saved=m.savedAt?new Date(m.savedAt):null;
+    // CSVのCRDD列で最も多い日付を表示（例: 9/24(木)）
+    const ci=m.headers.indexOf('CRDD'); const cnt={};
+    if(ci>=0) m.rows.forEach(r=>{ const x=String((r&&r[ci])||'').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/); if(x){ const k=x[1]+'/'+(+x[2])+'/'+(+x[3]); cnt[k]=(cnt[k]||0)+1; } });
+    const top=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+    const dLabel=top?(()=>{ const [y,mo,d]=top.split('/').map(Number); return mo+'/'+d+'('+'日月火水木金土'[new Date(y,mo-1,d).getDay()]+')'; })():'翌日';
+    const title=dLabel+'のCSVを取り込みます';
+    const msg='※当日の作業がすべて完了してから実行してください。\n'
+      +'・ファイル: '+(m.name||'(名前なし)')+(saved?'（'+(saved.getMonth()+1)+'/'+saved.getDate()+' '+hhmm(m.savedAt)+' 保存）':'')+'\n'
+      +'・件数: '+m.rows.length+'件\n'
+      +'・現在の予約カードは入れ替わります（同じAppointment Idの配置状況は引き継ぎ）。\n'
+      +'・全PCに反映されます。';
+    askNextMaster(title, msg).then(ok=>{ if(ok) doSwitchNextMaster(m, dLabel); });
+  }).catch(err=>warn('翌日分CSVの取得に失敗: '+(err&&err.message?err.message:'')));
+}
+// ブラウザ標準のconfirm（上部にサイト名が出る）を使わず、画面内の確認ダイアログで聞く
+function askNextMaster(title, msg){
+  return new Promise(res=>{
+    const ov=document.getElementById('nmConfirm');
+    document.getElementById('nmTitle').textContent=title;
+    document.getElementById('nmMsg').textContent=msg;
+    const done=v=>{ ov.classList.remove('show'); res(v); };
+    document.getElementById('nmYes').onclick=()=>done(true);
+    document.getElementById('nmNo').onclick=()=>done(false);
+    ov.onclick=e=>{ if(e.target===ov) done(false); };
+    ov.classList.add('show');
+  });
+}
+function doSwitchNextMaster(m, dLabel){
+  {
+    const idx=m.headers.indexOf(ID_FIELD);
+    const ids=new Set(m.rows.map(r=>String((r&&r[idx])||'')));
+    const carried={};
+    state.cards.forEach(c=>{
+      if(ids.has(String(c.id))){
+        carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
+          arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
+          doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
+          idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
+      }
+    });
+    const upd={};
+    upd[DOCK_ROOT+'/master']={headers:m.headers, rows:m.rows};
+    upd[DOCK_ROOT+'/placement']=carried;
+    fbDB.ref().update(upd).then(()=>{
+      recordCsvLoad(m.rows.length);
+      closeSettings();
+      toast(dLabel+'のCSV '+m.rows.length+'件を取り込みました');
+    }).catch(err=>warn('翌日CSVの取込に失敗: '+(err&&err.message?err.message:'不明なエラー')));
+  }
+}
 function cardHTML(c){
   const main = c.fields["Carrier"] || c.fields[state.displayFields[0]] || '';
   let rows='';
@@ -1170,12 +1295,15 @@ function cardHTML(c){
   const idHtml = isManual
     ? `<div class="c-id c-id-manual">${esc(c.id)}</div>`
     : `<div class="c-id">${esc(c.id)}</div>`;
-  return `<div class="card ${cls} ${od}" draggable="true" data-id="${c.id}"
+  const absBtn = c.status==='plan'
+    ? `<span class="c-abs${c.noshow?' on':''}" onclick="toggleNoshow(event,'${cssEsc(c.id)}')" title="欠車（この便は来ません）。チェック中はカードを動かせません">${c.noshow?'✓ 欠車':'欠車'}</span>` : '';
+  const movable = !(c.status==='plan' && c.noshow);
+  return `<div class="card ${cls} ${od}${c.noshow?' noshow':''}" draggable="${movable}" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
-    <div class="c-topright">${doneBay}${doneRow}${dur}${detailBtn}</div>
+    <div class="c-topright">${absBtn}${doneBay}${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
-    ${idxRow}
+    ${planBadgeOf(c)}${idxRow}
     ${idHtml}
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
@@ -1202,7 +1330,9 @@ function idxBadgeOf(c){
   if(!text) return '';
   const closed=/(^|[^A-Za-z])CLOSED?([^A-Za-z]|$)/i.test(text);
   const checked=/CHECK(ED)?[_ -]?IN/i.test(text);              // CHECKED_IN だけ青で目立たせる
-  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}">IDX ${esc(text)}</span>`;
+  // バースの枠に収まるよう、頭の APPOINTMENT_／ARRIVAL_ は省いて短く出す（元の値はツールチップ）
+  const short=String(text).replace(/^APPOINTMENT[_ ]/i,'').replace(/^ARRIVAL[_ ]/i,'').replace(/_/g,' ');
+  return `<span class="c-idx ${closed?'ok':(checked?'checkin':'info')}" title="IDX ${escAttr(text)}">${esc(short)}</span>`;
 }
 // IDXへ反映できなかったカードの件数表示
 function refreshIdxTrouble(){
@@ -1211,6 +1341,12 @@ function refreshIdxTrouble(){
   const bad=state.cards.filter(c=>{ const m=latestCmdFor(c.id); return m && m.state==='error'; });
   document.getElementById('st-idx-n').textContent=bad.length;
   el.classList.toggle('show', bad.length>0);
+  const q=document.getElementById('st-idxq');
+  if(q){
+    const n=idxPendingCount();
+    document.getElementById('st-idxq-n').textContent=n;
+    q.classList.toggle('show', n>0);
+  }
 }
 function openIdxTrouble(){
   const bad=state.cards.map(c=>({c, m:latestCmdFor(c.id)})).filter(x=>x.m && x.m.state==='error');
@@ -1418,11 +1554,27 @@ function focusHit(i){
 
 /* ============ Drag & Drop ============ */
 let dragId=null;
-function dragStart(e){dragId=e.target.dataset.id;e.target.classList.add('dragging');e.dataTransfer.effectAllowed='move';}
+function dragStart(e){
+  const c=state.cards.find(x=>x.id===e.target.dataset.id);
+  if(c && c.status==='plan' && c.noshow){ e.preventDefault(); toast('欠車のカードは動かせません'); return; }
+  dragId=e.target.dataset.id;e.target.classList.add('dragging');e.dataTransfer.effectAllowed='move';
+}
 function dragEnd(e){e.target.classList.remove('dragging');document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));}
 function dragOver(e){e.preventDefault();e.currentTarget.classList.add('dragover');}
 function dragLeave(e){e.currentTarget.classList.remove('dragover');}
 
+// 欠車のチェック（予定のカードのみ）。チェック中は動かせない
+function toggleNoshow(ev, id){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(c.status!=='plan'){ toast('欠車にできるのは予定のカードだけです'); return; }
+  c.noshow=!c.noshow;
+  pushCards();
+  const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'') || c.id;
+  addLog({ ts:Date.now(), who:operator.trim()||'-', type:'move', cardId:c.id, carrier, from:'予定', to:c.noshow?'欠車':'予定（欠車を解除）' });
+  toast(c.noshow?`欠車にしました（${c.id}）。動かせなくなります`:`欠車を解除しました（${c.id}）`);
+  render();
+}
 // カードの現在位置を読みやすいラベルにする
 function locLabel(c){
   if(c.status==='plan') return '予定';
@@ -1517,6 +1669,7 @@ function cardTouchStart(e){
   if(!cardEl) return;
   const id=cardEl.dataset.id;
   const c=state.cards.find(x=>x.id===id); if(!c) return;
+  if(c.status==='plan' && c.noshow) return;      // 欠車は動かさない
   touchCard=c; touchMoved=false;
   const t=e.touches[0];
   touchStartXY={x:t.clientX,y:t.clientY};
@@ -1701,12 +1854,14 @@ function openDetail(id){
   const bayChip = usedBay
     ? `<span class="dt-bay"${bayFi2>=0?` style="background:var(--f${bayFi2%5})"`:''}>${c.status==='arrive'?'着車中':'着車'} ${esc(usedBay)}</span>`
     : '';
+  const dtRow=(f,extra)=>`<div class="dt-row"><div class="dt-k">${esc(f)}</div><div class="dt-v">${esc(c.fields[f]||'—')}${extra||''}</div></div>`;
+  // Dock は Appointment ID のすぐ下に出す
+  const dockKey=fields.find(f=>/dock/i.test(f) && c.fields[f]!==undefined);
   let dockShown=false;
-  html+=fields.map(f=>{
-    const v=c.fields[f]; if(v===undefined) return '';
-    let extra='';
-    if(bayChip && /dock/i.test(f) && !dockShown){ extra=bayChip; dockShown=true; }
-    return `<div class="dt-row"><div class="dt-k">${esc(f)}</div><div class="dt-v">${esc(v||'—')}${extra}</div></div>`;
+  if(dockKey){ html+=dtRow(dockKey,bayChip); dockShown=!!bayChip; }
+  html+=fields.filter(f=>f!==dockKey).map(f=>{
+    if(c.fields[f]===undefined) return '';
+    return dtRow(f);
   }).join('');
   // Dock項目が表示対象に無い場合は独立した行として出す
   if(bayChip && !dockShown){
@@ -2858,7 +3013,7 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
       // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
       // それ以外はFirebaseのメモを反映。
       if(c.id===detailCardId){
@@ -2951,6 +3106,16 @@ function setupDB(){
     root.child(IDX_MASTER_PATH).on('value', s=>{
       idxMaster = s.val()||null;
       refreshIdxInfo();
+    });
+    // 着車プラン（直近の計画日分）受信 → カードに計画フロアを表示
+    root.child('plans').orderByKey().limitToLast(3).on('value', s=>{
+      const v=s.val()||{}; const m={};
+      Object.keys(v).sort().forEach(d=>{
+        const a=(v[d]&&v[d].assign)||{};
+        const bz=(v[d]&&v[d].bays)||{};
+        Object.keys(a).forEach(k=>{ if(a[k]&&a[k].f) m[k]={f:a[k].f, b:bz[k]||a[k].b||null, h:a[k].h, date:d}; });
+      });
+      planMap=m; render();
     });
     // バース構成（階層）受信
     root.child('floors').on('value', s=>{
@@ -3112,13 +3277,30 @@ function sendIdxCommand(c, target){
     .catch(e=>{ console.error(e); warn('IDXへの指示を送れませんでした'); delete myCmdKeys[ref.key]; });
 }
 // 指示の結果を受け取って知らせる
+const IDX_CMD_SLOW_MS = 3*60000;     // これだけ待っても始まらないときは知らせる
+let idxSlowNotified = {};
 function handleIdxCommands(m){
   Object.keys(myCmdKeys).forEach(k=>{
     const c=m[k];
     if(!c) return;
-    if(c.state==='done'){ toast(`IDXのステータスを変更しました（${c.id}）`); delete myCmdKeys[k]; }
-    else if(c.state==='error'){ warn(`IDXのステータスを変更できませんでした（${c.id}）: ${c.message||''}`); delete myCmdKeys[k]; }
+    if(c.state==='done'){ toast(`IDXのステータスを変更しました（${c.id}）`); delete myCmdKeys[k]; delete idxSlowNotified[k]; }
+    else if(c.state==='error'){ warn(`IDXのステータスを変更できませんでした（${c.id}）: ${c.message||''}`); delete myCmdKeys[k]; delete idxSlowNotified[k]; }
   });
+  // 自分の指示が順番待ちのまま止まっていないか
+  const now=Date.now();
+  Object.keys(myCmdKeys).forEach(k=>{
+    const c=m[k];
+    if(!c || c.state!=='pending' || idxSlowNotified[k]) return;
+    if(now-(c.at||0) < IDX_CMD_SLOW_MS) return;
+    idxSlowNotified[k]=1;
+    warn(`IDXへの指示が順番待ちのままです（${c.id}）。マスターPCが他の指示を実行中かもしれません`);
+  });
+}
+// いま順番待ちになっているIDX指示の件数
+function idxPendingCount(){
+  const now=Date.now();
+  return Object.values(idxCmdMap||{}).filter(c=>c && c.state==='pending'
+    && (!idxRev.code || c.code===idxRev.code) && now-(c.at||0) < 60*60000).length;
 }
 function cleanupIdxCommands(){
   if(!fbReady || !fbDB) return;
@@ -3153,7 +3335,7 @@ function pushCards(){
     status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
     arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
     doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null
+    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null
   }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
@@ -3203,5 +3385,6 @@ loadIdxRev();
 loadInitial();
 initFirebase();
 </script>
+<script src="appnav.js" data-app="dock"></script>
 </body>
 </html>
