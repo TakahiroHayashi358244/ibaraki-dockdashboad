@@ -508,7 +508,7 @@ function renderPlan() {
   document.getElementById("pKpis").innerHTML =
     `<div class="kpi"><span>予約</span><b>${fmtN(planAppts.length)}</b></div>
      <div class="kpi"><span>Units</span><b>${fmtN(tot.u)}</b></div>
-     <div class="kpi ${un ? "alert" : ""}"><span>未割当</span><b>${fmtN(un)}</b></div>
+     <div class="kpi"><span>UPH</span><b>${fmtN(tot.lh > 0 ? tot.cap / tot.lh : uphOf(shift))}</b></div>
      <div class="kpi"><span>IN HC（${esc(shift)}）</span><b>${fmtN(tot.hc)}</b></div>
      <div class="kpi"><span>IN LH</span><b>${fmt1(tot.lh)}</b></div>
      <div class="kpi"><span>処理可能</span><b>${fmtN(tot.cap)}</b></div>`;
