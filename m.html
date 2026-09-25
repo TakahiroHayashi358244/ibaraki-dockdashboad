@@ -244,6 +244,12 @@ body[data-v="att"] header{background:#111;}
 .ath-chip.mobile{background:#eaf1fe;color:#1d4ed8;border-color:#c7d7fb;} .ath-chip.pc{background:#f3eefe;color:#6d28d9;border-color:#ddd0fb;}
 .ath-chip.none{background:#f4f6f9;color:#6b7280;border-color:#e3e8ee;font-weight:600;}
 .ath-day .go{flex:none;align-self:center;font:inherit;font-size:11.5px;color:#1f3864;font-weight:700;border:1px solid #cfd6e0;border-radius:7px;padding:4px 7px;background:#fff;}
+/* 検索欄の × ボタン */
+.ath-cw{position:relative;display:block;flex:1 1 auto;min-width:0;}
+.ath-cw > input{width:100%;box-sizing:border-box;padding-right:40px !important;}
+.ath-cw > input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;display:none;}
+.ath-cw > button.ath-clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px !important;height:26px !important;min-width:0 !important;border:0 !important;border-radius:50% !important;background:#c3cad4 !important;color:#fff !important;font-size:17px !important;font-weight:700;line-height:1;display:none;align-items:center;justify-content:center;padding:0 !important;margin:0 !important;cursor:pointer;font-family:inherit;box-shadow:none !important;}
+.ath-cw > button.ath-clr:active{background:#9aa4b1 !important;}
 .at-err{margin:6px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
 </style>
 </head>
@@ -840,6 +846,7 @@ var ATH = (function () {
       '<div class="ath-per">' + [7, 30, 90].map(function (d) { return '<button type="button" data-d="' + d + '">' + d + '日</button>'; }).join("") + '</div>' +
       '<div class="ath-res"><div class="ath-hint">名前やバッチIDを入れると、期間内の出勤日と持ち出した機器を表示します</div></div>';
     var inp = el.querySelector("input"), res = el.querySelector(".ath-res"), t = null, seq = 0;
+    clearable(inp);
     function perBtns() { el.querySelectorAll(".ath-per button").forEach(function (b) { b.classList.toggle("on", +b.dataset.d === st.days); }); }
     perBtns();
     el.querySelectorAll(".ath-per button").forEach(function (b) {
@@ -892,7 +899,22 @@ var ATH = (function () {
     }
     return { focus: function () { try { inp.focus(); } catch (e) {} } };
   }
-  return { navHtml: navHtml, bindNav: bindNav, person: person, md: md, wd: wd };
+  /* ---- 検索欄に「×」（一度で全部消す）を付ける ---- */
+  function clearable(inp) {
+    if (!inp || inp.parentNode.classList.contains("ath-cw")) return;
+    var w = document.createElement("span"); w.className = "ath-cw";
+    inp.parentNode.insertBefore(w, inp); w.appendChild(inp);
+    var b = document.createElement("button"); b.type = "button"; b.className = "ath-clr"; b.setAttribute("aria-label", "消去"); b.textContent = "×";
+    w.appendChild(b);
+    function upd() { b.style.display = inp.value ? "flex" : "none"; }
+    b.addEventListener("click", function () {
+      inp.value = ""; upd();
+      inp.dispatchEvent(new Event("input", { bubbles: true }));
+      try { inp.focus(); } catch (e) {}
+    });
+    inp.addEventListener("input", upd); upd();
+  }
+  return { navHtml: navHtml, bindNav: bindNav, person: person, clearable: clearable, md: md, wd: wd };
 })();
 
 let atDate = "", atMode = "date", atPersonUI = null;   // atDate: 表示中の業務日（""＝現在の業務日）
@@ -1009,6 +1031,7 @@ function renderAtt() {
 }
 (function () {
   let qt = null;
+  ATH.clearable(document.getElementById("atQ"));
   document.getElementById("atQ").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { atQ = e.target.value; render(); }, 120); });
   document.querySelectorAll("#atChips button").forEach(b => b.addEventListener("click", () => {
     atFilter = b.dataset.f; try { localStorage.setItem("mAtt_filter", atFilter); } catch (e) { /* 無視 */ } render();
