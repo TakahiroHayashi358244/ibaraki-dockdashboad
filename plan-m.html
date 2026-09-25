@@ -35,10 +35,10 @@ header .dot.mst{margin-left:6px;}
 header .dot.mst.on{background:#4aa3ff;}
 header .sp{margin-left:auto;}
 .wrap{padding:7px 8px 10px;}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px;}
-.kpi{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;}
-.kpi span{display:block;font-size:10px;color:var(--sub);line-height:1.2;}
-.kpi b{font-size:16px;line-height:1.25;font-variant-numeric:tabular-nums;}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 9px 9px;}
+.kpi span{display:block;font-size:11px;color:var(--sub);line-height:1.3;}
+.kpi b{font-size:21px;line-height:1.3;font-variant-numeric:tabular-nums;}
 .kpi.alert b{color:var(--alert);}
 .sec{font-weight:800;font-size:11.5px;color:var(--sub);margin:9px 3px 5px;}
 .fl{
@@ -61,6 +61,11 @@ header .sp{margin-left:auto;}
 .st b{display:block;font-size:17px;line-height:1.2;font-variant-numeric:tabular-nums;}
 .st span{font-size:10px;color:var(--sub);}
 .st .ok b{color:var(--green);} .st .run b{color:#0277bd;} .st .wait b{color:#b3790c;} .st .ng b{color:var(--alert);}
+.st .ng.has{cursor:pointer;border-color:#f0b4b4;background:#fff7f7;}
+.ngrow{background:#fff;border:1px solid #f0c9c9;border-left:4px solid var(--alert);border-radius:9px;
+  padding:6px 9px;margin-bottom:6px;font-size:11.5px;}
+.ngrow b{font-size:12.5px;font-variant-numeric:tabular-nums;}
+.ngrow div{color:var(--sub);margin-top:1px;}
 .row{
   background:#fff;border:1px solid var(--line);border-left:4px solid var(--sub);border-radius:9px;
   padding:6px 9px;margin-bottom:6px;display:flex;align-items:center;gap:9px;
@@ -108,6 +113,7 @@ header .sp{margin-left:auto;}
   <div id="floors"><div class="note">読み込み中…</div></div>
   <div class="sec">ドックマスタへの反映</div>
   <div class="st" id="dpst"></div>
+  <div id="ngbox"></div>
   <div class="ft">閲覧専用です。変更はPCの着車プランから行ってください。</div>
 </div>
 
@@ -129,6 +135,8 @@ const DOCK_ROOT = "dock", ID_FIELD = "Appointment Id";
 const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
 const DOOR_TTL = 3 * 3600000, DOORSTATE_TTL = 7 * 24 * 3600000;
 
+let showNg = false;
+function toggleNg() { showNg = !showNg; render(); }
 const S = {
   masters: { next: null, current: null }, floors: [], rules: {}, plans: {},
   roster: [], custom: {}, layout: {}, floorMove: {}, pmaster: null,
@@ -263,12 +271,14 @@ function latestCmd(id) {
 function reflectState(a) {
   const f = (S.plan.assign[a.key] || {}).f;
   if (!f) return null;                       // 未割当は対象外
+  const d = curDoor(a);
+  const done = d && floorDigit(f) && String(d)[0] === floorDigit(f);
   const c = latestCmd(a.id);
   if (c && c.state === "running") return "run";
   if (c && c.state === "pending") return "wait";
+  if (done) return "ok";                     // 実際に計画どおりのフロアのドアなら反映済（古い失敗より優先）
   if (c && c.state === "error") return "ng";
-  const d = curDoor(a);
-  return (d && floorDigit(f) && String(d)[0] === floorDigit(f)) ? "ok" : "no";
+  return "no";
 }
 
 /* ---- 描画 ---- */
@@ -311,8 +321,13 @@ function render() {
     `<div class="ok"><b>${g.ok.length}</b><span>反映済</span></div>
      <div class="run"><b>${g.run.length}</b><span>実行中</span></div>
      <div class="wait"><b>${g.wait.length}</b><span>待機中</span></div>
-     <div class="ng"><b>${g.ng.length}</b><span>失敗</span></div>
+     <div class="ng${g.ng.length ? " has" : ""}" ${g.ng.length ? 'onclick="toggleNg()"' : ""}><b>${g.ng.length}</b><span>失敗${g.ng.length ? "（内容）" : ""}</span></div>
      <div><b>${g.no.length}</b><span>未反映</span></div>`;
+  document.getElementById("ngbox").innerHTML = (showNg && g.ng.length) ? g.ng.map(a => {
+    const c = latestCmd(a.id) || {};
+    return `<div class="ngrow"><b>${esc(a.id)}</b> ${esc((S.plan.assign[a.key] || {}).f || "")} ／ 現在 ${esc(curDoor(a) || "—")}${c.door ? " → " + esc(c.door) : ""}
+      <div>${esc(c.message || "理由の記録がありません")}</div></div>`;
+  }).join("") : "";
 
   const m = S.idxMaster;
   document.getElementById("dotM").classList.toggle("on", !!(m && m.at && Date.now() - m.at < 3 * 60000));
