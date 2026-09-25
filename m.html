@@ -812,7 +812,6 @@ function renderAtt() {
     : `<table class="at-tb"><thead><tr><th class="l cid">バッチID</th><th class="l">名前</th>${AT_KINDS.map(([, lb]) => `<th class="cdv">${lb}</th>`).join("")}</tr></thead><tbody>` +
       rows.map(r => {
         const sub = [];
-        if (r.lent && r.account) sub.push(esc(r.account));
         if (r.ret) sub.push("返却 " + esc(r.ret)); else if (r.lend) sub.push("出勤 " + esc(r.lend));
         return `<tr class="${r.ret ? "off" : ""}"><td class="id">${atHl(r.key, q)}${r.alias ? `<span class="al">${atHl(r.alias, q)}</span>` : ""}</td>` +
           `<td class="nm${r.lent ? " lent" : ""}"><span class="n">${atHl(r.name || "（名前なし）", q)}</span>${sub.length ? `<small>${sub.join(" ・ ")}</small>` : ""}</td>` +
