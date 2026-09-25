@@ -1062,7 +1062,10 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
+      // 新しい項目は、キーが無い送信（古い版のPC）で消えないように手元の値を残す
+      c.idxClosedAt=('idxClosedAt' in p)?(p.idxClosedAt||null):(c.idxClosedAt||null);
+      c.doneBay=('doneBay' in p)?(p.doneBay||null):(c.doneBay||null);
+      c.noshow=('noshow' in p)?!!p.noshow:!!c.noshow;
       if(c.id===detailCardId){
         const ta=document.getElementById('memoInput');
         c.memo = ta ? ta.value : (p.memo||null);
@@ -1097,7 +1100,7 @@ function loadCSV(ev){
       prevById[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
         arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
         doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-        idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
+        idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:!!c.noshow};
     });
     ingest(headers,data);
     // 新CSVに含まれるIDのうち、以前の情報があれば復元
@@ -1105,7 +1108,7 @@ function loadCSV(ev){
       const p=prevById[c.id];
       if(p){ c.status=p.status||'plan'; c.bay=p.bay; c.arriveAt=p.arriveAt;
         c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo;
-        c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; }
+        c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow; }
     });
     render();
     recordCsvLoad(data.length);
@@ -1120,7 +1123,7 @@ function loadCSV(ev){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
             doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null};
+            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:!!c.noshow};
         }
       });
       fbPlacement=carried;
@@ -2998,6 +3001,9 @@ function normalizeMaster(m){
 function rebuildFromFB(){
   if(!fbMaster || !fbMaster.headers || !fbMaster.data) return;
   fbApplying=true;
+  // カードを作り直す前に、送信元が古い版だったとき用に手元の値を控えておく
+  const prevExtra={};
+  state.cards.forEach(c=>{ prevExtra[c.id]={ noshow:!!c.noshow, doneBay:c.doneBay||null, idxClosedAt:c.idxClosedAt||null }; });
   // masterからカード生成（status等は後でplacement適用）
   state.headers = fbMaster.headers;
   state.cards = fbMaster.data.map(obj=>({
@@ -3013,7 +3019,11 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
+      // 新しい項目は、キーが無い送信（古い版のPC）で消えないように直前の値を残す
+      const keep=prevExtra[c.id]||{};
+      c.idxClosedAt=('idxClosedAt' in p)?(p.idxClosedAt||null):(keep.idxClosedAt||null);
+      c.doneBay=('doneBay' in p)?(p.doneBay||null):(keep.doneBay||null);
+      c.noshow=('noshow' in p)?!!p.noshow:!!keep.noshow;
       // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
       // それ以外はFirebaseのメモを反映。
       if(c.id===detailCardId){
@@ -3335,7 +3345,7 @@ function pushCards(){
     status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
     arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
     doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null
+    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:!!c.noshow
   }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
