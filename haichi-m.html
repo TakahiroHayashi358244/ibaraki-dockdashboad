@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2e7d5b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="配置">
+<title>配置ダッシュボード（スマホ）</title>
+<style>
+:root{
+  --ink:#1f2b38; --sub:#697a8c; --line:#e3e8ee; --bg:#eef2f6;
+  --accent:#2e7d5b; --alert:#e05050;
+  --f0:#1f6f8b; --f1:#2e7d5b; --f2:#a07b16; --f3:#a0522d; --f4:#5b54a8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.35;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 14px);
+}
+header{
+  position:sticky;top:0;z-index:20;background:var(--accent);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 7px) 10px 7px;
+}
+.h1{display:flex;align-items:center;gap:8px;}
+.navbtn{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:16px;font-weight:800;color:#fff;}
+.navbtn .cr{font-size:10px;opacity:.75;}
+.h1 .dot{width:9px;height:9px;border-radius:50%;background:#ff8a8a;flex:none;}
+.h1 .dot.on{background:#8ce99a;}
+.h1 .sp{margin-left:auto;}
+.h1 .cnt{font-size:12px;opacity:.92;font-variant-numeric:tabular-nums;}
+.sw{display:flex;gap:5px;margin-top:6px;}
+.sw button{
+  flex:none;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:7px;
+  padding:5px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+}
+.sw button.on{background:#fff;color:var(--accent);}
+.sw .gap{flex:1;}
+.wrap{padding:8px;}
+.fl{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;}
+.fl-h{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
+  background:#f6f9fb;border-bottom:1px solid var(--line);
+}
+.fl-h .nm{font-weight:800;font-size:15px;}
+.fl-h .m{margin-left:auto;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.fl-h .ar{font-size:10px;color:var(--sub);transition:transform .15s;}
+.fl.cl .fl-h .ar{transform:rotate(-90deg);}
+.fl.cl .fl-b{display:none;}
+.fl-b{padding:6px 8px 8px;}
+.gr{margin-top:6px;}
+.gr:first-child{margin-top:0;}
+.gr-h{display:flex;align-items:baseline;gap:6px;font-size:11.5px;color:var(--sub);margin-bottom:3px;}
+.gr-h b{font-size:12.5px;color:var(--ink);}
+.gr-h .n{margin-left:auto;font-variant-numeric:tabular-nums;}
+.chips{display:flex;flex-wrap:wrap;gap:4px;}
+.ch{
+  display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;
+  font-size:12px;font-weight:700;background:#64748b;color:#fff;max-width:100%;
+}
+.ch i{font-style:normal;font-size:9.5px;opacity:.85;font-variant-numeric:tabular-nums;}
+.empty{color:var(--sub);font-size:11.5px;padding:6px 2px;}
+.nw .ch{background:#94a3b8;}
+.ft{color:var(--sub);font-size:10.5px;text-align:center;padding:6px;}
+.navmenu{
+  position:fixed;left:8px;top:calc(env(safe-area-inset-top) + 42px);z-index:60;min-width:200px;
+  background:#fff;border:1px solid #d8e0e8;border-radius:12px;box-shadow:0 12px 34px rgba(20,35,50,.32);padding:5px;
+}
+.navmenu[hidden]{display:none;}
+.navmenu a{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:9px;color:#1f2b38;text-decoration:none;font-size:14px;font-weight:700;}
+.navmenu a .mk{width:7px;height:7px;border-radius:50%;background:transparent;flex:none;}
+.navmenu a.cur{color:#1f6f8b;} .navmenu a.cur .mk{background:#1f6f8b;}
+.navmask{position:fixed;inset:0;z-index:55;} .navmask[hidden]{display:none;}
+</style>
+</head>
+<body data-app="haichi">
+<header>
+  <div class="h1"><button class="navbtn" id="navBtn">配置<span class="cr">▼</span></button>
+    <span class="cnt" id="cnt">—</span><span class="sp"></span><span class="dot" id="dot"></span></div>
+  <div class="sw" id="sw"></div>
+</header>
+<div class="navmask" id="navMask" hidden></div>
+<div class="navmenu" id="navMenu" hidden></div>
+<div class="wrap" id="body"><div class="empty">読み込み中…</div></div>
+<div class="ft">閲覧専用です。配置の変更はPCの配置ダッシュボードから行ってください。</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ===== 配置ダッシュボードのスマホ用（閲覧専用。PC版と同じデータを読むだけ） ===== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD01thIqlq4VQpSe8fxU-0a_M9ynO6p0IM",
+  authDomain: "gworker-haichi.firebaseapp.com",
+  databaseURL: "https://gworker-haichi-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gworker-haichi",
+  storageBucket: "gworker-haichi.firebasestorage.app",
+  messagingSenderId: "218653712277",
+  appId: "1:218653712277:web:af850c4143bbf88983209c"
+};
+const PLACES = ["OUT", "IN", "ICQA", "other"];
+const NONWORK = [["WAIT", "待機"], ["ABSENT", "欠勤"], ["HOLIDAY", "休日"]];
+const ROLE_STYLES = {
+  Manager: "#059669", Supervisor: "#d97706", Reader: "#2563eb",
+  Operator: "#64748b", Observer: "#7c3aed", Gworker: "#111827",
+};
+const ROLE_ORDER = { Supervisor: 0, Manager: 1, Reader: 2, Operator: 3, Observer: 4 };
+
+let roster = [], custom = {}, admins = {}, layout = {}, floorMove = {}, nameOverride = {};
+let master = { OUT: [], IN: [], ICQA: [] }, floors = ["6F", "5F", "4F", "3F", "2F"];
+let shift = "日勤";
+const closed = {};
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const uid = p => p.no + "_" + p.name;
+const uidEnc = u => String(u).replace(/[.#$\[\]\/]/g, "_");
+const fmt1 = n => (Math.round(n * 10) / 10).toString().replace(/\.0$/, "");
+function people() {
+  const list = Array.isArray(roster) ? roster.filter(Boolean).slice() : [];
+  Object.values(custom || {}).forEach(c => { if (c && !list.some(p => p.no === c.no)) list.push(c); });
+  return list;
+}
+const masterOk = () => ["OUT", "IN", "ICQA"].some(k => Array.isArray(master[k]) && master[k].length);
+function locOf(p) {
+  const k = uidEnc(uid(p)), L = layout[k];
+  const valid = (pl, sub) => !masterOk() || (Array.isArray(master[pl]) && master[pl].includes(sub));
+  if (L !== undefined && L !== null) {
+    if (["WAIT", "ABSENT", "HOLIDAY", "other"].includes(L)) return L;
+    const pt = String(L).split("|");
+    if (pt.length >= 2 && valid(pt[0], pt[1])) return pt[0] + "|" + pt[1];   // Pickゾーンは親工程にまとめる
+    return "WAIT";
+  }
+  return valid(p.section, p.subsec) ? p.section + "|" + p.subsec : "WAIT";
+}
+const floorOf = p => (floorMove[uidEnc(uid(p))] !== undefined ? floorMove[uidEnc(uid(p))] : p.floor);
+const dispName = p => { const v = nameOverride[uidEnc(uid(p))]; return (v !== undefined && v !== "") ? v : p.name; };
+const roleColor = r => ROLE_STYLES[r] || "#0891b2";
+const sortP = (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || (a.no - b.no);
+
+function shifts() {
+  const s = new Set();
+  people().forEach(p => { if (p.shift) s.add(p.shift); });
+  const base = ["日勤", "夜勤"].filter(x => s.has(x));
+  [...s].forEach(x => { if (!base.includes(x)) base.push(x); });
+  return base.length ? base : ["日勤"];
+}
+function chip(p) {
+  return `<span class="ch" style="background:${roleColor(p.role)}">${esc(dispName(p))}<i>${fmt1(p.lh || 0)}</i></span>`;
+}
+function render() {
+  const sh = shifts();
+  if (!sh.includes(shift)) shift = sh[0];
+  document.getElementById("sw").innerHTML =
+    sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("") + '<span class="gap"></span>';
+
+  const all = people().filter(p => p.shift === shift);
+  const work = all.filter(p => !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
+  document.getElementById("cnt").textContent = `稼働 ${work.length}名 / 全${all.length}名`;
+
+  let h = "";
+  floors.forEach((fn, i) => {
+    const mem = all.filter(p => floorOf(p) === fn && !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
+    const lh = mem.reduce((s, p) => s + (p.lh || 0), 0);
+    const col = `var(--f${i % 5})`;
+    // 工程ごとにまとめる
+    const groups = [];
+    PLACES.forEach(pl => {
+      if (pl === "other") {
+        const g = mem.filter(p => locOf(p) === "other");
+        if (g.length) groups.push({ label: "その他", sub: "", list: g });
+        return;
+      }
+      (master[pl] || []).forEach(sub => {
+        const g = mem.filter(p => locOf(p) === pl + "|" + sub);
+        if (g.length) groups.push({ label: pl, sub, list: g });
+      });
+    });
+    h += `<div class="fl${closed[fn] ? " cl" : ""}" data-f="${esc(fn)}">
+      <div class="fl-h" onclick="toggleFloor('${esc(fn)}')">
+        <span class="ar">▼</span><span class="nm" style="color:${col}">${esc(fn)}</span>
+        <span class="m">${mem.length}名 ・ LH ${fmt1(lh)}</span></div>
+      <div class="fl-b">${groups.length ? groups.map(g => `
+        <div class="gr"><div class="gr-h"><b>${esc(g.sub || g.label)}</b>${g.sub ? `<span>${esc(g.label)}</span>` : ""}
+          <span class="n">${g.list.length}名 ・ ${fmt1(g.list.reduce((s, p) => s + (p.lh || 0), 0))}</span></div>
+          <div class="chips">${g.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")
+        : `<div class="empty">配置なし</div>`}</div>
+    </div>`;
+  });
+  // 非稼働
+  const nw = NONWORK.map(([loc, label]) => ({ label, list: all.filter(p => locOf(p) === loc) })).filter(x => x.list.length);
+  if (nw.length) {
+    h += `<div class="fl nw${closed["_nw"] ? " cl" : ""}">
+      <div class="fl-h" onclick="toggleFloor('_nw')"><span class="ar">▼</span><span class="nm" style="color:var(--sub)">待機・欠勤・休日</span>
+        <span class="m">${nw.reduce((s, x) => s + x.list.length, 0)}名</span></div>
+      <div class="fl-b">${nw.map(x => `<div class="gr"><div class="gr-h"><b>${esc(x.label)}</b><span class="n">${x.list.length}名</span></div>
+        <div class="chips">${x.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")}</div></div>`;
+  }
+  document.getElementById("body").innerHTML = h || `<div class="empty">データがありません</div>`;
+}
+function setShift(s) { shift = s; render(); }
+function toggleFloor(f) { closed[f] = !closed[f]; render(); }
+
+/* ===== Firebase（読むだけ） ===== */
+function start() {
+  const db = firebase.database();
+  db.ref(".info/connected").on("value", s => document.getElementById("dot").classList.toggle("on", s.val() === true));
+  const on = (path, fn) => db.ref(path).on("value", s => { fn(s.val()); render(); });
+  on("roster", v => { roster = Array.isArray(v) ? v : (v ? Object.values(v) : []); });
+  on("custom", v => { custom = v || {}; });
+  on("layout", v => { layout = v || {}; });
+  on("floorMove", v => { floorMove = v || {}; });
+  on("nameOverride", v => { nameOverride = v || {}; });
+  on("master", v => { master = v || { OUT: [], IN: [], ICQA: [] }; });
+  on("floors", v => { if (Array.isArray(v) && v.length) floors = v.filter(Boolean); });
+}
+try {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().onAuthStateChanged(u => { if (u) start(); });
+  firebase.auth().signInAnonymously().catch(() => {
+    document.getElementById("body").innerHTML = '<div class="empty">接続できませんでした</div>';
+  });
+} catch (e) { /* 無視 */ }
+
+/* ===== ページ切替（PC版と同じ考え方） ===== */
+(function () {
+  const APPS = [
+    { id: "dock", name: "ドック状況", url: "m.html" },
+    { id: "plan", name: "着車プラン", url: "plan-m.html" },
+    { id: "haichi", name: "配置", url: "haichi-m.html" },
+  ];
+  const cur = document.body.dataset.app || "";
+  const btn = document.getElementById("navBtn"), menu = document.getElementById("navMenu"), mask = document.getElementById("navMask");
+  if (!btn || !menu) return;
+  menu.innerHTML = APPS.map(a => a.id === cur
+    ? `<a class="cur" href="#" onclick="return false"><span class="mk"></span>${a.name}</a>`
+    : `<a href="${a.url}"><span class="mk"></span>${a.name}</a>`).join("");
+  const close = () => { menu.hidden = true; mask.hidden = true; };
+  btn.addEventListener("click", e => { e.stopPropagation(); const o = menu.hidden; menu.hidden = !o; mask.hidden = !o; });
+  mask.addEventListener("click", close);
+})();
+</script>
+</body>
+</html>
