@@ -275,6 +275,9 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
   <header>
     <h1><span class="dot" id="syncDot"></span>着車プラン</h1>
     <label class="fld">計画日 <input type="date" id="planDate"></label>
+    <label class="fld" title="配置ダッシュボードの配置サマリと同じく、選んだシフトのIN人員だけで計算します">シフト
+      <select id="shiftSel" onchange="setShift(this.value)"><option value="日勤">日勤</option><option value="夜勤">夜勤</option></select>
+    </label>
     <label class="fld">予約
       <select id="srcSel">
         <option value="next">翌日分CSV</option>
@@ -478,9 +481,13 @@ const S = {
   ],
   sel: null,
 };
-let CFG = { subsecOff: [], axS: null, axE: null };
+let CFG = { subsecOff: [], axS: null, axE: null, shift: "日勤" };
 try { Object.assign(CFG, JSON.parse(localStorage.getItem(LS_KEY) || "{}")); } catch (e) {}
+if (CFG.shift !== "日勤" && CFG.shift !== "夜勤") CFG.shift = "日勤";
 function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
+try { document.getElementById("shiftSel").value = CFG.shift; } catch (e) {}
+// シフト切替（配置サマリの 日勤／夜勤 と同じ区分）
+function setShift(v) { CFG.shift = v === "夜勤" ? "夜勤" : "日勤"; saveCfg(); if (S.date) render(); }
 
 /* ============ 汎用 ============ */
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m])); }
@@ -715,9 +722,17 @@ function brkBg(h, col) {
 }
 
 // IN人員を {floor, s, e, f(LH/時間), uph} に変換
+// HC・LHは配置ダッシュボードの配置サマリ（IN）と同じ数え方：
+//   選択シフトの人だけ／管理者は除外（adminsは読み込まない）／LH＝各人のLHの合計（未入力は0）
+//   出退勤時刻が無い人も人数・LHには数え、時間帯の配分は同じシフトで一番多い時刻を使う
 function inSpans() {
-  const out = [], info = { total: 0, inCnt: 0, noTime: 0, offFloor: 0 };
-  people().forEach(p => {
+  const out = [], info = { total: 0, inCnt: 0, noTime: 0, offFloor: 0, shift: CFG.shift, sum: {} };
+  const list = people().filter(p => (p.shift || "日勤") === CFG.shift);
+  // 同じシフトで一番多い出勤・退勤時刻（時刻未入力の人の配分用）
+  const mode = key => { const c = {}; list.forEach(p => { const v = tnum(p[key]); if (v != null) c[v] = (c[v] || 0) + 1; });
+    const k = Object.keys(c).sort((a, b) => c[b] - c[a])[0]; return k == null ? null : +k; };
+  const defS = mode("startT") ?? (CFG.shift === "夜勤" ? 21 : 8), defE = mode("endT") ?? (CFG.shift === "夜勤" ? 6 : 17);
+  list.forEach(p => {
     info.total++;
     const l = locOf(p);
     if (!l.startsWith("IN|")) return;
@@ -725,13 +740,17 @@ function inSpans() {
     info.inCnt++;
     const fl = floorOf(p);
     if (floorIdx(fl) < 0) { info.offFloor++; return; }
+    const lh = num(p.lh) > 0 ? num(p.lh) : 0;             // サマリと同じ（未入力は0）
+    const uph = uphFor(fl, p.shift || CFG.shift);
+    const sm = info.sum[fl] || (info.sum[fl] = { hc: 0, lh: 0, cap: 0 });
+    sm.hc++; sm.lh += lh; sm.cap += lh * uph;
     let s = tnum(p.startT), e = tnum(p.endT);
-    if (s == null || e == null) { info.noTime++; return; }
+    if (s == null || e == null) { info.noTime++; s = defS; e = defE; }
     if (e <= s) e += 24;
-    if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
-    const dur = e - s; const lh = num(p.lh) > 0 ? num(p.lh) : dur - breakOv(s, e);
+    if (CFG.shift === "夜勤" && s < 12) { s += 24; e += 24; }
+    const dur = e - s;
     const work = dur - breakOv(s, e);          // 休憩を除いた実働時間
-    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph: uphFor(fl, p.shift), shift: p.shift, lh });
+    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph, shift: CFG.shift, lh });
   });
   return { spans: out, info };
 }
@@ -744,8 +763,11 @@ function axis(spans) {
   S.appts.forEach(x => { const h = cellOf(x).h; a = Math.min(a, h); b = Math.max(b, h + 1); });
   spans.forEach(p => { a = Math.min(a, Math.floor(p.s)); b = Math.max(b, Math.ceil(p.e)); });
   // 稼働時間（既定 8〜18時）。予約がはみ出す場合だけ広げる
-  a = (CFG.axS != null && CFG.axS !== "") ? +CFG.axS : 8;
-  b = (CFG.axE != null && CFG.axE !== "") ? +CFG.axE : 18;
+  const night = CFG.shift === "夜勤";
+  const sp0 = spans.length ? Math.floor(Math.min(...spans.map(p => p.s))) : 20;
+  const sp1 = spans.length ? Math.ceil(Math.max(...spans.map(p => p.e))) : 30;
+  a = (CFG.axS != null && CFG.axS !== "") ? +CFG.axS : (night ? sp0 : 8);
+  b = (CFG.axE != null && CFG.axE !== "") ? +CFG.axE : (night ? sp1 : 18);
   S.appts.forEach(x => { const w = winOf(x); if (Math.floor(w.s / 60) < a) a = Math.floor(w.s / 60); if (Math.ceil(w.e / 60) > b) b = Math.ceil(w.e / 60); });
   a = Math.max(0, a); b = Math.min(30, Math.max(a + 1, b));
   return { a, b };
@@ -778,7 +800,8 @@ function compute() {
       if (c.b) { cell.bayUse = cell.bayUse || {}; cell.bayUse[c.b] = (cell.bayUse[c.b] || 0) + 1; } }
     else if (un[c.h]) un[c.h].push(a);
   });
-  Object.values(F).forEach(fl => backlogCalc(fl, H));
+  // フロア合計のHC・LH・処理可能数は配置サマリ（IN）と一致させる（表示時間外のLHも含む）
+  Object.values(F).forEach(fl => { fl.sum = info.sum[fl.name] || { hc: 0, lh: 0, cap: 0 }; backlogCalc(fl, H); });
   const BY = computeBays();
   S.floors.forEach(fl => { const B = BY[fl.name]; S.appts.forEach(a => { const p = B.pos[a.key]; if (p && (p.over || p.dup)) { const c = F[fl.name].cells[cellOf(a).h]; if (c) c.over = true; } }); });
   return { H, F, un, info, spans, BY };
@@ -798,6 +821,7 @@ function backlogCalc(fl, H) {
   });
   t.end = b;
   t.hc = fl.hcDay || 0;
+  if (fl.sum) { t.hc = fl.sum.hc; t.lh = fl.sum.lh; t.cap = fl.sum.cap; }
 }
 
 /* ============ 描画 ============ */
@@ -989,7 +1013,7 @@ function renderStats(R) {
     <span class="stat">IN LH<b>${fmt1(tlh)}</b></span>
     <span class="stat">能力<b>${fmt(tcap)}</b>U</span>
     <span class="stat ${noUph ? "alert" : ""}" title="フロア別に設定した場合はその加重平均。設定値は 日勤 ${fmt(uphOf("日勤"))} / 夜勤 ${fmt(uphOf("夜勤"))}">UPH<b>${fmt(Math.round(tlh > 0 ? tcap / tlh : uphOf("日勤")))}</b>${Object.keys(S.plan.uphF || {}).length ? "（フロア別）" : ""}</span>
-    <span class="stat">IN人員<b>${i.inCnt}</b>名${i.noTime ? `（時刻なし${i.noTime}）` : ""}${i.offFloor ? `（階不明${i.offFloor}）` : ""}</span>`;
+    <span class="stat" title="配置ダッシュボードの配置サマリ（${i.shift}）のIN HC・LHと同じ数え方">IN人員（${i.shift}）<b>${i.inCnt}</b>名${i.noTime ? `（時刻なし${i.noTime}＝標準時刻で配分）` : ""}${i.offFloor ? `（階不明${i.offFloor}）` : ""}</span>`;
   if (alertN) h += `<span class="stat alert">能力不足<b>${alertN}</b>枠</span>`;
   if (overN) h += `<span class="stat alert">バース不足<b>${overN}</b>台</span>`;
   const ngN = S.appts.filter(ruleNg).length;
@@ -1255,7 +1279,7 @@ function renderSummary() {
       ${unN ? `<tr><td><span class="fnm" style="color:#9aa8b8">未割当</span></td><td>${fmt(unN)}</td><td colspan="3"></td><td>${fmt(unU)}</td><td colspan="2"></td></tr>` : ""}
       ${line("合計", "#24506a", T)}</tbody>
     </table>
-    <div class="sum-note">HC＝そのフロアのIN人員の人数／LH＝休憩を除いた実働の合計／UPH＝フロアごとに設定できます（空欄は設定のUPH＝${fmt(uphOf("日勤"))}）。合計は実績の加重平均<br>
+    <div class="sum-note">HC・LH＝配置ダッシュボードの配置サマリ（${esc(CFG.shift)}）のINと同じ（人数／各人のLHの合計）／UPH＝フロアごとに設定できます（空欄は設定のUPH＝${fmt(uphOf("日勤"))}）。合計は実績の加重平均<br>
       処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝LH × UPH<br>
       過不足＝処理可能数 − 処理予定数（マイナスはその日のうちに処理しきれない見込み）</div>`;
 }
