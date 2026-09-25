@@ -7,91 +7,152 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ドック">
-<title>ドック状況（スマホ）</title>
+<meta name="apple-mobile-web-app-title" content="HFO1">
+<link rel="manifest" href="app.webmanifest">
+<title>HFO1 現場ビュー</title>
 <style>
 :root{
   --ink:#1f2b38; --sub:#697a8c; --line:#e3e8ee; --bg:#eef2f6; --panel:#fff;
   --accent:#1f6f8b; --green:#2e7d32; --warn:#e0a030; --alert:#e05050;
+  --f0:#1f6f8b; --f1:#2e7d5b; --f2:#a07b16; --f3:#a0522d; --f4:#5b54a8;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{margin:0;padding:0;height:100%;overflow:hidden;}
+html,body{margin:0;padding:0;height:100%;}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
   background:var(--bg);color:var(--ink);font-size:14px;line-height:1.4;
-  display:flex;flex-direction:column;height:100%;
+  display:flex;flex-direction:column;height:100%;overflow:hidden;
 }
 header{
-  background:var(--accent);color:#fff;flex:none;
-  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;
-  display:flex;align-items:baseline;gap:8px;
+  flex:none;background:var(--accent);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 7px) 10px 7px;transition:background .15s;
 }
-header b{font-size:16px;font-weight:800;letter-spacing:.02em;}
-header .dt{font-size:12.5px;opacity:.9;font-variant-numeric:tabular-nums;}
-header .dot{width:9px;height:9px;border-radius:50%;background:#ff8a8a;margin-left:auto;flex:none;align-self:center;}
-header .dot.on{background:#8ce99a;}
-header .dot.mst{margin-left:6px;}
-header .dot.mst.on{background:#4aa3ff;}
+body[data-v="plan"] header{background:#24506a;}
+body[data-v="haichi"] header{background:#2e7d5b;}
+.h1{display:flex;align-items:center;gap:8px;}
+.navbtn{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:16px;font-weight:800;color:#fff;}
+.navbtn .cr{font-size:10px;opacity:.75;}
+.h1 .sub{font-size:12.5px;opacity:.92;font-variant-numeric:tabular-nums;}
+.h1 .sp{margin-left:auto;}
+.h1 .dot{width:9px;height:9px;border-radius:50%;background:#ff8a8a;flex:none;}
+.h1 .dot.on{background:#8ce99a;}
+.h1 .dot.mst{margin-left:6px;} .h1 .dot.mst.on{background:#4aa3ff;}
+.sw{display:flex;gap:5px;margin-top:6px;}
+.sw button{flex:none;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:7px;padding:5px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
+.sw button.on{background:#fff;color:#2e7d5b;}
+.view{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;}
+.view[hidden]{display:none;}
+.wrap{padding:8px 8px 20px;}
+.empty{color:var(--sub);font-size:11.5px;text-align:center;padding:14px 4px;}
+.ft{color:var(--sub);font-size:10.5px;text-align:center;padding:8px 6px calc(env(safe-area-inset-bottom) + 6px);}
 
-.cols{flex:1;display:flex;gap:5px;padding:5px;min-height:0;}
-.col{
-  flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:10px;
-  display:flex;flex-direction:column;overflow:hidden;
-}
-.col-h{
-  flex:none;padding:6px 4px 5px;text-align:center;font-weight:800;font-size:12px;color:#fff;
-  display:flex;align-items:center;justify-content:center;gap:5px;
-}
+/* --- 切替メニュー --- */
+.navmenu{position:fixed;left:8px;top:calc(env(safe-area-inset-top) + 42px);z-index:60;min-width:210px;
+  background:#fff;border:1px solid #d8e0e8;border-radius:12px;box-shadow:0 12px 34px rgba(20,35,50,.32);padding:5px;}
+.navmenu[hidden]{display:none;}
+.navmenu button{all:unset;display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:9px;
+  color:#1f2b38;font-size:14px;font-weight:700;cursor:pointer;width:100%;box-sizing:border-box;}
+.navmenu button .mk{width:7px;height:7px;border-radius:50%;background:transparent;flex:none;}
+.navmenu button.cur{color:var(--accent);} .navmenu button.cur .mk{background:var(--accent);}
+.navmask{position:fixed;inset:0;z-index:55;} .navmask[hidden]{display:none;}
+
+/* --- ドック状況（3列） --- */
+.cols{display:flex;gap:5px;padding:5px;height:100%;}
+.col{flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;}
+.col-h{flex:none;padding:6px 4px 5px;text-align:center;font-weight:800;font-size:12px;color:#fff;display:flex;align-items:center;justify-content:center;gap:5px;}
 .col-h b{font-size:15px;font-variant-numeric:tabular-nums;}
-.col.plan .col-h{background:#4a7f99;}
-.col.arrive .col-h{background:var(--green);}
-.col.done .col-h{background:#8a97a3;}
-.col-b{
-  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:5px;display:flex;flex-direction:column;gap:5px;
-}
+.col.plan .col-h{background:#4a7f99;} .col.arrive .col-h{background:var(--green);} .col.done .col-h{background:#8a97a3;}
+.col-b{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:5px;display:flex;flex-direction:column;gap:5px;}
 .col-b::-webkit-scrollbar{width:0;}
-.empty{color:var(--sub);font-size:11px;text-align:center;padding:14px 2px;}
-
-.c{
-  background:#fff;border:1px solid var(--line);border-left:3px solid var(--sub);border-radius:8px;
-  padding:5px 6px 6px;cursor:pointer;box-shadow:0 1px 2px rgba(40,60,80,.08);
-}
+.c{background:#fff;border:1px solid var(--line);border-left:3px solid var(--sub);border-radius:8px;padding:5px 6px 6px;cursor:pointer;box-shadow:0 1px 2px rgba(40,60,80,.08);}
 .c:active{background:#f3f7f9;}
 .c .t1{display:flex;align-items:center;gap:4px;}
 .c .tm{font-weight:800;font-size:13px;font-variant-numeric:tabular-nums;}
 .c .u{margin-left:auto;font-weight:700;font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums;}
-.c .cr{font-size:11.5px;font-weight:700;line-height:1.25;margin-top:1px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.c .cr{font-size:11.5px;font-weight:700;line-height:1.25;margin-top:1px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .c .id{font-size:10px;color:var(--sub);font-variant-numeric:tabular-nums;letter-spacing:-.3px;}
-.c.plan{border-left-color:#4a7f99;}
-.c.arrive{border-left-color:var(--green);}
-.c.done{border-left-color:#9aa8b8;}
+.c.plan{border-left-color:#4a7f99;} .c.arrive{border-left-color:var(--green);} .c.done{border-left-color:#9aa8b8;}
 .c.late{border-left-color:var(--alert);background:#fff5f5;}
-.c.abs{background:#f4f6f8;opacity:.72;}
-.c.abs .cr,.c.abs .tm{text-decoration:line-through;color:#8a97a3;}
-.bay{
-  display:inline-block;background:var(--green);color:#fff;font-weight:800;font-size:11px;
-  padding:1px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
-}
+.c.abs{background:#f4f6f8;opacity:.72;} .c.abs .cr,.c.abs .tm{text-decoration:line-through;color:#8a97a3;}
+.bayb{display:inline-block;background:var(--green);color:#fff;font-weight:800;font-size:11px;padding:1px 6px;border-radius:5px;font-variant-numeric:tabular-nums;}
 .el{font-size:10px;color:var(--sub);font-variant-numeric:tabular-nums;margin-top:1px;}
-.el.warn{color:#b3790c;font-weight:700;}
-.el.alert{color:var(--alert);font-weight:800;}
-.tag{
-  display:inline-block;font-size:9.5px;font-weight:800;border-radius:4px;padding:0 5px;margin-top:2px;
-  background:#eef2f5;color:#5c6b79;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.tag.abs{background:#b71c1c;color:#fff;}
-.tag.idx{background:#0277bd;color:#fff;}
-.tag.idx.ok{background:var(--green);}
+.el.warn{color:#b3790c;font-weight:700;} .el.alert{color:var(--alert);font-weight:800;}
+.tag{display:inline-block;font-size:9.5px;font-weight:800;border-radius:4px;padding:0 5px;margin-top:2px;background:#eef2f5;color:#5c6b79;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tag.abs{background:#b71c1c;color:#fff;} .tag.idx{background:#0277bd;color:#fff;} .tag.idx.ok{background:var(--green);}
 
-/* 詳細（下から出るシート） */
-.sheet{
-  position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;
-  border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(20,35,50,.35);
-  padding:12px 16px calc(env(safe-area-inset-bottom) + 18px);
-  transform:translateY(102%);transition:transform .22s ease-out;max-height:80%;overflow:auto;
+/* --- 着車プラン --- */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 9px 9px;}
+.kpi span{display:block;font-size:11px;color:var(--sub);line-height:1.3;}
+.kpi b{font-size:21px;line-height:1.3;font-variant-numeric:tabular-nums;}
+.kpi.alert b{color:var(--alert);}
+.sec{font-weight:800;font-size:11.5px;color:var(--sub);margin:9px 3px 5px;}
+.fl{background:#fff;border:1px solid var(--line);border-left:5px solid var(--sub);border-radius:10px;padding:5px 9px 6px;margin-bottom:5px;}
+.fl .r1{display:flex;align-items:baseline;gap:8px;}
+.fl .nm{font-weight:800;font-size:15px;}
+.fl .n{font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;}
+.fl .n small{font-weight:600;color:var(--sub);font-size:11px;}
+.fl .u{margin-left:auto;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.fl .r2{display:flex;gap:8px;margin-top:1px;font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;flex-wrap:wrap;}
+.fl .r2 b{color:var(--ink);font-size:12px;}
+.bar{height:5px;border-radius:3px;background:#eceff2;margin-top:4px;overflow:hidden;}
+.bar i{display:block;height:100%;background:var(--green);}
+.bar i.warn{background:var(--warn);} .bar i.alert{background:var(--alert);}
+.st{display:flex;gap:6px;margin-bottom:8px;}
+.st div{flex:1;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 2px;text-align:center;}
+.st b{display:block;font-size:17px;line-height:1.2;font-variant-numeric:tabular-nums;}
+.st span{font-size:10px;color:var(--sub);}
+.st .ok b{color:var(--green);} .st .run b{color:#0277bd;} .st .wait b{color:#b3790c;} .st .ng b{color:var(--alert);}
+.st .ng.has{cursor:pointer;border-color:#f0b4b4;background:#fff7f7;}
+.ngrow{background:#fff;border:1px solid #f0c9c9;border-left:4px solid var(--alert);border-radius:9px;padding:6px 9px;margin-bottom:6px;font-size:11.5px;}
+.ngrow b{font-size:12.5px;font-variant-numeric:tabular-nums;}
+.ngrow div{color:var(--sub);margin-top:1px;}
+
+/* --- 配置 --- */
+.kpis4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;}
+.kpi4{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 6px;text-align:center;}
+.kpi4 span{display:block;font-size:10.5px;color:var(--sub);font-weight:700;}
+.kpi4 b{font-size:17px;line-height:1.2;font-variant-numeric:tabular-nums;}
+.kpi4 b small{font-size:10px;font-weight:700;color:var(--sub);margin-left:1px;}
+.kpi4 em{display:block;font-style:normal;font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.kpi4.all{background:#f3f8f6;border-color:#cde3d8;}
+.hf{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;}
+.hf-h{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;background:#f6f9fb;border-bottom:1px solid var(--line);}
+.hf-h .nm{font-weight:800;font-size:15px;}
+.hf-h .m{margin-left:auto;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.hf-h .ar{font-size:10px;color:var(--sub);transition:transform .15s;}
+.hf.cl .hf-h .ar{transform:rotate(-90deg);} .hf.cl .hf-b{display:none;}
+.hf-b{padding:6px 8px 8px;}
+.gr{margin-top:6px;} .gr:first-child{margin-top:0;}
+.gr-h{display:flex;align-items:baseline;gap:6px;font-size:11.5px;color:var(--sub);margin-bottom:3px;}
+.gr-h b{font-size:12.5px;color:var(--ink);}
+.gr-h .n{margin-left:auto;font-variant-numeric:tabular-nums;}
+.chips{display:flex;flex-wrap:wrap;gap:6px;}
+/* PC版（全フロア表示）と同じ丸バッジ */
+.ch{
+  all:unset;box-sizing:border-box;width:28px;height:28px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;position:relative;
+  font-size:13px;font-weight:800;cursor:pointer;
+  border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.18);
 }
+.ch:active{transform:scale(1.12);}
+.ch.adm{box-shadow:0 0 0 2px #fbbf24,0 1px 3px rgba(0,0,0,.18);border-color:#fbbf24;}
+.ch.night::after{content:"";position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;background:#1e293b;border:1.5px solid #fff;}
+.ch .fk{position:absolute;left:-3px;top:-3px;background:#0ea5e9;color:#fff;font-size:8px;line-height:1;
+  padding:2px 3px;border-radius:4px;border:1px solid #fff;font-weight:800;}
+#pop{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:70;
+  background:#1e293b;color:#fff;border-radius:10px;padding:8px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);
+  max-width:92vw;text-align:center;
+}
+#pop[hidden]{display:none;}
+#pop b{display:block;font-size:14px;}
+#pop span{font-size:11.5px;opacity:.85;}
+
+/* --- 詳細シート --- */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;border-radius:16px 16px 0 0;
+  box-shadow:0 -10px 40px rgba(20,35,50,.35);padding:12px 16px calc(env(safe-area-inset-bottom) + 18px);
+  transform:translateY(102%);transition:transform .22s ease-out;max-height:80%;overflow:auto;}
 .sheet.show{transform:translateY(0);}
 .mask{position:fixed;inset:0;background:rgba(20,35,50,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40;}
 .mask.show{opacity:1;pointer-events:auto;}
@@ -101,56 +162,68 @@ header .dot.mst.on{background:#4aa3ff;}
 .sheet dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13.5px;}
 .sheet dt{color:var(--sub);white-space:nowrap;}
 .sheet dd{margin:0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
-.sheet .cl{margin-top:14px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef2f5;
-  color:var(--ink);font:inherit;font-weight:700;cursor:pointer;}
-.ft{flex:none;padding:4px 8px calc(env(safe-area-inset-bottom) + 5px);color:var(--sub);font-size:10.5px;text-align:center;}
-
-/* ページ切替（名前をタップ） */
-.navbtn{
-  all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;
-  font-size:16px;font-weight:800;color:#fff;letter-spacing:.02em;
-}
-.navbtn .cr{font-size:10px;opacity:.75;}
-.navmenu{
-  position:fixed;left:8px;top:calc(env(safe-area-inset-top) + 42px);z-index:60;min-width:200px;
-  background:#fff;border:1px solid #d8e0e8;border-radius:12px;box-shadow:0 12px 34px rgba(20,35,50,.32);padding:5px;
-}
-.navmenu[hidden]{display:none;}
-.navmenu a{
-  display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:9px;
-  color:#1f2b38;text-decoration:none;font-size:14px;font-weight:700;
-}
-.navmenu a .mk{width:7px;height:7px;border-radius:50%;background:transparent;flex:none;}
-.navmenu a.cur{color:#1f6f8b;} .navmenu a.cur .mk{background:#1f6f8b;}
-.navmask{position:fixed;inset:0;z-index:55;} .navmask[hidden]{display:none;}
+.sheet .cl{margin-top:14px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef2f5;color:var(--ink);font:inherit;font-weight:700;cursor:pointer;}
 </style>
 </head>
-<body data-app="dock">
-<header><button class="navbtn" id="navBtn">ドック状況<span class="cr">▼</span></button><span class="dt" id="now">--:--</span><span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span></header>
+<body data-v="dock">
+<header>
+  <div class="h1">
+    <button class="navbtn" id="navBtn"><span id="navName">ドック状況</span><span class="cr">▼</span></button>
+    <span class="sub" id="sub">—</span><span class="sp"></span>
+    <span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span>
+  </div>
+  <div class="sw" id="sw" hidden></div>
+</header>
 <div class="navmask" id="navMask" hidden></div>
 <div class="navmenu" id="navMenu" hidden></div>
 
-<div class="cols">
-  <div class="col plan"><div class="col-h"><b id="n-plan">0</b>予定</div><div class="col-b" id="l-plan"></div></div>
-  <div class="col arrive"><div class="col-h"><b id="n-arrive">0</b>着車</div><div class="col-b" id="l-arrive"></div></div>
-  <div class="col done"><div class="col-h"><b id="n-done">0</b>完了</div><div class="col-b" id="l-done"></div></div>
+<!-- ① ドック状況 -->
+<div class="view" id="v-dock">
+  <div class="cols">
+    <div class="col plan"><div class="col-h"><b id="n-plan">0</b>予定</div><div class="col-b" id="l-plan"></div></div>
+    <div class="col arrive"><div class="col-h"><b id="n-arrive">0</b>着車</div><div class="col-b" id="l-arrive"></div></div>
+    <div class="col done"><div class="col-h"><b id="n-done">0</b>完了</div><div class="col-b" id="l-done"></div></div>
+  </div>
 </div>
-<div class="ft">閲覧専用です。カードをタップすると詳細が出ます。</div>
 
+<!-- ② 着車プラン -->
+<div class="view" id="v-plan" hidden>
+  <div class="wrap">
+    <div class="kpis" id="pKpis"></div>
+    <div class="sec">フロア別</div>
+    <div id="pFloors"><div class="empty">読み込み中…</div></div>
+    <div class="sec">ドックマスタへの反映</div>
+    <div class="st" id="pSt"></div>
+    <div id="pNg"></div>
+    <div class="ft">閲覧専用です。変更はPCの着車プランから行ってください。</div>
+  </div>
+</div>
+
+<!-- ③ 配置 -->
+<div class="view" id="v-haichi" hidden>
+  <div class="wrap">
+    <div class="kpis4" id="hKpis"></div>
+    <div id="hBody"><div class="empty">読み込み中…</div></div>
+    <div class="ft">閲覧専用です。配置の変更はPCの配置ダッシュボードから行ってください。</div>
+  </div>
+</div>
+
+<div id="pop" hidden></div>
 <div class="mask" id="mask" onclick="closeSheet()"></div>
 <div class="sheet" id="sheet">
-  <div class="grip"></div>
-  <h2 id="s-cr">—</h2>
-  <div class="sid" id="s-id"></div>
-  <dl id="s-dl"></dl>
-  <button class="cl" onclick="closeSheet()">閉じる</button>
+  <div class="grip"></div><h2 id="s-cr">—</h2><div class="sid" id="s-id"></div>
+  <dl id="s-dl"></dl><button class="cl" onclick="closeSheet()">閉じる</button>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-/* ===== スマホ用の閲覧専用ページ（ドックダッシュボードと同じデータを読むだけ） ===== */
+/* ==========================================================
+   HFO1 現場ビュー（スマホ用・閲覧専用）
+   ドック状況／着車プラン／配置 を1ページにまとめ、
+   Firebaseの接続と購読は1回だけ。表示はJavaScriptで切り替える。
+   ========================================================== */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD01thIqlq4VQpSe8fxU-0a_M9ynO6p0IM",
   authDomain: "gworker-haichi.firebaseapp.com",
@@ -160,151 +233,442 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "218653712277",
   appId: "1:218653712277:web:af850c4143bbf88983209c"
 };
-const DOCK_ROOT = "dock";
-const ID_FIELD = "Appointment Id";
+const DOCK_ROOT = "dock", ID_FIELD = "Appointment Id";
+const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
+const DOOR_TTL = 3 * 3600000, DOORSTATE_TTL = 7 * 24 * 3600000;
+const PLACES = ["OUT", "IN", "ICQA", "other"];
+const NONWORK = [["WAIT", "待機"], ["ABSENT", "欠勤"], ["HOLIDAY", "休日"]];
+// PC版（配置ダッシュボード）と同じ配色
+const ROLE_STYLES = {
+  Manager: { bg: "#059669", fg: "#fff" }, Supervisor: { bg: "#d97706", fg: "#fff" },
+  Reader: { bg: "#2563eb", fg: "#fff" }, Operator: { bg: "#64748b", fg: "#fff" },
+  Observer: { bg: "#7c3aed", fg: "#fff" }, Gworker: { bg: "#000000", fg: "#facc15" },
+};
+const ROLE_AUTO_COLORS = ["#0891b2", "#db2777", "#16a34a", "#ea580c", "#9333ea", "#dc2626", "#0d9488", "#c026d3", "#65a30d", "#1d4ed8", "#b45309", "#7e22ce"];
+const _roleAuto = new Map();
+let _roleAutoVer = -1;
+const ROLE_ORDER = { Supervisor: 0, Manager: 1, Reader: 2, Operator: 3, Observer: 4 };
 
-let master = { headers: [], data: [] };
-let placement = {};
-let idxStatus = {};
-let cards = [];
-let openId = null;
-let idxMaster = null;
-const MASTER_ALIVE_MS = 3 * 60000;
-function refreshMasterDot() {
-  const m = idxMaster;
-  const ok = !!(m && m.at && Date.now() - m.at < MASTER_ALIVE_MS);
-  document.getElementById("dotM").classList.toggle("on", ok);
-}
+/* ---------- 共有データ ---------- */
+const D = {
+  dockMaster: null, placement: {}, idxStatus: {}, idxMaster: null, floors: [],
+  nextMaster: null, plans: {}, rules: {}, doorCmds: {}, doorNow: {},
+  roster: [], custom: {}, layout: {}, floorMove: {}, nameOverride: {}, pmaster: null,
+  targetUPH: { 日勤: 0, 夜勤: 0 },
+};
+let view = "dock", shift = "日勤", openId = null, showNg = false;
+const closedFl = {};
 
+/* ---------- 共通 ---------- */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 const pad = n => String(n).padStart(2, "0");
 const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
-const fmt = n => (n == null || n === "" || isNaN(+n)) ? "" : (+n).toLocaleString();
-function schedStart(v) {
-  const m = String(v || "").match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
-  const h = String(v || "").match(/(\d{1,2}):(\d{2})/);
-  if (!h) return null;
-  const d = new Date(); d.setHours(+h[1], +h[2], 0, 0); return d.getTime();
-}
+const fmtN = n => (n == null || n === "" || isNaN(+n)) ? "—" : Math.round(+n).toLocaleString();
+const fmt1 = n => (n == null || isNaN(+n)) ? "—" : (Math.round(+n * 10) / 10).toString().replace(/\.0$/, "");
+const num = v => { const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "")); return isNaN(n) ? null : n; };
+const keyEnc = k => String(k).replace(/[.#$\[\]\/]/g, "_");
+const uidEnc = u => String(u).replace(/[.#$\[\]\/]/g, "_");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const carrierName = v => String(v || "").replace(/^\[[^\]]*\]/, "").trim() || "（キャリア不明）";
 const shortIdx = v => String(v || "").replace(/^APPOINTMENT[_ ]/i, "").replace(/^ARRIVAL[_ ]/i, "").replace(/_/g, " ");
+function parseSched(v) {
+  const m = String(v || "").match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\D+?(\d{1,2}):(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  const h = String(v || "").match(/(\d{1,2}):(\d{2})/);
+  if (!h) return null;
+  const d = new Date(); d.setHours(+h[1], +h[2], 0, 0); return d;
+}
+function tnum(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return v < 1 ? v * 24 : v;
+  const m = String(v).match(/(\d{1,2})\s*[:：]\s*(\d{2})/); if (m) return +m[1] + m[2] / 60;
+  const n = parseFloat(v); return isNaN(n) ? null : (n < 1 ? n * 24 : n);
+}
+function normMaster(v) {
+  if (!v || !v.headers) return { headers: [], data: [] };
+  if (Array.isArray(v.rows)) return { headers: v.headers, data: v.rows.map(r => Object.fromEntries(v.headers.map((h, i) => [h, r[i]]))) };
+  return Array.isArray(v.data) ? v : { headers: v.headers, data: [] };
+}
 
-function build() {
-  const rows = Array.isArray(master.data) ? master.data : [];
-  cards = rows.map(o => {
-    const id = String(o[ID_FIELD] || "");
-    const p = placement[id] || {};
-    const st = idxStatus[id];
-    return {
-      id, raw: o,
-      carrier: carrierName(o.Carrier),
-      units: o.Units,
-      start: schedStart(o["Schedule Date"] || o["Expected Arrival Date"]),
-      status: p.status || "plan",
-      bay: p.bay || null,
-      arriveAt: p.arriveAt || null,
-      doneAt: p.doneAt || null,
-      doneBay: p.doneBay || p.arriveBay || null,
-      memo: p.memo || "",
-      noshow: !!p.noshow,
-      idx: (st && (st.raw || st.status)) || "",
-    };
-  }).filter(c => c.id);
+/* ---------- 表示切替 ---------- */
+const VIEWS = [
+  { id: "dock", name: "ドック状況" },
+  { id: "plan", name: "着車プラン" },
+  { id: "haichi", name: "配置" },
+];
+function setView(v) {
+  view = v;
+  document.body.dataset.v = v;
+  document.getElementById("navName").textContent = (VIEWS.find(x => x.id === v) || {}).name || "";
+  VIEWS.forEach(x => { document.getElementById("v-" + x.id).hidden = x.id !== v;
+    document.getElementById("v-" + x.id).scrollTop = 0; });
+  document.getElementById("sw").hidden = v !== "haichi";
+  closeMenu();
+  try { localStorage.setItem("mView", v); } catch (e) { /* 無視 */ }
   render();
 }
-function idxTag(c) {
-  if (!c.idx) return "";
-  return `<span class="tag idx${/CLOSED?/i.test(c.idx) ? " ok" : ""}">${esc(shortIdx(c.idx))}</span>`;
+function closeMenu() { document.getElementById("navMenu").hidden = true; document.getElementById("navMask").hidden = true; }
+(function () {
+  const menu = document.getElementById("navMenu"), btn = document.getElementById("navBtn"), mask = document.getElementById("navMask");
+  menu.innerHTML = VIEWS.map(v => `<button class="${v.id === view ? "cur" : ""}" data-v="${v.id}"><span class="mk"></span>${v.name}</button>`).join("");
+  menu.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    menu.querySelectorAll("button").forEach(x => x.classList.toggle("cur", x === b));
+    setView(b.dataset.v);
+  }));
+  btn.addEventListener("click", e => { e.stopPropagation(); const o = menu.hidden; menu.hidden = !o; mask.hidden = !o; });
+  mask.addEventListener("click", closeMenu);
+})();
+
+/* ==========================================================
+   ① ドック状況
+   ========================================================== */
+let dockCards = [];
+function buildDock() {
+  const m = normMaster(D.dockMaster);
+  dockCards = (m.data || []).map(o => {
+    const id = String(o[ID_FIELD] || "");
+    const p = D.placement[id] || {}, st = D.idxStatus[id];
+    const s = parseSched(o["Schedule Date"] || o["Expected Arrival Date"]);
+    return {
+      id, raw: o, carrier: carrierName(o.Carrier), units: o.Units, start: s ? s.getTime() : null,
+      status: p.status || "plan", bay: p.bay || null, arriveAt: p.arriveAt || null,
+      doneAt: p.doneAt || null, doneBay: p.doneBay || p.arriveBay || null,
+      memo: p.memo || "", noshow: !!p.noshow, idx: (st && (st.raw || st.status)) || "",
+    };
+  }).filter(c => c.id);
 }
+const idxTag = c => c.idx ? `<span class="tag idx${/CLOSED?/i.test(c.idx) ? " ok" : ""}">${esc(shortIdx(c.idx))}</span>` : "";
 function elapsedHTML(from) {
   const m = Math.max(0, Math.round((Date.now() - from) / 60000));
   return `<div class="el ${m >= 60 ? "alert" : m >= 30 ? "warn" : ""}">${m}分経過</div>`;
 }
-function cardHTML(c) {
+function dockCardHTML(c) {
   const late = c.status === "arrive" && c.arriveAt && Date.now() - c.arriveAt >= 60 * 60000;
-  const head = c.status === "arrive"
-    ? `<span class="bay">${esc(c.bay || "—")}</span>`
+  const head = c.status === "arrive" ? `<span class="bayb">${esc(c.bay || "—")}</span>`
     : `<span class="tm">${c.status === "done" ? (c.doneAt ? hhmm(c.doneAt) : "--:--") : (c.start ? hhmm(c.start) : "--:--")}</span>`;
   const sub = c.status === "arrive" ? (c.arriveAt ? elapsedHTML(c.arriveAt) : "")
-    : c.status === "done" ? `<div class="el">${c.doneBay ? esc(c.doneBay) : ""}${c.arriveAt && c.doneAt ? " ・所要" + Math.round((c.doneAt - c.arriveAt) / 60000) + "分" : ""}</div>`
-      : "";
+    : c.status === "done" ? `<div class="el">${c.doneBay ? esc(c.doneBay) : ""}${c.arriveAt && c.doneAt ? " ・所要" + Math.round((c.doneAt - c.arriveAt) / 60000) + "分" : ""}</div>` : "";
   return `<div class="c ${c.status}${late ? " late" : ""}${c.noshow ? " abs" : ""}" onclick="openSheet('${esc(c.id)}')">
-    <div class="t1">${head}<span class="u">${fmt(c.units) || "—"}U</span></div>
-    <div class="cr">${esc(c.carrier)}</div>
-    <div class="id">${esc(c.id)}</div>
-    ${sub}${c.noshow ? '<span class="tag abs">欠車</span>' : ""}${idxTag(c)}
-  </div>`;
+    <div class="t1">${head}<span class="u">${c.units ? fmtN(c.units) : "—"}U</span></div>
+    <div class="cr">${esc(c.carrier)}</div><div class="id">${esc(c.id)}</div>
+    ${sub}${c.noshow ? '<span class="tag abs">欠車</span>' : ""}${idxTag(c)}</div>`;
 }
-function render() {
-  document.getElementById("now").textContent = hhmm(Date.now());
-  refreshMasterDot();
+function renderDock() {
   const g = { plan: [], arrive: [], done: [] };
-  cards.forEach(c => { if (g[c.status]) g[c.status].push(c); });
+  dockCards.forEach(c => { if (g[c.status]) g[c.status].push(c); });
   g.plan.sort((a, b) => (a.start || 0) - (b.start || 0));
   g.arrive.sort((a, b) => String(a.bay || "").localeCompare(String(b.bay || "")));
   g.done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
   ["plan", "arrive", "done"].forEach(k => {
     document.getElementById("n-" + k).textContent = g[k].length;
-    document.getElementById("l-" + k).innerHTML = g[k].length ? g[k].map(cardHTML).join("") : `<div class="empty">なし</div>`;
+    document.getElementById("l-" + k).innerHTML = g[k].length ? g[k].map(dockCardHTML).join("") : `<div class="empty">なし</div>`;
   });
+  if (view === "dock") document.getElementById("sub").textContent = hhmm(Date.now());
   if (openId) fillSheet(openId);
 }
-
-/* ===== 詳細（タップで下から出る） ===== */
-function row(k, v) { return v ? `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>` : ""; }
+/* 詳細シート */
+const srow = (k, v) => v ? `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>` : "";
 function fillSheet(id) {
-  const c = cards.find(x => x.id === id);
+  const c = dockCards.find(x => x.id === id);
   if (!c) { closeSheet(); return; }
   document.getElementById("s-cr").textContent = c.carrier;
   document.getElementById("s-id").textContent = c.id;
   const o = c.raw || {};
-  const stLabel = c.status === "plan" ? (c.noshow ? "予定（欠車）" : "予定") : c.status === "arrive" ? "着車中" : "完了";
-  let h = row("状態", stLabel);
-  h += row("受入枠", o["Schedule Date"] || "");
-  if (c.status === "arrive") { h += row("バース", c.bay || ""); h += row("着車", c.arriveAt ? hhmm(c.arriveAt) + `（${Math.round((Date.now() - c.arriveAt) / 60000)}分経過）` : ""); }
+  let h = srow("状態", c.status === "plan" ? (c.noshow ? "予定（欠車）" : "予定") : c.status === "arrive" ? "着車中" : "完了");
+  h += srow("受入枠", o["Schedule Date"] || "");
+  if (c.status === "arrive") { h += srow("バース", c.bay || ""); h += srow("着車", c.arriveAt ? hhmm(c.arriveAt) + `（${Math.round((Date.now() - c.arriveAt) / 60000)}分経過）` : ""); }
   if (c.status === "done") {
-    h += row("バース", c.doneBay || "");
-    h += row("着車", c.arriveAt ? hhmm(c.arriveAt) : "");
-    h += row("完了", c.doneAt ? hhmm(c.doneAt) : "");
-    if (c.arriveAt && c.doneAt) h += row("所要", Math.round((c.doneAt - c.arriveAt) / 60000) + "分");
+    h += srow("バース", c.doneBay || ""); h += srow("着車", c.arriveAt ? hhmm(c.arriveAt) : ""); h += srow("完了", c.doneAt ? hhmm(c.doneAt) : "");
+    if (c.arriveAt && c.doneAt) h += srow("所要", Math.round((c.doneAt - c.arriveAt) / 60000) + "分");
   }
-  h += row("Units", fmt(o.Units));
-  h += row("Cartons", fmt(o.Cartons));
-  h += row("Pallets", fmt(o.Pallets));
-  h += row("Dock", o.Dock || "");
-  h += row("タイプ", o.Type || "");
-  h += row("IDX", c.idx ? shortIdx(c.idx) : "");
-  h += row("メモ", c.memo || "");
+  h += srow("Units", o.Units ? fmtN(o.Units) : "") + srow("Cartons", o.Cartons ? fmtN(o.Cartons) : "") + srow("Pallets", o.Pallets ? fmtN(o.Pallets) : "");
+  h += srow("Dock", o.Dock || "") + srow("タイプ", o.Type || "") + srow("IDX", c.idx ? shortIdx(c.idx) : "") + srow("メモ", c.memo || "");
   document.getElementById("s-dl").innerHTML = h;
 }
-function openSheet(id) {
-  openId = id;
-  fillSheet(id);
-  document.getElementById("sheet").classList.add("show");
-  document.getElementById("mask").classList.add("show");
+function openSheet(id) { openId = id; fillSheet(id); document.getElementById("sheet").classList.add("show"); document.getElementById("mask").classList.add("show"); }
+function closeSheet() { openId = null; document.getElementById("sheet").classList.remove("show"); document.getElementById("mask").classList.remove("show"); }
+
+/* ==========================================================
+   ② 着車プラン
+   ========================================================== */
+let planDate = "", planAssign = {}, planUph = null, planUphF = {}, planAppts = [];
+function breakRanges() {
+  const src = D.rules.breaks == null ? BREAK_DEFAULT : String(D.rules.breaks);
+  const out = [];
+  src.split(/[,、\s]+/).forEach(t => {
+    const m = String(t).match(/^(\d{1,2}):(\d{2})[-–~〜](\d{1,2}):(\d{2})$/);
+    if (!m) return;
+    let a = +m[1] + +m[2] / 60, b = +m[3] + +m[4] / 60;
+    if (b <= a) b += 24;
+    out.push([a, b], [a + 24, b + 24]);
+  });
+  return out;
 }
-function closeSheet() {
-  openId = null;
-  document.getElementById("sheet").classList.remove("show");
-  document.getElementById("mask").classList.remove("show");
+function breakOv(s, e) {
+  let m = 0;
+  breakRanges().forEach(r => { m += Math.max(0, Math.min(e, r[1]) - Math.max(s, r[0])); });
+  return Math.min(m, Math.max(0, e - s));
+}
+const pmasterOk = () => D.pmaster && ["OUT", "IN", "ICQA"].some(k => Array.isArray(D.pmaster[k]) && D.pmaster[k].length);
+function people() {
+  const list = Array.isArray(D.roster) ? D.roster.filter(Boolean).slice() : [];
+  Object.values(D.custom || {}).forEach(c => { if (c && !list.some(p => p.no === c.no)) list.push(c); });
+  return list;
+}
+function locOf(p) {
+  const k = uidEnc(p.no + "_" + p.name), L = D.layout[k];
+  const valid = (pl, sub) => !pmasterOk() || (Array.isArray(D.pmaster[pl]) && D.pmaster[pl].includes(sub));
+  if (L !== undefined && L !== null) {
+    if (["WAIT", "ABSENT", "HOLIDAY", "other"].includes(L)) return L;
+    const pt = String(L).split("|");
+    if (pt.length >= 2 && valid(pt[0], pt[1])) return pt[0] + "|" + pt[1];
+    return "WAIT";
+  }
+  return valid(p.section, p.subsec) ? p.section + "|" + p.subsec : "WAIT";
+}
+const floorOfP = p => { const k = uidEnc(p.no + "_" + p.name); return D.floorMove[k] !== undefined ? D.floorMove[k] : p.floor; };
+const uphOf = sh => (planUph && planUph[sh] > 0) ? +planUph[sh] : (+D.targetUPH[sh] || 0);
+const uphFor = (f, sh) => (planUphF && +planUphF[f] > 0) ? +planUphF[f] : uphOf(sh);
+
+function buildPlan() {
+  const M = D.nextMaster || D.dockMaster;
+  const all = [];
+  if (M && Array.isArray(M.headers) && Array.isArray(M.rows)) {
+    const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
+    const g = (r, k) => hi[k] == null ? "" : r[hi[k]];
+    M.rows.forEach(r => {
+      const id = String(g(r, ID_FIELD) || "").trim(); if (!id) return;
+      const dt = parseSched(g(r, "Schedule Date")) || parseSched(g(r, "Expected Arrival Date"));
+      all.push({ id, key: keyEnc(id), dt, cname: carrierName(g(r, "Carrier")),
+        units: num(g(r, "Units")), cartons: num(g(r, "Cartons")), dock: String(g(r, "Dock") || "").split("[")[0].trim() });
+    });
+  }
+  const cnt = {};
+  all.forEach(a => { if (a.dt) { const k = ymd(a.dt); cnt[k] = (cnt[k] || 0) + 1; } });
+  planDate = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || "";
+  planAppts = all;
+  const pl = D.plans[planDate] || {};
+  planAssign = pl.assign || {}; planUph = pl.uph || null; planUphF = pl.uphF || {};
+}
+function planCalc() {
+  const F = {};
+  D.floors.forEach(f => F[f.name] = { hc: 0, lh: 0, cap: 0, n: 0, u: 0 });
+  people().forEach(p => {
+    if (!locOf(p).startsWith("IN|")) return;
+    const fl = F[floorOfP(p)]; if (!fl) return;
+    let s = tnum(p.startT), e = tnum(p.endT);
+    if (s == null || e == null) return;
+    if (e <= s) e += 24;
+    if (p.shift === "夜勤" && s < 12) { s += 24; e += 24; }
+    const work = (e - s) - breakOv(s, e);
+    const lh = num(p.lh) > 0 ? num(p.lh) : work;
+    fl.hc++; fl.lh += lh; fl.cap += lh * uphFor(floorOfP(p), p.shift);
+  });
+  planAppts.forEach(a => {
+    const f = (planAssign[a.key] || {}).f;
+    if (f && F[f]) { F[f].n++; F[f].u += (a.units != null ? a.units : (a.cartons ? a.cartons * 10 : 0)); }
+  });
+  return F;
+}
+const floorDigit = f => ((String(f).match(/(\d)/) || [])[1] || "");
+function curDoor(a) {
+  const v = D.doorNow[a.id];
+  if (v && v.door && Date.now() - (v.at || 0) < DOORSTATE_TTL) return String(v.door);
+  return a.dock || "";
+}
+function latestCmd(id) {
+  let best = null;
+  Object.values(D.doorCmds || {}).forEach(c => {
+    if (!c || c.id !== id || Date.now() - (c.at || 0) > DOOR_TTL) return;
+    if (!best || (c.at || 0) > (best.at || 0)) best = c;
+  });
+  return best;
+}
+function reflectState(a) {
+  const f = (planAssign[a.key] || {}).f;
+  if (!f) return null;
+  const d = curDoor(a);
+  const done = d && floorDigit(f) && String(d)[0] === floorDigit(f);
+  const c = latestCmd(a.id);
+  if (c && c.state === "running") return "run";
+  if (c && c.state === "pending") return "wait";
+  if (done) return "ok";
+  if (c && c.state === "error") return "ng";
+  return "no";
+}
+function toggleNg() { showNg = !showNg; render(); }
+function renderPlan() {
+  const F = planCalc();
+  const tot = { n: 0, u: 0, hc: 0, lh: 0, cap: 0 };
+  D.floors.forEach(f => { const x = F[f.name]; tot.n += x.n; tot.u += x.u; tot.hc += x.hc; tot.lh += x.lh; tot.cap += x.cap; });
+  const un = planAppts.filter(a => !(planAssign[a.key] || {}).f).length;
+  if (view === "plan") document.getElementById("sub").textContent = planDate ? planDate.slice(5).replace("-", "/") + " の計画" : "計画なし";
+
+  document.getElementById("pKpis").innerHTML =
+    `<div class="kpi"><span>予約</span><b>${fmtN(planAppts.length)}</b></div>
+     <div class="kpi"><span>Units</span><b>${fmtN(tot.u)}</b></div>
+     <div class="kpi ${un ? "alert" : ""}"><span>未割当</span><b>${fmtN(un)}</b></div>
+     <div class="kpi"><span>IN HC</span><b>${fmtN(tot.hc)}</b></div>
+     <div class="kpi"><span>IN LH</span><b>${fmt1(tot.lh)}</b></div>
+     <div class="kpi"><span>処理可能</span><b>${fmtN(tot.cap)}</b></div>`;
+
+  document.getElementById("pFloors").innerHTML = D.floors.length ? D.floors.map((f, i) => {
+    const x = F[f.name], col = `var(--f${i % 5})`;
+    const ratio = x.cap > 0 ? x.u / x.cap : (x.u > 0 ? 9 : 0);
+    const lv = ratio > 1 ? "alert" : ratio > .85 ? "warn" : "";
+    const d = x.cap - x.u;
+    return `<div class="fl" style="border-left-color:${col}">
+      <div class="r1"><span class="nm" style="color:${col}">${esc(f.name)}</span>
+        <span class="n">${fmtN(x.n)}<small>台</small></span><span class="u">${fmtN(x.u)}U</span></div>
+      <div class="r2"><span>HC <b>${fmtN(x.hc)}</b></span><span>LH <b>${fmt1(x.lh)}</b></span>
+        <span>UPH <b>${fmtN(x.lh > 0 ? x.cap / x.lh : 0)}</b></span><span>処理可能 <b>${fmtN(x.cap)}</b></span>
+        <span style="color:${d < 0 ? "var(--alert)" : "var(--green)"}">過不足 <b style="color:inherit">${d >= 0 ? "+" : ""}${fmtN(d)}</b></span></div>
+      <div class="bar"><i class="${lv}" style="width:${Math.min(100, ratio * 100)}%"></i></div></div>`;
+  }).join("") : `<div class="empty">フロア情報がありません</div>`;
+
+  const g = { ok: [], run: [], wait: [], ng: [], no: [] };
+  planAppts.forEach(a => { const s = reflectState(a); if (s) g[s].push(a); });
+  document.getElementById("pSt").innerHTML =
+    `<div class="ok"><b>${g.ok.length}</b><span>反映済</span></div>
+     <div class="run"><b>${g.run.length}</b><span>実行中</span></div>
+     <div class="wait"><b>${g.wait.length}</b><span>待機中</span></div>
+     <div class="ng${g.ng.length ? " has" : ""}" ${g.ng.length ? 'onclick="toggleNg()"' : ""}><b>${g.ng.length}</b><span>失敗${g.ng.length ? "（内容）" : ""}</span></div>
+     <div><b>${g.no.length}</b><span>未反映</span></div>`;
+  document.getElementById("pNg").innerHTML = (showNg && g.ng.length) ? g.ng.map(a => {
+    const c = latestCmd(a.id) || {};
+    return `<div class="ngrow"><b>${esc(a.id)}</b> ${esc((planAssign[a.key] || {}).f || "")} ／ 現在 ${esc(curDoor(a) || "—")}${c.door ? " → " + esc(c.door) : ""}
+      <div>${esc(c.message || "理由の記録がありません")}</div></div>`;
+  }).join("") : "";
 }
 
-/* ===== Firebase（読むだけ） ===== */
-function start() {
-  const db = firebase.database();
-  const root = db.ref(DOCK_ROOT);
-  db.ref(".info/connected").on("value", s => document.getElementById("dot").classList.toggle("on", s.val() === true));
-  root.child("master").on("value", s => {
-    const v = s.val();
-    master = (v && Array.isArray(v.rows))
-      ? { headers: v.headers || [], data: v.rows.map(r => Object.fromEntries((v.headers || []).map((h, i) => [h, r[i]]))) }
-      : (v && Array.isArray(v.data) ? v : { headers: [], data: [] });
-    build();
+/* ==========================================================
+   ③ 配置
+   ========================================================== */
+const dispName = p => { const v = D.nameOverride[uidEnc(p.no + "_" + p.name)]; return (v !== undefined && v !== "") ? v : p.name; };
+function roleStyle(r) {
+  if (ROLE_STYLES[r]) return ROLE_STYLES[r];
+  if (!r) return { bg: "#94a3b8", fg: "#fff" };
+  const all = people();
+  if (all.length !== _roleAutoVer) {
+    _roleAuto.clear();
+    const known = Object.keys(ROLE_STYLES);
+    [...new Set(all.map(p => p.role).filter(x => x && !known.includes(x)))].sort()
+      .forEach((rr, i) => _roleAuto.set(rr, { bg: ROLE_AUTO_COLORS[i % ROLE_AUTO_COLORS.length], fg: "#fff" }));
+    _roleAutoVer = all.length;
+  }
+  return _roleAuto.get(r) || { bg: "#94a3b8", fg: "#fff" };
+}
+const sortP = (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || (a.no - b.no);
+function shifts() {
+  const s = new Set();
+  people().forEach(p => { if (p.shift) s.add(p.shift); });
+  const base = ["日勤", "夜勤"].filter(x => s.has(x));
+  [...s].forEach(x => { if (!base.includes(x)) base.push(x); });
+  return base.length ? base : ["日勤"];
+}
+function setShift(s) { shift = s; render(); }
+function toggleFloor(f) { closedFl[f] = !closedFl[f]; render(); }
+function chip(p) {
+  const st = roleStyle(p.role), dn = dispName(p);
+  const ini = (!dn || /^\d+$/.test(String(dn).trim())) ? (String(p.role || "?").trim()[0] || "?") : String(dn).trim()[0];
+  const cls = "ch" + (p.admin ? " adm" : "") + (p.shift === "夜勤" ? " night" : "");
+  return `<button class="${cls}" style="background:${st.bg};color:${st.fg}" title="${esc(dn)}"
+    onclick="showPerson('${esc(uidEnc(p.no + "_" + p.name))}')">${esc(ini)}${p.fork ? '<span class="fk">F</span>' : ""}</button>`;
+}
+// 丸バッジをタップしたときの吹き出し
+function showPerson(k) {
+  const p = people().find(x => uidEnc(x.no + "_" + x.name) === k);
+  const el = document.getElementById("pop");
+  if (!p) { el.hidden = true; return; }
+  const loc = locOf(p), lb = loc.includes("|") ? loc.split("|")[1] : ({ WAIT: "待機", ABSENT: "欠勤", HOLIDAY: "休日", other: "その他" }[loc] || loc);
+  el.innerHTML = `<b>${esc(dispName(p))}</b><span>${esc(p.role || "")} ／ ${esc(floorOfP(p) || "")} ${esc(lb)} ／ LH ${fmt1(p.lh || 0)}${p.fork ? " ／ F" : ""}${p.shift === "夜勤" ? " ／ 夜勤" : ""}</span>`;
+  el.hidden = false;
+  clearTimeout(showPerson._t);
+  showPerson._t = setTimeout(() => { el.hidden = true; }, 3000);
+}
+function renderHaichi() {
+  const sh = shifts();
+  if (!sh.includes(shift)) shift = sh[0];
+  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
+
+  const all = people().filter(p => p.shift === shift);
+  const work = all.filter(p => !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
+  if (view === "haichi") document.getElementById("sub").textContent = `稼働 ${work.length}名 / 全${all.length}名`;
+
+  const sum = list => ({ hc: list.length, lh: list.reduce((s, p) => s + (p.lh || 0), 0) });
+  const byPlace = pl => sum(work.filter(p => locOf(p).split("|")[0] === pl));
+  const tile = (label, v, cls) => `<div class="kpi4 ${cls || ""}"><span>${label}</span><b>${v.hc}<small>名</small></b><em>LH ${fmt1(v.lh)}</em></div>`;
+  document.getElementById("hKpis").innerHTML =
+    tile("稼働", sum(work), "all") + tile("OUT", byPlace("OUT")) + tile("IN", byPlace("IN")) + tile("ICQA", byPlace("ICQA"));
+
+  let h = "";
+  D.floors.forEach((f, i) => {
+    const fn = f.name;
+    const mem = all.filter(p => floorOfP(p) === fn && !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
+    const lh = mem.reduce((s, p) => s + (p.lh || 0), 0), col = `var(--f${i % 5})`;
+    const groups = [];
+    PLACES.forEach(pl => {
+      if (pl === "other") { const gg = mem.filter(p => locOf(p) === "other"); if (gg.length) groups.push({ label: "その他", sub: "", list: gg }); return; }
+      ((D.pmaster || {})[pl] || []).forEach(sub => {
+        const gg = mem.filter(p => locOf(p) === pl + "|" + sub);
+        if (gg.length) groups.push({ label: pl, sub, list: gg });
+      });
+    });
+    h += `<div class="hf${closedFl[fn] ? " cl" : ""}">
+      <div class="hf-h" onclick="toggleFloor('${esc(fn)}')"><span class="ar">▼</span>
+        <span class="nm" style="color:${col}">${esc(fn)}</span><span class="m">${mem.length}名 ・ LH ${fmt1(lh)}</span></div>
+      <div class="hf-b">${groups.length ? groups.map(g => `<div class="gr">
+        <div class="gr-h"><b>${esc(g.sub || g.label)}</b>${g.sub ? `<span>${esc(g.label)}</span>` : ""}
+          <span class="n">${g.list.length}名 ・ ${fmt1(g.list.reduce((s, p) => s + (p.lh || 0), 0))}</span></div>
+        <div class="chips">${g.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")
+        : `<div class="empty">配置なし</div>`}</div></div>`;
   });
-  root.child("placement").on("value", s => { placement = s.val() || {}; build(); });
-  root.child("idxStatus").on("value", s => { idxStatus = s.val() || {}; build(); });
-  root.child("idxMaster").on("value", s => { idxMaster = s.val() || null; refreshMasterDot(); });
+  const nw = NONWORK.map(([loc, label]) => ({ label, list: all.filter(p => locOf(p) === loc) })).filter(x => x.list.length);
+  if (nw.length) {
+    h += `<div class="hf nw${closedFl["_nw"] ? " cl" : ""}"><div class="hf-h" onclick="toggleFloor('_nw')">
+      <span class="ar">▼</span><span class="nm" style="color:var(--sub)">待機・欠勤・休日</span>
+      <span class="m">${nw.reduce((s, x) => s + x.list.length, 0)}名</span></div>
+      <div class="hf-b">${nw.map(x => `<div class="gr"><div class="gr-h"><b>${esc(x.label)}</b><span class="n">${x.list.length}名</span></div>
+        <div class="chips">${x.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")}</div></div>`;
+  }
+  document.getElementById("hBody").innerHTML = h || `<div class="empty">データがありません</div>`;
+}
+
+/* ---------- まとめて描画（表示中のものだけ） ---------- */
+let rafId = null;
+function render() {
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(() => {
+    const m = D.idxMaster;
+    document.getElementById("dotM").classList.toggle("on", !!(m && m.at && Date.now() - m.at < 3 * 60000));
+    if (view === "dock") renderDock();
+    else if (view === "plan") renderPlan();
+    else renderHaichi();
+  });
+}
+
+/* ---------- Firebase（接続は1回だけ・読むだけ） ---------- */
+function start() {
+  const db = firebase.database(), root = db.ref(DOCK_ROOT);
+  db.ref(".info/connected").on("value", s => document.getElementById("dot").classList.toggle("on", s.val() === true));
+  const on = (ref, fn) => ref.on("value", s => { fn(s.val()); render(); });
+  on(root.child("master"), v => { D.dockMaster = v; buildDock(); buildPlan(); });
+  on(root.child("placement"), v => { D.placement = v || {}; buildDock(); });
+  on(root.child("idxStatus"), v => { D.idxStatus = v || {}; buildDock(); });
+  on(root.child("idxMaster"), v => { D.idxMaster = v || null; });
+  on(root.child("floors"), v => { D.floors = Array.isArray(v) ? v.filter(Boolean) : []; });
+  on(root.child("nextMaster"), v => { D.nextMaster = v; buildPlan(); });
+  on(root.child("plans"), v => { D.plans = v || {}; buildPlan(); });
+  on(root.child("planRules"), v => { D.rules = v || {}; });
+  on(root.child("doorCommands"), v => { D.doorCmds = v || {}; });
+  on(root.child("doorState"), v => { D.doorNow = v || {}; });
+  on(db.ref("roster"), v => { D.roster = Array.isArray(v) ? v : (v ? Object.values(v) : []); });
+  on(db.ref("custom"), v => { D.custom = v || {}; });
+  on(db.ref("layout"), v => { D.layout = v || {}; });
+  on(db.ref("floorMove"), v => { D.floorMove = v || {}; });
+  on(db.ref("nameOverride"), v => { D.nameOverride = v || {}; });
+  on(db.ref("master"), v => { D.pmaster = v || null; });
+  on(db.ref("targetUPH"), v => { const x = v || {}; D.targetUPH = { 日勤: +(x.日勤 && x.日勤.in) || 0, 夜勤: +(x.夜勤 && x.夜勤.in) || 0 }; });
 }
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -313,33 +677,10 @@ try {
     document.getElementById("l-plan").innerHTML = '<div class="empty">接続できませんでした</div>';
   });
 } catch (e) { /* 無視 */ }
+
+try { const v = localStorage.getItem("mView"); if (v && VIEWS.some(x => x.id === v)) setView(v); else setView("dock"); } catch (e) { setView("dock"); }
 setInterval(render, 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
-
-/* ===== ページ切替（PC版と同じ考え方） ===== */
-(function () {
-  const APPS = [
-    { id: "dock", name: "ドック状況", url: "m.html" },
-    { id: "plan", name: "着車プラン", url: "plan-m.html" },
-    { id: "haichi", name: "配置", url: "haichi-m.html" },
-  ];
-  const cur = document.body.dataset.app || "";
-  const btn = document.getElementById("navBtn");
-  const menu = document.getElementById("navMenu");
-  const mask = document.getElementById("navMask");
-  if (!btn || !menu) return;
-  menu.innerHTML = APPS.map(a => a.id === cur
-    ? `<a class="cur" href="#" onclick="return false"><span class="mk"></span>${a.name}</a>`
-    : `<a href="${a.url}" data-url="${a.url}"><span class="mk"></span>${a.name}</a>`).join("");
-  // ホーム画面から開いた（スタンドアロン）ときにSafariの枠が出ないよう、リンクは同じ画面で移動させる
-  menu.querySelectorAll("a[data-url]").forEach(el => el.addEventListener("click", e => {
-    e.preventDefault();
-    location.assign(el.dataset.url);
-  }));
-  const close = () => { menu.hidden = true; mask.hidden = true; };
-  btn.addEventListener("click", e => { e.stopPropagation(); const o = menu.hidden; menu.hidden = !o; mask.hidden = !o; });
-  mask.addEventListener("click", close);
-})();
 </script>
 </body>
 </html>
