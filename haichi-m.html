@@ -41,6 +41,13 @@ header{
 .sw button.on{background:#fff;color:var(--accent);}
 .sw .gap{flex:1;}
 .wrap{padding:8px;}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 6px;text-align:center;}
+.kpi span{display:block;font-size:10.5px;color:var(--sub);font-weight:700;}
+.kpi b{font-size:17px;line-height:1.2;font-variant-numeric:tabular-nums;}
+.kpi b small{font-size:10px;font-weight:700;color:var(--sub);margin-left:1px;}
+.kpi em{display:block;font-style:normal;font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;}
+.kpi.all{background:#f3f8f6;border-color:#cde3d8;}
 .fl{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;}
 .fl-h{
   display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
@@ -85,7 +92,7 @@ header{
 </header>
 <div class="navmask" id="navMask" hidden></div>
 <div class="navmenu" id="navMenu" hidden></div>
-<div class="wrap" id="body"><div class="empty">読み込み中…</div></div>
+<div class="wrap"><div class="kpis" id="kpis"></div><div id="body"><div class="empty">読み込み中…</div></div></div>
 <div class="ft">閲覧専用です。配置の変更はPCの配置ダッシュボードから行ってください。</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -160,6 +167,14 @@ function render() {
   const all = people().filter(p => p.shift === shift);
   const work = all.filter(p => !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
   document.getElementById("cnt").textContent = `稼働 ${work.length}名 / 全${all.length}名`;
+
+  // 上段：全体と工程別（OUT / IN / ICQA）
+  const sum = list => ({ hc: list.length, lh: list.reduce((s, p) => s + (p.lh || 0), 0) });
+  const byPlace = pl => sum(work.filter(p => locOf(p).split("|")[0] === pl));
+  const tile = (label, v, cls) => `<div class="kpi ${cls || ""}"><span>${label}</span><b>${v.hc}<small>名</small></b><em>LH ${fmt1(v.lh)}</em></div>`;
+  const icqa = byPlace("ICQA");
+  document.getElementById("kpis").innerHTML =
+    tile("稼働", sum(work), "all") + tile("OUT", byPlace("OUT")) + tile("IN", byPlace("IN")) + tile("ICQA", icqa);
 
   let h = "";
   floors.forEach((fn, i) => {
