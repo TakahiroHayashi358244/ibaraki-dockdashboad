@@ -151,7 +151,6 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 }
 .bay-label .bay-time.warn{background:#e0a030;color:#1f2b38;}
 .bay-label .bay-time.alert{background:#e05050;color:#fff;}
-.bay-label .bay-time.lock{background:#7a1020;color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.55);}
 .bay-slot{
   flex:1;min-height:40px;padding:3px 5px 5px;display:flex;flex-direction:column;gap:5px;
   overflow-y:auto;overflow-x:hidden;
@@ -934,7 +933,8 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 
 <script>
 /* ============ 初期データ（添付CSVを内蔵） ============ */
-const INITIAL = {"headers": ["Appointment Id", "Type", "Carrier", "CRDD", "Schedule Date", "Expected Arrival Date", "Timer(HHH:MM)", "Percent Need", "Priority Score", "Priority Score Last Updated Date", "Status", "Pallets", "Cartons", "Units", "Dock"], "data": [{"Appointment Id":"72910037998","Type":"CARP","Carrier":"[AISH4]株式会社ヒガシトゥエンティワン","CRDD":"2026/05/28 13:30 JST","Schedule Date":"2026/05/28 13:30 - 14:00","Expected Arrival Date":"2026/05/28 13:30","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"16","Cartons":"160","Units":"3000","Dock":"1[1]"},{"Appointment Id":"72912037998","Type":"CARP","Carrier":"[AISH3]Padela Trading LLC","CRDD":"2026/05/28 09:15 JST","Schedule Date":"2026/05/28 09:15 - 09:45","Expected Arrival Date":"2026/05/28 09:15","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"16","Cartons":"160","Units":"3000","Dock":"1[1]"},{"Appointment Id":"72927037998","Type":"CARP","Carrier":"[AISH4]株式会社ヒガシトゥエンティワン","CRDD":"2026/05/28 10:30 JST","Schedule Date":"2026/05/28 10:30 - 11:00","Expected Arrival Date":"2026/05/28 10:30","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"10","Cartons":"100","Units":"3000","Dock":"1[1]"},{"Appointment Id":"72973037998","Type":"CARP","Carrier":"[SGWJP]佐川急便","CRDD":"2026/05/16 09:00 JST","Schedule Date":"2026/05/28 09:00 - 09:15","Expected Arrival Date":"2026/05/28 09:00","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"0","Cartons":"5","Units":"2155","Dock":"2[1]"},{"Appointment Id":"73008037998","Type":"CARP","Carrier":"[YMTJP]ヤマト運輸","CRDD":"2026/05/20 14:30 JST","Schedule Date":"2026/05/28 13:30 - 13:45","Expected Arrival Date":"2026/05/28 13:30","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"0","Cartons":"20","Units":"1650","Dock":"2[1]"},{"Appointment Id":"73013037998","Type":"CARP","Carrier":"[YMTJP]ヤマト運輸","CRDD":"2026/05/24 13:30 JST","Schedule Date":"2026/05/28 12:45 - 13:00","Expected Arrival Date":"2026/05/28 12:45","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"0","Cartons":"20","Units":"1203","Dock":"1[1]"},{"Appointment Id":"73043037998","Type":"CARP","Carrier":"[OWNJP]その他(自社便など)","CRDD":"2026/05/25 08:00 JST","Schedule Date":"2026/05/28 13:45 - 14:00","Expected Arrival Date":"2026/05/28 13:45","Timer(HHH:MM)":"","Percent Need":"0","Priority Score":"","Status":"ARRIVAL_SCHEDULED","Pallets":"50","Cartons":"268","Units":"","Dock":"2[1]"},{"Appointment Id":"73093037998","Type":"CARP","Carrier":"[SINJP]西濃運輸","CRDD":"2026/05/28 15:45 JST","Schedule Date":"2026/05/28 15:45 - 17:00","Expected Arrival Date":"2026/05/28 15:45","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"0","Cartons":"500","Units":"1411","Dock":"2[1]"},{"Appointment Id":"73165037998","Type":"CARP","Carrier":"[GRBX]GreenBox株式会社","CRDD":"2026/05/26 11:00 JST","Schedule Date":"2026/05/28 11:00 - 11:15","Expected Arrival Date":"2026/05/28 11:00","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"0","Cartons":"100","Units":"1117","Dock":"1[1]"},{"Appointment Id":"73173037998","Type":"CARP","Carrier":"[OWNJP]その他(自社便など)","CRDD":"2026/05/26 08:00 JST","Schedule Date":"2026/05/28 13:00 - 13:15","Expected Arrival Date":"2026/05/28 13:00","Timer(HHH:MM)":"","Percent Need":"0","Priority Score":"","Status":"ARRIVAL_SCHEDULED","Pallets":"41","Cartons":"563","Units":"","Dock":"2[1]"},{"Appointment Id":"73179037998","Type":"CARP","Carrier":"[JPPJP]日本郵便","CRDD":"2026/05/24 11:00 JST","Schedule Date":"2026/05/28 11:00 - 11:15","Expected Arrival Date":"2026/05/28 11:00","Timer(HHH:MM)":"","Percent Need":"","Priority Score":"0","Status":"ARRIVAL_SCHEDULED","Pallets":"1","Cartons":"1","Units":"532","Dock":"2[1]"}]};
+// 起動時の内蔵データ（サンプル）は廃止。CSVを読み込むまでカードは空
+const INITIAL = {"headers": ["Appointment Id", "Type", "Carrier", "CRDD", "Schedule Date", "Expected Arrival Date", "Status", "Pallets", "Cartons", "Units", "Dock"], "data": []};
 
 /* ============ State ============ */
 const ID_FIELD = "Appointment Id";
@@ -988,7 +988,6 @@ let idxAuto = true;                 // このPCで自動完了を有効にする
 /* ============ IDXへの逆連携（着車→CHECKED_IN／完了→CLOSED） ============
    /dock/idxCommands に指示を積み、同じ連携コードを設定したIDX側のスクリプトが
    詳細画面のステータスを変更する。IDXの実データを書き換えるため既定はオフ。 */
-const LONG_STAY_MIN = 120;   // 着車からこの分数を過ぎたら、ダッシュボードから完了にできない
 const IDX_CMD_PATH = "idxCommands";
 const IDX_SITE     = "HFO1";
 const IDX_CMD_KEEP_H = 1;           // 指示の保持時間
@@ -1062,10 +1061,7 @@ function applyPlacement(placement){
     const p=placement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      // 新しい項目は、キーが無い送信（古い版のPC）で消えないように手元の値を残す
-      c.idxClosedAt=('idxClosedAt' in p)?(p.idxClosedAt||null):(c.idxClosedAt||null);
-      c.doneBay=('doneBay' in p)?(p.doneBay||null):(c.doneBay||null);
-      c.noshow=('noshow' in p)?!!p.noshow:!!c.noshow;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
       if(c.id===detailCardId){
         const ta=document.getElementById('memoInput');
         c.memo = ta ? ta.value : (p.memo||null);
@@ -1100,7 +1096,7 @@ function loadCSV(ev){
       prevById[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
         arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
         doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-        idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:!!c.noshow};
+        idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
     });
     ingest(headers,data);
     // 新CSVに含まれるIDのうち、以前の情報があれば復元
@@ -1108,7 +1104,7 @@ function loadCSV(ev){
       const p=prevById[c.id];
       if(p){ c.status=p.status||'plan'; c.bay=p.bay; c.arriveAt=p.arriveAt;
         c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo;
-        c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow; }
+        c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; }
     });
     render();
     recordCsvLoad(data.length);
@@ -1123,7 +1119,7 @@ function loadCSV(ev){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
             doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:!!c.noshow};
+            idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null};
         }
       });
       fbPlacement=carried;
@@ -1448,7 +1444,9 @@ function render(){
   // plan（sortKey 昇順）
   const plan=sortPlan(state.cards.filter(c=>c.status==='plan'));
   document.getElementById('plan-list').innerHTML =
-    plan.length?plan.map(cardHTML).join(''):'<div class="empty-hint">予定なし</div>';
+    plan.length?plan.map(cardHTML).join('')
+      :(state.cards.length?'<div class="empty-hint">予定なし</div>'
+        :'<div class="empty-hint">CSVを読み込んでください<br>（設定 →「翌日CSVを取込」、または着車プランから共有）</div>');
   // done（選択された並び順）
   const done=sortDone(state.cards.filter(c=>c.status==='done'));
   document.getElementById('done-list').innerHTML =
@@ -1599,17 +1597,6 @@ function requireOperator(){
 function moveCardTo(c, zone, bay){
   if(!c) return false;
   if(!requireOperator()) return false;
-  // 着車から120分以上のカードは、ダッシュボードから完了にできない。
-  // ドックマスターでコメントを入れてCLOSEDにすると、連携でカードが完了へ移動する。
-  if(zone==='done' && c.status!=='done' && c.arriveAt
-     && (Date.now()-c.arriveAt) >= LONG_STAY_MIN*60000){
-    alert(LONG_STAY_MIN+'分以上経過しています（経過 '+fmtElapsed(c.arriveAt)+'）。\n'
-      + 'Closeするにはドックマスターからコメントに理由を記入してください。\n\n'
-      + 'Appointment Id: '+c.id+'\n'
-      + 'ドックマスターでCLOSEDにすると、このカードは自動で完了へ移動します。');
-    warn(LONG_STAY_MIN+'分以上経過のため、ドックマスターでCloseしてください（'+c.id+'）');
-    return false;
-  }
   // IDXへの逆連携がオンのときは、完了にする前に必ず確認する（IDXの実データを変えるため）
   if(zone==='done' && c.status!=='done' && idxRevActive()){
     const carrier=(c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'');
@@ -2035,8 +2022,6 @@ function updateElapsed(){
     const min=(Date.now()-since)/60000;
     el.classList.toggle('warn', min>=30);   // 30分以上で警告色
     el.classList.toggle('alert', min>=60);  // 60分以上で強調色
-    el.classList.toggle('lock', min>=LONG_STAY_MIN);   // 120分以上はダッシュボードから完了にできない
-    if(min>=LONG_STAY_MIN) el.title=LONG_STAY_MIN+'分以上経過。ドックマスターでCloseしてください';
   });
 }
 // 時間超過の状態が変わったカードがあれば再描画（毎秒・ドラッグ中は除く）
@@ -3001,9 +2986,6 @@ function normalizeMaster(m){
 function rebuildFromFB(){
   if(!fbMaster || !fbMaster.headers || !fbMaster.data) return;
   fbApplying=true;
-  // カードを作り直す前に、送信元が古い版だったとき用に手元の値を控えておく
-  const prevExtra={};
-  state.cards.forEach(c=>{ prevExtra[c.id]={ noshow:!!c.noshow, doneBay:c.doneBay||null, idxClosedAt:c.idxClosedAt||null }; });
   // masterからカード生成（status等は後でplacement適用）
   state.headers = fbMaster.headers;
   state.cards = fbMaster.data.map(obj=>({
@@ -3019,11 +3001,7 @@ function rebuildFromFB(){
     const p=fbPlacement[c.id];
     if(p){ c.status=p.status||'plan'; c.bay=p.bay||null; c.arriveAt=p.arriveAt||null;
       c.arriveBay=p.arriveBay||null; c.arriveOp=p.arriveOp||null; c.doneAt=p.doneAt||null; c.doneOp=p.doneOp||null;
-      // 新しい項目は、キーが無い送信（古い版のPC）で消えないように直前の値を残す
-      const keep=prevExtra[c.id]||{};
-      c.idxClosedAt=('idxClosedAt' in p)?(p.idxClosedAt||null):(keep.idxClosedAt||null);
-      c.doneBay=('doneBay' in p)?(p.doneBay||null):(keep.doneBay||null);
-      c.noshow=('noshow' in p)?!!p.noshow:!!keep.noshow;
+      c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; c.noshow=!!p.noshow;
       // 編集中カードは、入力中のメモ（テキストエリアの値）を優先して保持。
       // それ以外はFirebaseのメモを反映。
       if(c.id===detailCardId){
@@ -3345,7 +3323,7 @@ function pushCards(){
     status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
     arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
     doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:!!c.noshow
+    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null
   }; });
   fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
 }
