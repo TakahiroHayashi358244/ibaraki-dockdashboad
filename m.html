@@ -102,10 +102,31 @@ header .dot.mst.on{background:#4aa3ff;}
 .sheet .cl{margin-top:14px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef2f5;
   color:var(--ink);font:inherit;font-weight:700;cursor:pointer;}
 .ft{flex:none;padding:4px 8px calc(env(safe-area-inset-bottom) + 5px);color:var(--sub);font-size:10.5px;text-align:center;}
+
+/* ページ切替（名前をタップ） */
+.navbtn{
+  all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;
+  font-size:16px;font-weight:800;color:#fff;letter-spacing:.02em;
+}
+.navbtn .cr{font-size:10px;opacity:.75;}
+.navmenu{
+  position:fixed;left:8px;top:calc(env(safe-area-inset-top) + 42px);z-index:60;min-width:200px;
+  background:#fff;border:1px solid #d8e0e8;border-radius:12px;box-shadow:0 12px 34px rgba(20,35,50,.32);padding:5px;
+}
+.navmenu[hidden]{display:none;}
+.navmenu a{
+  display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:9px;
+  color:#1f2b38;text-decoration:none;font-size:14px;font-weight:700;
+}
+.navmenu a .mk{width:7px;height:7px;border-radius:50%;background:transparent;flex:none;}
+.navmenu a.cur{color:#1f6f8b;} .navmenu a.cur .mk{background:#1f6f8b;}
+.navmask{position:fixed;inset:0;z-index:55;} .navmask[hidden]{display:none;}
 </style>
 </head>
-<body>
-<header><b>ドック状況</b><span class="dt" id="now">--:--</span><span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span></header>
+<body data-app="dock">
+<header><button class="navbtn" id="navBtn">ドック状況<span class="cr">▼</span></button><span class="dt" id="now">--:--</span><span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span></header>
+<div class="navmask" id="navMask" hidden></div>
+<div class="navmenu" id="navMenu" hidden></div>
 
 <div class="cols">
   <div class="col plan"><div class="col-h"><b id="n-plan">0</b>予定</div><div class="col-b" id="l-plan"></div></div>
@@ -292,6 +313,25 @@ try {
 } catch (e) { /* 無視 */ }
 setInterval(render, 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+
+/* ===== ページ切替（PC版と同じ考え方） ===== */
+(function () {
+  const APPS = [
+    { id: "dock", name: "ドック状況", url: "m.html" },
+    { id: "plan", name: "着車プラン", url: "plan-m.html" },
+  ];
+  const cur = document.body.dataset.app || "";
+  const btn = document.getElementById("navBtn");
+  const menu = document.getElementById("navMenu");
+  const mask = document.getElementById("navMask");
+  if (!btn || !menu) return;
+  menu.innerHTML = APPS.map(a => a.id === cur
+    ? `<a class="cur" href="#" onclick="return false"><span class="mk"></span>${a.name}</a>`
+    : `<a href="${a.url}"><span class="mk"></span>${a.name}</a>`).join("");
+  const close = () => { menu.hidden = true; mask.hidden = true; };
+  btn.addEventListener("click", e => { e.stopPropagation(); const o = menu.hidden; menu.hidden = !o; mask.hidden = !o; });
+  mask.addEventListener("click", close);
+})();
 </script>
 </body>
 </html>
