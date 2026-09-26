@@ -269,6 +269,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-gc .st{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;} .pm-gc .st span{background:#f3f4f6;border-radius:6px;padding:1px 7px;} .pm-gc .st span.hot{background:#fee2e2;color:#b91c1c;font-weight:700;}
 .pm-rows{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:8px;}
 .pm-row{border-bottom:1px solid #eef0f4;} .pm-row:last-child{border-bottom:0;}
+.pm-gh{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:800;background:#f1f5f9;color:#374151;border-bottom:1px solid #e5e7eb;} .pm-gh b{margin-left:auto;font-weight:700;font-size:11.5px;} .pm-gh.night{background:#1e1b4b;color:#fff;} .pm-gh.out{background:#e5e7eb;color:#4b5563;}
 .pm-rh{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
 .pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#faf8ff;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
 .pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1195,7 +1196,18 @@ function renderPunch() {
   // 1人1行
   const q = atFold(pmQ);
   const list = rows.filter(r => (pmF === "all" || r.level === pmF) && (!q || atFold(`${r.name} ${r.badge} ${r.alias}`).indexOf(q) >= 0));
+  const PM_GL = { night: "夜勤（勤務中）", day: "日勤（勤務中）", out: "退勤済み（IDカード返却）" };
+  const pmGrp = r => r.group || (r.retTime ? "out" : r.night ? "night" : "day");
+  const PM_GO = { night: 0, day: 1, out: 2 };
+  list.sort((x, y) => PM_GO[pmGrp(x)] - PM_GO[pmGrp(y)]);
+  const gcnt = {}; list.forEach(r => { const g = pmGrp(r); gcnt[g] = (gcnt[g] || 0) + 1; });
+  let lastG = null;
   document.getElementById("pmList").innerHTML = list.map(r => {
+    const g = pmGrp(r), head = g !== lastG ? `<div class="pm-gh ${g}">${PM_GL[g]}<b>${gcnt[g]}名</b></div>` : "";
+    lastG = g;
+    return head + pmRowHtml(r);
+  }).join("") || `<div class="empty">該当する人はいません</div>`;
+  function pmRowHtml(r) {
     const used8 = r.slots.slice(6).some(x => x.st && x.st !== "off");
     const ss = used8 ? r.slots : r.slots.slice(0, 6);
     const dots = r.slots.map((x, k) => `<i class="${k >= 6 && !used8 ? "none" : x.st}"></i>`).join("");
@@ -1208,7 +1220,7 @@ function renderPunch() {
       <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}"><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
-  }).join("") || `<div class="empty">該当する人はいません</div>`;
+  }
   document.querySelectorAll("#pmList .pm-row").forEach(el => el.querySelector(".pm-rh").onclick = () => { const k = el.dataset.k; pmOpen[k] = !pmOpen[k]; el.classList.toggle("open", !!pmOpen[k]); });
   document.getElementById("pmFt").innerHTML = `閲覧専用です（1分ごとに更新）。詳しい履歴・集計はPCの監視画面で。<br><a href="javascript:void(0)" onclick="pmResetKey()">閲覧用の鍵を変更</a>`;
 }
