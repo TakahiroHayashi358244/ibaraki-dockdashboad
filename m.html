@@ -30,6 +30,7 @@ header{
 body[data-v="plan"] header{background:#24506a;}
 body[data-v="haichi"] header{background:#2e7d5b;}
 body[data-v="att"] header{background:#111;}
+body[data-v="punch"] header{background:#3b1d5e;}
 .h1{display:flex;align-items:center;gap:8px;}
 .navbtn{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:16px;font-weight:800;color:#fff;}
 .navbtn .cr{font-size:10px;opacity:.75;}
@@ -251,6 +252,48 @@ body[data-v="att"] header{background:#111;}
 .ath-cw > button.ath-clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px !important;height:26px !important;min-width:0 !important;border:0 !important;border-radius:50% !important;background:#c3cad4 !important;color:#fff !important;font-size:17px !important;font-weight:700;line-height:1;display:none;align-items:center;justify-content:center;padding:0 !important;margin:0 !important;cursor:pointer;font-family:inherit;box-shadow:none !important;}
 .ath-cw > button.ath-clr:active{background:#9aa4b1 !important;}
 #v-att.pm .donly{display:none !important;} #v-att:not(.pm) .ponly{display:none !important;}
+/* --- 打刻監視（打刻漏れ監視システムの出勤者照合・閲覧専用） --- */
+#v-punch .wrap{padding-top:0;}
+.pm-bar{position:sticky;top:0;z-index:4;background:var(--bg);padding:8px 8px 6px;margin:0 -8px;border-bottom:1px solid var(--line);}
+.pm-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;}
+.pm-tabs button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:4px 0 5px;font:inherit;color:var(--sub);}
+.pm-tabs button b{display:block;font-size:18px;line-height:1.2;color:var(--ink);} .pm-tabs button span{font-size:10px;font-weight:700;}
+.pm-tabs button.r b{color:#b91c1c;} .pm-tabs button.y b{color:#a16207;} .pm-tabs button.v b{color:#5b21b6;} .pm-tabs button.g b{color:#15803d;}
+.pm-tabs button.on{outline:2px solid #1f3864;outline-offset:-2px;background:#f4f7ff;}
+.pm-srch{margin-top:6px;} .pm-srch input{width:100%;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;box-sizing:border-box;}
+details.pm-grp{background:#fff;border:1px solid var(--line);border-radius:10px;margin:8px 0;}
+details.pm-grp summary{padding:8px 10px;font-size:12.5px;font-weight:700;color:#374151;list-style:none;display:flex;align-items:center;gap:6px;}
+details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp summary::after{content:'▼';margin-left:auto;font-size:10px;color:var(--sub);} details.pm-grp[open] summary::after{content:'▲';}
+.pm-hot{background:#fee2e2;color:#b91c1c;border-radius:6px;padding:1px 7px;font-size:11.5px;}
+.pm-gl{padding:0 10px 8px;} .pm-gc{border-top:1px solid #eef0f4;padding:6px 0;font-size:12px;} .pm-gc b{font-size:13px;margin-right:6px;}
+.pm-gc .st{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;} .pm-gc .st span{background:#f3f4f6;border-radius:6px;padding:1px 7px;} .pm-gc .st span.hot{background:#fee2e2;color:#b91c1c;font-weight:700;}
+.pm-rows{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:8px;}
+.pm-row{border-bottom:1px solid #eef0f4;} .pm-row:last-child{border-bottom:0;}
+.pm-rh{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
+.pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#faf8ff;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
+.pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pm-rh .nm small{display:block;font-weight:600;font-size:11px;color:var(--sub);}
+.pm-dots{flex:1;min-width:0;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
+.pm-dots i{aspect-ratio:1/1;border-radius:4px;background:#fff;border:1px dashed #cbd2da;}
+.pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.v{background:#7c3aed;border:0;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
+.pm-rh .cv{flex:none;font-size:10px;color:#9ca3af;transition:transform .15s;} .pm-row.open .pm-rh .cv{transform:rotate(180deg);}
+.pm-det{display:none;padding:2px 10px 10px 13px;} .pm-row.open .pm-det{display:block;}
+.pm-meta{font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 6px;} .pm-meta b{color:var(--ink);} .pm-meta .al{color:#2563eb;font-weight:700;}
+.pm-slots{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;} .pm-slots.x8{grid-template-columns:repeat(8,1fr);}
+.pm-sl{border:1px dashed #d1d5db;border-radius:6px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;position:relative;overflow:hidden;}
+.pm-sl .k{font-size:9px;color:#9ca3af;font-weight:700;line-height:1.1;white-space:nowrap;} .pm-sl .t{font-size:12.5px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;} .pm-sl .x{font-size:8.5px;font-weight:700;line-height:1.05;white-space:nowrap;}
+.pm-sl.g{background:#dcfce7;border:1px solid #86efac;} .pm-sl.g .k{color:#15803d;} .pm-sl.g .t{color:#14532d;} .pm-sl.g .x{color:#6b7280;}
+.pm-sl.y{background:#fef3c7;border:1px solid #fcd34d;} .pm-sl.y .k,.pm-sl.y .x{color:#a16207;} .pm-sl.y .t{color:#713f12;}
+.pm-sl.r{background:#fee2e2;border:1px solid #fca5a5;} .pm-sl.r .k,.pm-sl.r .x{color:#b91c1c;} .pm-sl.r .t{color:#7f1d1d;}
+.pm-sl.v{background:#ede9fe;border:2px solid #8b5cf6;} .pm-sl.v .k,.pm-sl.v .x{color:#5b21b6;} .pm-sl.v .t{color:#4c1d95;}
+.pm-sl.v::before{content:'↺';position:absolute;top:0;right:2px;font-size:9px;font-weight:800;color:#7c3aed;}
+.pm-sl.off{background:#f3f4f6;border:1px solid #eceef1;} .pm-sl.off .k{color:#cfd3d9;}
+.pm-msg{margin-top:6px;font-size:12px;line-height:1.45;} .pm-msg div{margin-bottom:2px;} .pm-msg .r{color:#b91c1c;font-weight:700;} .pm-msg .y{color:#a16207;font-weight:700;} .pm-msg .v{color:#5b21b6;font-weight:700;} .pm-msg .m{color:var(--sub);}
+.pm-key{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:10px;font-size:13px;line-height:1.6;}
+.pm-key input{width:100%;font-size:16px;padding:9px 10px;border:1px solid #cfd6e0;border-radius:9px;margin:8px 0;box-sizing:border-box;font-family:inherit;}
+.pm-key button{width:100%;padding:10px;border:0;border-radius:9px;background:#3b1d5e;color:#fff;font:inherit;font-weight:700;}
+.pm-err{margin:8px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
+.pm-ft{text-align:center;font-size:11px;color:var(--sub);padding:10px 0;} .pm-ft a{color:var(--sub);}
 .at-err{margin:6px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
 </style>
 </head>
@@ -320,6 +363,23 @@ body[data-v="att"] header{background:#111;}
     <div id="atList"><div class="empty">読み込み中…</div></div>
     <div id="atOrph"></div>
     <div class="ft" id="atFt">閲覧専用です。貸出・返却は無線管理の受付PCから行ってください。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ 打刻監視（打刻漏れ監視システムの出勤者照合・閲覧専用） -->
+<div class="view" id="v-punch" hidden>
+  <div class="wrap">
+    <div id="pmKeyBox"></div>
+    <div id="pmMain" hidden>
+      <div class="pm-bar">
+        <div class="pm-tabs" id="pmTabs"></div>
+        <div class="pm-srch"><input id="pmQ" type="search" inputmode="search" autocomplete="off" placeholder="名前・バッチID・エイリアス"></div>
+      </div>
+      <div id="pmErr"></div>
+      <div id="pmGroups"></div>
+      <div class="pm-rows" id="pmList"><div class="empty">読み込み中…</div></div>
+      <div class="pm-ft" id="pmFt"></div>
     </div>
   </div>
 </div>
@@ -412,6 +472,7 @@ const VIEWS = [
   { id: "plan", name: "着車プラン" },
   { id: "haichi", name: "配置" },
   { id: "att", name: "出勤者" },
+  { id: "punch", name: "打刻監視" },
 ];
 function setView(v) {
   view = v;
@@ -423,6 +484,7 @@ function setView(v) {
   closeMenu();
   try { localStorage.setItem("mView", v); } catch (e) { /* 無視 */ }
   attActivate(v === "att");
+  pmActivate(v === "punch");
   render();
 }
 function closeMenu() { document.getElementById("navMenu").hidden = true; document.getElementById("navMask").hidden = true; }
@@ -763,6 +825,7 @@ function render() {
     if (view === "dock") renderDock();
     else if (view === "plan") renderPlan();
     else if (view === "att") renderAtt();
+    else if (view === "punch") renderPunch();
     else renderHaichi();
   });
 }
@@ -1045,6 +1108,103 @@ function renderAtt() {
   document.querySelectorAll("#atChips button").forEach(b => b.addEventListener("click", () => {
     atFilter = b.dataset.f; try { localStorage.setItem("mAtt_filter", atFilter); } catch (e) { /* 無視 */ } render();
   }));
+})();
+
+/* ==========================================================
+   ⑤ 打刻監視（打刻漏れ監視システム punch-relay-hfo1 の出勤者照合を読むだけ）
+   初回に「スマホ閲覧用の鍵」を入れる（監視画面の設定タブに表示）。この画面を開いている間だけ1分ごとに取得
+   ========================================================== */
+const PUNCH_URL = "https://punch-relay-hfo1.takahiro884.workers.dev";   // 打刻漏れ監視システムのURL
+let PM = null, pmKey = "", pmOn = false, pmT = null, pmLoading = false, pmF = "all", pmQ = "";
+const pmOpen = {};
+try { pmKey = localStorage.getItem("pm_key") || ""; pmF = localStorage.getItem("pm_f") || "all"; } catch (e) { /* 無視 */ }
+const PM_LBL = { r: "異常", y: "要確認", v: "リカバリ", g: "正常" };
+const PM_STEP = ["", "出勤", "休憩入", "再開", "休憩入2", "再開2", "退勤"];
+const pmHm = ms => { if (!ms) return ""; const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+function pmLoad() {
+  if (!pmKey || pmLoading) return;
+  pmLoading = true;
+  fetch(PUNCH_URL + "/api/view/status", { headers: { "x-view-key": pmKey }, cache: "no-store" })
+    .then(r => r.json().then(j => ({ st: r.status, j })))
+    .then(({ st, j }) => {
+      if (st === 401) { PM = null; pmKey = ""; try { localStorage.removeItem("pm_key"); } catch (e) { /* 無視 */ } pmKeyMsg = "鍵が違います。監視画面の設定タブの「スマホ閲覧用の鍵」を入れてください"; return; }
+      if (!j.ok) throw new Error(j.error || ("HTTP " + st));
+      PM = j; PM.err = ""; PM.at = Date.now();
+    })
+    .catch(e => { PM = PM || { rows: [], groups: [] }; PM.err = "打刻漏れ監視から読み込めませんでした（" + e.message + "）"; })
+    .then(() => { pmLoading = false; if (view === "punch") render(); });
+}
+let pmKeyMsg = "";
+function pmActivate(on) {
+  if (on === pmOn) return;
+  pmOn = on; clearInterval(pmT);
+  if (on) { pmLoad(); pmT = setInterval(() => { if (!document.hidden) pmLoad(); }, 60000); }
+}
+document.addEventListener("visibilitychange", () => { if (pmOn && !document.hidden) pmLoad(); });
+function pmSaveKey() {
+  const v = (document.getElementById("pmKeyIn").value || "").trim();
+  if (!v) return;
+  pmKey = v; pmKeyMsg = "";
+  try { localStorage.setItem("pm_key", v); } catch (e) { /* 無視 */ }
+  pmLoad(); render();
+}
+function pmResetKey() {
+  if (!confirm("この端末に保存した閲覧用の鍵を消去しますか？")) return;
+  pmKey = ""; PM = null; try { localStorage.removeItem("pm_key"); } catch (e) { /* 無視 */ } render();
+}
+function renderPunch() {
+  const kb = document.getElementById("pmKeyBox"), main = document.getElementById("pmMain");
+  if (!pmKey) {
+    main.hidden = true;
+    document.getElementById("sub").textContent = "閲覧用の鍵が必要です";
+    if (!document.getElementById("pmKeyIn")) kb.innerHTML = `<div class="pm-key"><b>打刻監視を見るには、閲覧用の鍵が必要です</b><br>PCの打刻漏れ監視画面 → 設定タブの「スマホ閲覧用の鍵」を入力してください（この端末に保存され、次からは不要です）。
+      <div id="pmKeyMsg" style="color:#b91c1c"></div><input id="pmKeyIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="閲覧用の鍵"><button type="button" onclick="pmSaveKey()">保存して表示</button></div>`;
+    document.getElementById("pmKeyMsg").textContent = pmKeyMsg;
+    return;
+  }
+  kb.innerHTML = ""; main.hidden = false;
+  document.getElementById("pmErr").innerHTML = PM && PM.err ? `<div class="pm-err">${esc(PM.err)}</div>` : "";
+  if (!PM || !PM.rows) { document.getElementById("sub").textContent = "読み込み中…"; return; }
+  const rows = PM.rows;
+  const cnt = { r: 0, y: 0, v: 0, g: 0 };
+  rows.forEach(r => { if (cnt[r.level] != null) cnt[r.level]++; });
+  document.getElementById("sub").textContent = (PM.paused ? "一時停止中 ・ " : "") + `出勤 ${rows.filter(r => r.listed).length}名 ・ ${pmHm(PM.at)}更新`;
+  document.getElementById("pmTabs").innerHTML = [["all", "全員", rows.length, ""], ["r", "異常", cnt.r, "r"], ["y", "要確認", cnt.y, "y"], ["v", "リカバリ", cnt.v, "v"], ["g", "正常", cnt.g, "g"]]
+    .map(t => `<button type="button" data-f="${t[0]}" class="${t[3]}${pmF === t[0] ? " on" : ""}"><b>${t[2]}</b><span>${t[1]}</span></button>`).join("");
+  document.querySelectorAll("#pmTabs button").forEach(b => b.onclick = () => { pmF = b.dataset.f; try { localStorage.setItem("pm_f", pmF); } catch (e) { /* 無視 */ } render(); });
+  // グループ（出勤時刻ごと）
+  const gs = PM.groups || [], hotN = gs.reduce((a, g) => a + Object.values(g.hot || {}).reduce((x, y) => x + y, 0), 0);
+  const gOpen = document.querySelector("#pmGroups details") ? document.querySelector("#pmGroups details").open : false;
+  document.getElementById("pmGroups").innerHTML = gs.length ? `<details class="pm-grp"${gOpen ? " open" : ""}><summary>出勤時刻のグループ ${hotN ? `<span class="pm-hot">未打刻 ${hotN}名</span>` : ""}</summary><div class="pm-gl">` +
+    gs.map(g => `<div class="pm-gc"><b>${pmHm(g.start)}出勤</b>${g.size}名<div class="st">` + g.steps.map(x => {
+      const h = (g.hot || {})[x.k + 1];
+      return `<span>${PM_STEP[x.k]} ${x.done}/${g.size} ${pmHm(x.med)}頃</span>` + (h ? `<span class="hot">${PM_STEP[x.k + 1]} 未打刻${h}名</span>` : "");
+    }).join("") + (g.hot && g.hot[1] && !g.steps.length ? `<span class="hot">出勤 未打刻${g.hot[1]}名</span>` : "") + `</div></div>`).join("") + `</div></details>` : "";
+  // 1人1行
+  const q = atFold(pmQ);
+  const list = rows.filter(r => (pmF === "all" || r.level === pmF) && (!q || atFold(`${r.name} ${r.badge} ${r.alias}`).indexOf(q) >= 0));
+  document.getElementById("pmList").innerHTML = list.map(r => {
+    const used8 = r.slots.slice(6).some(x => x.st && x.st !== "off");
+    const ss = used8 ? r.slots : r.slots.slice(0, 6);
+    const dots = r.slots.map((x, k) => `<i class="${k >= 6 && !used8 ? "none" : x.st}"></i>`).join("");
+    const key = r.badge + "|" + (r.slots[0] && r.slots[0].t);
+    const msgs = r.issues.map(i => `<div class="${i.c}">${esc(i.msg)}</div>`)
+      .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
+    if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
+    return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
+      <div class="pm-rh"><span class="nm">${esc(r.name || "（不明）")}<small>${esc(r.badge)}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
+      <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
+        <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}"><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
+        <div class="pm-msg">${msgs.join("")}</div></div></div>`;
+  }).join("") || `<div class="empty">該当する人はいません</div>`;
+  document.querySelectorAll("#pmList .pm-row").forEach(el => el.querySelector(".pm-rh").onclick = () => { const k = el.dataset.k; pmOpen[k] = !pmOpen[k]; el.classList.toggle("open", !!pmOpen[k]); });
+  document.getElementById("pmFt").innerHTML = `閲覧専用です（1分ごとに更新）。詳しい履歴・集計はPCの監視画面で。<br><a href="javascript:void(0)" onclick="pmResetKey()">閲覧用の鍵を変更</a>`;
+}
+(function () {
+  let t = null;
+  const el = document.getElementById("pmQ");
+  ATH.clearable(el);
+  el.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { pmQ = el.value; render(); }, 150); });
 })();
 
 /* ---------- Firebase（接続は1回だけ・読むだけ） ---------- */
