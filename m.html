@@ -273,6 +273,8 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#faf8ff;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
 .pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pm-rh .nm small{display:block;font-weight:600;font-size:11px;color:var(--sub);}
+.pm-rh .nm small em{font-style:normal;background:#1e1b4b;color:#fff;border-radius:4px;padding:0 4px;margin-left:4px;font-size:10px;}
+.pm-rh .nm small em.out{background:#e5e7eb;color:#4b5563;}
 .pm-dots{flex:1;min-width:0;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
 .pm-dots i{aspect-ratio:1/1;border-radius:4px;background:#fff;border:1px dashed #cbd2da;}
 .pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.v{background:#7c3aed;border:0;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
@@ -1202,7 +1204,7 @@ function renderPunch() {
       .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
     if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
-      <div class="pm-rh"><span class="nm">${esc(r.name || "（不明）")}<small>${esc(r.badge)}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
+      <div class="pm-rh"><span class="nm">${esc(r.name || "（不明）")}<small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${r.retTime ? '<em class="out">退勤済</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
       <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}"><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
