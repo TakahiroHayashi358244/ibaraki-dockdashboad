@@ -1115,9 +1115,13 @@ function renderAtt() {
    初回に「スマホ閲覧用の鍵」を入れる（監視画面の設定タブに表示）。この画面を開いている間だけ1分ごとに取得
    ========================================================== */
 const PUNCH_URL = "https://punch-relay-hfo1.takahiro884.workers.dev";   // 打刻漏れ監視システムのURL
+// スマホ閲覧用の鍵（監視画面の設定タブに表示）。ここに入れておくと、どのスマホでも入力なしで表示する。
+// 空欄なら、各スマホで初回に入力してもらう。※このファイルは公開されるため、鍵を知られても閲覧だけです
+const PUNCH_VIEW_KEY = "c2cecdbd97ec644a4d150f38";
 let PM = null, pmKey = "", pmOn = false, pmT = null, pmLoading = false, pmF = "all", pmQ = "";
 const pmOpen = {};
 try { pmKey = localStorage.getItem("pm_key") || ""; pmF = localStorage.getItem("pm_f") || "all"; } catch (e) { /* 無視 */ }
+if (!pmKey && PUNCH_VIEW_KEY) pmKey = PUNCH_VIEW_KEY;
 const PM_LBL = { r: "異常", y: "要確認", v: "リカバリ", g: "正常" };
 const PM_STEP = ["", "出勤", "休憩入", "再開", "休憩入2", "再開2", "退勤"];
 const pmHm = ms => { if (!ms) return ""; const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
@@ -1127,7 +1131,12 @@ function pmLoad() {
   fetch(PUNCH_URL + "/api/view/status", { headers: { "x-view-key": pmKey }, cache: "no-store" })
     .then(r => r.json().then(j => ({ st: r.status, j })))
     .then(({ st, j }) => {
-      if (st === 401) { PM = null; pmKey = ""; try { localStorage.removeItem("pm_key"); } catch (e) { /* 無視 */ } pmKeyMsg = "鍵が違います。監視画面の設定タブの「スマホ閲覧用の鍵」を入れてください"; return; }
+      if (st === 401) {
+        PM = null; try { localStorage.removeItem("pm_key"); } catch (e) { /* 無視 */ }
+        pmKeyMsg = pmKey === PUNCH_VIEW_KEY && PUNCH_VIEW_KEY ? "埋め込みの鍵が古くなっています（トークン変更など）。新しい鍵を入れてください"
+          : "鍵が違います。監視画面の設定タブの「スマホ閲覧用の鍵」を入れてください";
+        pmKey = ""; return;
+      }
       if (!j.ok) throw new Error(j.error || ("HTTP " + st));
       PM = j; PM.err = ""; PM.at = Date.now();
     })
@@ -1151,6 +1160,7 @@ function pmSaveKey() {
 function pmResetKey() {
   if (!confirm("この端末に保存した閲覧用の鍵を消去しますか？")) return;
   pmKey = ""; PM = null; try { localStorage.removeItem("pm_key"); } catch (e) { /* 無視 */ } render();
+  // 埋め込みの鍵がある場合も、入力欄を出して入れ直せるようにする（次に開いたときは埋め込みの鍵に戻る）
 }
 function renderPunch() {
   const kb = document.getElementById("pmKeyBox"), main = document.getElementById("pmMain");
