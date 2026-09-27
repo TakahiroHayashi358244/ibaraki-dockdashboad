@@ -595,7 +595,7 @@ function splitCarrier(c) {
   return { code, name: name || code || "(不明)" };
 }
 // 予約CSV：翌日分CSV / ドック表示中 / 保存済み（PCで取り込んだCSVを日付ごとに /dock/planMasters へ保存。7日分）
-function curMaster() { return S.src === "saved" ? (S.masters.saved || {})[S.date] || null : S.masters[S.src]; }
+function curMaster() { return S.src === "saved" ? (S.masters.saved || {})[S.date] || null : S.src === "next" && nextStale() ? null : S.masters[S.src]; }
 function masterDate(M) {
   if (!M || !Array.isArray(M.headers) || !Array.isArray(M.rows)) return "";
   const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
@@ -603,7 +603,15 @@ function masterDate(M) {
   M.rows.forEach(r => { const dt = parseSched(r[hi["Schedule Date"]]) || parseSched(r[hi["Expected Arrival Date"]]); if (dt) { const k = ymd(dt); cnt[k] = (cnt[k] || 0) + 1; } });
   return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || "";
 }
-const planToday = () => ymd(new Date(Date.now() - 6 * 3600000));   // 6時までは前日（夜勤）扱い
+const planToday = () => ymd(new Date());   // 着車プランは0:00で当日／翌日を切り替える
+const planTomorrow = () => { const t = new Date(); t.setDate(t.getDate() + 1); return ymd(t); };
+// 翌日分CSVの中身が当日以前（＝翌日分はまだ取り込んでいない）
+const MD = new WeakMap();
+function nextStale() {
+  const M = S.masters.next; if (!M) return true;
+  if (!MD.has(M)) MD.set(M, masterDate(M));
+  const d = MD.get(M); return !d || d <= planToday();
+}
 let gotSaved = false;
 function archiveMaster(M) {
   if (!fbDB || !M || !gotSaved) return;
@@ -632,6 +640,9 @@ function markDseg() {
   document.getElementById("dsNext").classList.toggle("on", S.src === "next");
 }
 function rebuildAppts(resetDate) {
+  if (S.src === "next" && resetDate && nextStale()) {   // 翌日分が未取込 → 翌日の空の枠を表示
+    S.date = planTomorrow(); resetDate = false; document.getElementById("planDate").value = S.date;
+  }
   if (S.src === "saved" && resetDate) {
     const ks = Object.keys(S.masters.saved || {}).sort(), t = planToday();
     S.date = ks.includes(t) ? t : (ks[ks.length - 1] || S.date);
@@ -883,7 +894,7 @@ function render() {
   const R = LAST = compute();
   renderStats(R);
   renderSummary();
-  if (!S.appts.length) {
+  if (!S.appts.length && !(S.src === "next" && nextStale())) {
     wrap.innerHTML = `<div class="empty">${dateLabel(S.date)} の予約がありません。<br>翌日分のCSVを「CSV読込」またはこの画面へドラッグ&ドロップしてください。<br>${S.outOfDate ? `（他の日付の予約 ${S.outOfDate}件 は計画日を変更すると表示されます）` : ""}</div>`;
     return;
   }
@@ -2085,12 +2096,15 @@ function setupDB() {
   fbDB.ref(".info/connected").on("value", s => { fbReady = s.val() === true; document.getElementById("syncDot").classList.toggle("on", fbReady); });
   const dock = fbDB.ref(DOCK_ROOT);
   let gotNext = false, gotCur = false;
-  const first = () => { if (gotNext && gotCur && !S.appts.length && !S.date) { if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; } rebuildAppts(true); } };
+  const first = () => { if (gotNext && gotCur && gotSaved && !S.appts.length && !S.date) {
+    if (nextStale() && (S.masters.saved || {})[planToday()]) { S.src = "saved"; document.getElementById("srcSel").value = "saved"; }   // 翌日分が未取込なら当日を開く
+    else if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; }
+    rebuildAppts(true); } };
   listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; archiveMaster(S.masters.next); if (S.date && S.src === "next") rebuildAppts(false); else first(); });
   listen(dock.child("planMasters"), "dock/planMasters", s => {
     S.masters.saved = s.val() || {}; gotSaved = true;
     archiveMaster(S.masters.next);   // いま入っている翌日分CSV（＝当日になった分）も保存しておく
-    if (S.date && S.src === "saved") rebuildAppts(false); else if (S.date) markDseg();
+    if (S.date && S.src === "saved") rebuildAppts(false); else if (S.date) markDseg(); else first();
   });
   listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
   listen(dock.child("doorState"), "dock/doorState", s => { S.doorNow = s.val() || {}; if (document.getElementById("dpModal").classList.contains("show") && !dpList.some(x => x.key)) { dpList = doorDiff().map(x => ({ ...x, key: null, sel: false })); renderDoorTab(); } });
