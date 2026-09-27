@@ -1227,10 +1227,10 @@ function renderPunch() {
   const gs = PM.groups || [], hotN = gs.reduce((a, g) => a + Object.values(g.hot || {}).reduce((x, y) => x + y, 0), 0);
   const gOpen = document.querySelector("#pmGroups details") ? document.querySelector("#pmGroups details").open : false;
   document.getElementById("pmGroups").innerHTML = gs.length ? `<details class="pm-grp"${gOpen ? " open" : ""}><summary>出勤時刻のグループ ${hotN ? `<span class="pm-hot">未打刻 ${hotN}名</span>` : ""}</summary><div class="pm-gl">` +
-    gs.map(g => `<div class="pm-gc"><b>${pmHm(g.start)}出勤</b>${g.size}名<div class="st">` + g.steps.map(x => {
+    gs.map(g => { const L = g.labels || PM_STEP; return `<div class="pm-gc"><b>${pmHm(g.start)}出勤${g.tag ? "（" + esc(g.tag) + "）" : ""}</b>${g.size}名<div class="st">` + g.steps.map(x => {
       const h = (g.hot || {})[x.k + 1];
-      return `<span>${PM_STEP[x.k]} ${x.done}/${g.size} ${pmHm(x.med)}頃</span>` + (h ? `<span class="hot">${PM_STEP[x.k + 1]} 未打刻${h}名</span>` : "");
-    }).join("") + (g.hot && g.hot[1] && !g.steps.length ? `<span class="hot">出勤 未打刻${g.hot[1]}名</span>` : "") + `</div></div>`).join("") + `</div></details>` : "";
+      return `<span>${L[x.k]} ${x.done}/${g.size} ${pmHm(x.med)}頃</span>` + (h ? `<span class="hot">${L[x.k + 1]} 未打刻${h}名</span>` : "");
+    }).join("") + (g.hot && g.hot[1] && !g.steps.length ? `<span class="hot">${L[1]} 未打刻${g.hot[1]}名</span>` : "") + `</div></div>`; }).join("") + `</div></details>` : "";
   // 1人1行
   const q = atFold(pmQ);
   const list = rows.filter(r => (pmF === "all" || r.level === pmF) && (!q || atFold(`${r.name} ${r.badge} ${r.alias}`).indexOf(q) >= 0));
@@ -1251,10 +1251,10 @@ function renderPunch() {
     const dots = r.slots.map((x, k) => `<i class="${k >= 6 && !used8 ? "none" : x.st}"></i>`).join("");
     const key = r.badge + "|" + (r.slots[0] && r.slots[0].t);
     const msgs = r.issues.map(i => `<div class="${i.c}">${esc(i.msg)}</div>`)
-      .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
+      .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${r.four ? ((r.slots[x.slot - 1] || {}).k || x.slot + "回目") : PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
     if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
-      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${r.retTime ? '<em class="out">退勤済</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
+      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
       <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}"><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
