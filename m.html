@@ -650,17 +650,17 @@ const mainDate = all => { const cnt = {}; all.forEach(a => { if (a.dt) { const k
 // 見られる計画日：PCで取り込んだ予約（/dock/planMasters に日付ごとに保存）＋ 翌日分CSV
 //   前日以前は出さない（夜勤の朝までは前日分も見られるよう、6時までは前日扱い）
 let planSel = "", planOpts = [];
-const planToday = () => ymd(new Date(Date.now() - 6 * 3600000));
+const planToday = () => ymd(new Date());   // 着車プランは0:00で当日／翌日を切り替える
 function buildPlan() {
   const cand = {};
   Object.entries(D.planMasters || {}).forEach(([d, m]) => { if (m && Array.isArray(m.headers) && Array.isArray(m.rows)) cand[d] = m; });
   const NM = D.nextMaster || D.dockMaster, nAll = apptsOf(NM), nd = mainDate(nAll);
   if (nd) cand[nd] = NM;
-  const all = Object.keys(cand).sort(), today = planToday();
-  planOpts = all.filter(d => d >= today);
-  if (!planOpts.length) planOpts = all.slice(-1);
-  planDate = planOpts.includes(planSel) ? planSel : (planOpts.includes(nd) ? nd : planOpts[planOpts.length - 1] || "");
-  planAppts = planDate ? (planDate === nd ? nAll : apptsOf(cand[planDate])) : [];
+  const today = planToday(), tm = new Date(); tm.setDate(tm.getDate() + 1);
+  // 当日・翌日は常に選べる（予約がまだ無い日は空で表示）
+  planOpts = [...new Set([today, ymd(tm), ...Object.keys(cand).filter(d => d >= today)])].sort();
+  planDate = planOpts.includes(planSel) ? planSel : (nd && nd >= today ? nd : today);
+  planAppts = cand[planDate] ? (planDate === nd ? nAll : apptsOf(cand[planDate])) : [];
   const pl = D.plans[planDate] || {};
   planAssign = pl.assign || {}; planUph = pl.uph || null; planUphF = pl.uphF || {};
 }
