@@ -23,6 +23,11 @@ header h1 .dot.on{background:#3ec96a;box-shadow:0 0 8px #3ec96a;}
 .sp{flex:1;}
 .btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .btn:hover{background:var(--panel2);}
+.dseg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.dseg button{border:0;background:#fff;padding:7px 11px;font:inherit;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
+.dseg button+button{border-left:1px solid var(--line);}
+.dseg button.on{background:var(--accent);color:#fff;}
+.stat.saved{background:#fff4e0;border-color:#f0cf8f;color:#7a4d00;}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
 .btn.primary:hover{background:var(--accent2);}
 .btn.danger{color:var(--alert);}
@@ -281,9 +286,11 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
     <label class="fld">予約
       <select id="srcSel">
         <option value="next">翌日分CSV</option>
+        <option value="saved">保存済み（日付で切替）</option>
         <option value="current">ドック表示中</option>
       </select>
     </label>
+    <span class="dseg" title="翌日分を組み直している間も、保存しておいた当日分を確認できます"><button type="button" id="dsToday" onclick="showSavedDay(0)">当日</button><button type="button" id="dsNext" onclick="showNextCsv()">翌日</button></span>
     <button class="btn" onclick="document.getElementById('csvFile').click()">CSV読込</button>
     <span class="save-st" id="saveSt"></span>
     <span class="sp"></span>
@@ -461,7 +468,7 @@ const WD = ["日","月","火","水","木","金","土"];
 let fbDB = null, fbReady = false;
 const S = {
   src: "next",
-  masters: { next: null, current: null },
+  masters: { next: null, current: null, saved: {} },
   appts: [], outOfDate: 0,
   date: "",
   plan: { assign: {}, uph: null, uphF: {} },
@@ -535,12 +542,13 @@ function ingestCSVText(text, name) {
   if (!headers.includes(ID_FIELD)) { toast("「" + ID_FIELD + "」列がありません"); return; }
   const valueRows = rows.slice(1).map(r => headers.map((h, i) => (r[i] || "").trim()));
   const payload = { headers, rows: valueRows, name, savedAt: Date.now() };
+  archiveMaster(S.masters.next);   // 差し替える前の分（当日分）を念のため保存
   S.masters.next = payload; S.src = "next"; document.getElementById("srcSel").value = "next";
   undoStack = [];
   rebuildAppts(true);
   if (fbDB) {
     fbDB.ref(DOCK_ROOT + "/nextMaster").set(payload)
-      .then(() => toast(valueRows.length + "件を翌日分として保存しました"))
+      .then(() => { toast(valueRows.length + "件を翌日分として保存しました"); archiveMaster(payload); })
       .catch(e => toast("保存に失敗: " + (e.message || e)));
   } else toast(valueRows.length + "件 読込みました");
   // 取込直後：これまでの割当は全部捨てて、すべて未割当にする（自動割当は押すまで行わない）
@@ -586,8 +594,51 @@ function splitCarrier(c) {
   const code = m ? m[1] : "", name = (m ? m[2] : String(c || "")).replace(/株式会社|\(株\)|（株）/g, "").trim();
   return { code, name: name || code || "(不明)" };
 }
+// 予約CSV：翌日分CSV / ドック表示中 / 保存済み（PCで取り込んだCSVを日付ごとに /dock/planMasters へ保存。7日分）
+function curMaster() { return S.src === "saved" ? (S.masters.saved || {})[S.date] || null : S.masters[S.src]; }
+function masterDate(M) {
+  if (!M || !Array.isArray(M.headers) || !Array.isArray(M.rows)) return "";
+  const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
+  const cnt = {};
+  M.rows.forEach(r => { const dt = parseSched(r[hi["Schedule Date"]]) || parseSched(r[hi["Expected Arrival Date"]]); if (dt) { const k = ymd(dt); cnt[k] = (cnt[k] || 0) + 1; } });
+  return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || "";
+}
+const planToday = () => ymd(new Date(Date.now() - 6 * 3600000));   // 6時までは前日（夜勤）扱い
+let gotSaved = false;
+function archiveMaster(M) {
+  if (!fbDB || !M || !gotSaved) return;
+  const d = masterDate(M); if (!d) return;
+  const cur = S.masters.saved[d];
+  if (cur && (cur.savedAt || 0) >= (M.savedAt || 0)) return;   // 保存済みのほうが新しい（同じ）
+  fbDB.ref(DOCK_ROOT + "/planMasters/" + d).set({ headers: M.headers, rows: M.rows, name: M.name || "", savedAt: M.savedAt || Date.now(), date: d })
+    .catch(e => showMsg("当日分の保存に失敗: " + (e.message || e)));
+  const lim = ymd(new Date(Date.now() - 7 * 86400000));
+  Object.keys(S.masters.saved).filter(k => k < lim).forEach(k => fbDB.ref(DOCK_ROOT + "/planMasters/" + k).remove().catch(() => {}));
+}
+// 当日（off=0）など保存済みの日を表示
+function showSavedDay(off) {
+  const ks = Object.keys(S.masters.saved || {}).sort();
+  const t = new Date(planToday() + "T00:00:00"); t.setDate(t.getDate() + off);
+  let d = ymd(t);
+  if (!ks.includes(d)) { if (!ks.length) { toast("保存済みの予約がありません（翌日分CSVを取り込むと、その日の分が保存されます）"); return; } toast(dateLabel(d) + " の保存分がないため、" + dateLabel(ks[ks.length - 1]) + " を表示します"); d = ks[ks.length - 1]; }
+  S.src = "saved"; document.getElementById("srcSel").value = "saved";
+  S.date = d; document.getElementById("planDate").value = d;
+  rebuildAppts(false);
+}
+function showNextCsv() { S.src = "next"; document.getElementById("srcSel").value = "next"; rebuildAppts(true); }
+function markDseg() {
+  const t = planToday();
+  document.getElementById("dsToday").classList.toggle("on", S.src !== "next" && S.date === t);
+  document.getElementById("dsNext").classList.toggle("on", S.src === "next");
+}
 function rebuildAppts(resetDate) {
-  const M = S.masters[S.src];
+  if (S.src === "saved" && resetDate) {
+    const ks = Object.keys(S.masters.saved || {}).sort(), t = planToday();
+    S.date = ks.includes(t) ? t : (ks[ks.length - 1] || S.date);
+    resetDate = false;
+    if (S.date) document.getElementById("planDate").value = S.date;
+  }
+  const M = curMaster();
   const all = [];
   if (M) {
     const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
@@ -621,6 +672,7 @@ function rebuildAppts(resetDate) {
     a.h0 = h; S.appts.push(a);
   });
   S.appts.sort((a, b) => a.dt - b.dt);
+  markDseg();
   loadPlan();
 }
 function dateBase() { const [y, m, d] = S.date.split("-").map(Number); return new Date(y, m - 1, d); }
@@ -1004,10 +1056,10 @@ function renderStats(R) {
   const tcap = S.floors.reduce((s, f) => s + R.F[f.name].tot.cap, 0);
   const alertN = S.floors.reduce((s, f) => s + R.H.filter(h => R.F[f.name].cells[h].lvl === "alert").length, 0);
   const overN = S.floors.reduce((s, f) => s + R.BY[f.name].over, 0);
-  const M = S.masters[S.src];
+  const M = curMaster();
   const noUph = !uphOf("日勤") && !uphOf("夜勤");
   const i = R.info;
-  let h = `<span class="stat">計画日<b>${dateLabel(S.date)}</b></span>
+  let h = (S.src === "saved" ? `<span class="stat saved" title="取り込み済みの予約CSVを日付ごとに保存したものです。ここでの変更はこの日の計画に保存されます">保存済みの予約を表示中</span>` : "") + `<span class="stat">計画日<b>${dateLabel(S.date)}</b></span>
     <span class="stat">予約<b>${S.appts.length}</b>台 / <b>${fmt(tu)}</b>U</span>
     <span class="stat ${assigned < S.appts.length ? "warn" : ""}">割当<b>${assigned}</b>/${S.appts.length}</span>
     <span class="stat">IN LH<b>${fmt1(tlh)}</b></span>
@@ -1707,7 +1759,7 @@ function rulesText() {
 // ---- ルール画面
 let RDRAFT = null;
 function csvCols() {
-  const M = S.masters[S.src];
+  const M = curMaster();
   const cols = (M && M.headers ? M.headers : []).filter(h => h && h !== ID_FIELD);
   ["Type", "Carrier", "Pallets", "Cartons", "Units"].forEach(c => { if (!cols.includes(c)) cols.unshift(c); });
   return cols;
@@ -2034,7 +2086,12 @@ function setupDB() {
   const dock = fbDB.ref(DOCK_ROOT);
   let gotNext = false, gotCur = false;
   const first = () => { if (gotNext && gotCur && !S.appts.length && !S.date) { if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; } rebuildAppts(true); } };
-  listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; if (S.date && S.src === "next") rebuildAppts(false); else first(); });
+  listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; archiveMaster(S.masters.next); if (S.date && S.src === "next") rebuildAppts(false); else first(); });
+  listen(dock.child("planMasters"), "dock/planMasters", s => {
+    S.masters.saved = s.val() || {}; gotSaved = true;
+    archiveMaster(S.masters.next);   // いま入っている翌日分CSV（＝当日になった分）も保存しておく
+    if (S.date && S.src === "saved") rebuildAppts(false); else if (S.date) markDseg();
+  });
   listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
   listen(dock.child("doorState"), "dock/doorState", s => { S.doorNow = s.val() || {}; if (document.getElementById("dpModal").classList.contains("show") && !dpList.some(x => x.key)) { dpList = doorDiff().map(x => ({ ...x, key: null, sel: false })); renderDoorTab(); } });
   listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {}; const l = Array.isArray(v.list) ? v.list.map(String) : [];
