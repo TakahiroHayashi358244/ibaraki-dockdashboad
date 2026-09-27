@@ -565,8 +565,7 @@ function fillSheet(id) {
   const pb = planBayOf(c);
   h += srow("予定バース", pb || "（計画なし）");
   const rb = c.status === "arrive" ? c.bay : c.status === "done" ? c.doneBay : null;
-  const pbay = pb && !/^バース未定/.test(pb) ? pb.split("（")[0] : "";
-  h += srow("実績バース", rb ? rb + (pbay && pbay !== String(rb) ? "（予定と違う）" : "") : "—");
+  h += srow("実績バース", rb || "—");
   h += srow("着車実績", c.arriveAt ? hhmm(c.arriveAt) + (c.status === "arrive" ? `（${Math.round((Date.now() - c.arriveAt) / 60000)}分経過）` : "") : "—");
   if (c.status === "done") {
     h += srow("完了", c.doneAt ? hhmm(c.doneAt) : "");
