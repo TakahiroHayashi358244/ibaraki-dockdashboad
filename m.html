@@ -42,6 +42,7 @@ body[data-v="punch"] header{background:#3b1d5e;}
 .sw{display:flex;gap:5px;margin-top:6px;}
 .sw button{flex:none;background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:7px;padding:5px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
 .sw button.on{background:#fff;color:#2e7d5b;}
+.sw{overflow-x:auto;scrollbar-width:none;} .sw::-webkit-scrollbar{display:none;} .sw[hidden]{display:none;} .sw-sep{flex:none;width:1px;background:rgba(255,255,255,.35);margin:3px 2px;}
 .view{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;}
 .view[hidden]{display:none;}
 .wrap{padding:8px 8px 20px;}
@@ -273,6 +274,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-rh{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
 .pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#faf8ff;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
 .pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pm-rh .nm .n.lent{background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px;box-shadow:inset 0 0 0 1px #f0d98a;}
 .pm-rh .nm small{display:block;font-weight:600;font-size:11px;color:var(--sub);}
 .pm-rh .nm small em{font-style:normal;background:#1e1b4b;color:#fff;border-radius:4px;padding:0 4px;margin-left:4px;font-size:10px;}
 .pm-rh .nm small em.out{background:#e5e7eb;color:#4b5563;}
@@ -431,7 +433,7 @@ const ROLE_ORDER = { Supervisor: 0, Manager: 1, Reader: 2, Operator: 3, Observer
 /* ---------- 共有データ ---------- */
 const D = {
   dockMaster: null, placement: {}, idxStatus: {}, idxMaster: null, floors: [],
-  nextMaster: null, plans: {}, rules: {}, doorCmds: {}, doorNow: {},
+  nextMaster: null, planMasters: {}, plans: {}, rules: {}, doorCmds: {}, doorNow: {},
   roster: [], custom: {}, layout: {}, floorMove: {}, nameOverride: {}, pmaster: null,
   targetUPH: { 日勤: 0, 夜勤: 0 },
 };
@@ -559,14 +561,32 @@ function fillSheet(id) {
   const o = c.raw || {};
   let h = srow("状態", c.status === "plan" ? (c.noshow ? "予定（欠車）" : "予定") : c.status === "arrive" ? "着車中" : "完了");
   h += srow("受入枠", o["Schedule Date"] || "");
-  if (c.status === "arrive") { h += srow("バース", c.bay || ""); h += srow("着車", c.arriveAt ? hhmm(c.arriveAt) + `（${Math.round((Date.now() - c.arriveAt) / 60000)}分経過）` : ""); }
+  // 着車プランの予定バース（受入枠の日付の計画）と、実績
+  const pb = planBayOf(c);
+  h += srow("予定バース", pb || "（計画なし）");
+  const rb = c.status === "arrive" ? c.bay : c.status === "done" ? c.doneBay : null;
+  const pbay = pb && !/^バース未定/.test(pb) ? pb.split("（")[0] : "";
+  h += srow("実績バース", rb ? rb + (pbay && pbay !== String(rb) ? "（予定と違う）" : "") : "—");
+  h += srow("着車実績", c.arriveAt ? hhmm(c.arriveAt) + (c.status === "arrive" ? `（${Math.round((Date.now() - c.arriveAt) / 60000)}分経過）` : "") : "—");
   if (c.status === "done") {
-    h += srow("バース", c.doneBay || ""); h += srow("着車", c.arriveAt ? hhmm(c.arriveAt) : ""); h += srow("完了", c.doneAt ? hhmm(c.doneAt) : "");
+    h += srow("完了", c.doneAt ? hhmm(c.doneAt) : "");
     if (c.arriveAt && c.doneAt) h += srow("所要", Math.round((c.doneAt - c.arriveAt) / 60000) + "分");
   }
   h += srow("Units", o.Units ? fmtN(o.Units) : "") + srow("Cartons", o.Cartons ? fmtN(o.Cartons) : "") + srow("Pallets", o.Pallets ? fmtN(o.Pallets) : "");
   h += srow("Dock", o.Dock || "") + srow("タイプ", o.Type || "") + srow("IDX", c.idx ? shortIdx(c.idx) : "") + srow("メモ", c.memo || "");
   document.getElementById("s-dl").innerHTML = h;
+}
+function planBayOf(c) {
+  if (!c.start) return "";
+  const d = new Date(c.start), k = keyEnc(c.id);
+  // 夜勤の0時以降の予約は前日の計画に入っていることがあるので、前日も見る
+  const prev = new Date(c.start - 86400000);
+  for (const pd of [ymd(d), ymd(prev)]) {
+    const pl = D.plans[pd]; if (!pl) continue;
+    const a = (pl.assign || {})[k], b = (pl.bays || {})[k] || (a && a.b) || "";
+    if (a || b) return (b || "バース未定") + (a && a.f ? "（" + a.f + "）" : "");
+  }
+  return "";
 }
 function openSheet(id) { openId = id; fillSheet(id); document.getElementById("sheet").classList.add("show"); document.getElementById("mask").classList.add("show"); }
 function closeSheet() { openId = null; document.getElementById("sheet").classList.remove("show"); document.getElementById("mask").classList.remove("show"); }
@@ -613,25 +633,43 @@ const floorOfP = p => { const k = uidEnc(p.no + "_" + p.name); return D.floorMov
 const uphOf = sh => (planUph && planUph[sh] > 0) ? +planUph[sh] : (+D.targetUPH[sh] || 0);
 const uphFor = (f, sh) => (planUphF && +planUphF[f] > 0) ? +planUphF[f] : uphOf(sh);
 
-function buildPlan() {
-  const M = D.nextMaster || D.dockMaster;
+// 予約CSV → 予約の一覧
+function apptsOf(M) {
   const all = [];
-  if (M && Array.isArray(M.headers) && Array.isArray(M.rows)) {
-    const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
-    const g = (r, k) => hi[k] == null ? "" : r[hi[k]];
-    M.rows.forEach(r => {
-      const id = String(g(r, ID_FIELD) || "").trim(); if (!id) return;
-      const dt = parseSched(g(r, "Schedule Date")) || parseSched(g(r, "Expected Arrival Date"));
-      all.push({ id, key: keyEnc(id), dt, cname: carrierName(g(r, "Carrier")),
-        units: num(g(r, "Units")), cartons: num(g(r, "Cartons")), dock: String(g(r, "Dock") || "").split("[")[0].trim() });
-    });
-  }
-  const cnt = {};
-  all.forEach(a => { if (a.dt) { const k = ymd(a.dt); cnt[k] = (cnt[k] || 0) + 1; } });
-  planDate = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || "";
-  planAppts = all;
+  if (!M || !Array.isArray(M.headers) || !Array.isArray(M.rows)) return all;
+  const hi = {}; M.headers.forEach((h, i) => hi[h] = i);
+  const g = (r, k) => hi[k] == null ? "" : r[hi[k]];
+  M.rows.forEach(r => {
+    const id = String(g(r, ID_FIELD) || "").trim(); if (!id) return;
+    const dt = parseSched(g(r, "Schedule Date")) || parseSched(g(r, "Expected Arrival Date"));
+    all.push({ id, key: keyEnc(id), dt, cname: carrierName(g(r, "Carrier")),
+      units: num(g(r, "Units")), cartons: num(g(r, "Cartons")), dock: String(g(r, "Dock") || "").split("[")[0].trim() });
+  });
+  return all;
+}
+const mainDate = all => { const cnt = {}; all.forEach(a => { if (a.dt) { const k = ymd(a.dt); cnt[k] = (cnt[k] || 0) + 1; } }); return Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || ""; };
+// 見られる計画日：PCで取り込んだ予約（/dock/planMasters に日付ごとに保存）＋ 翌日分CSV
+//   前日以前は出さない（夜勤の朝までは前日分も見られるよう、6時までは前日扱い）
+let planSel = "", planOpts = [];
+const planToday = () => ymd(new Date(Date.now() - 6 * 3600000));
+function buildPlan() {
+  const cand = {};
+  Object.entries(D.planMasters || {}).forEach(([d, m]) => { if (m && Array.isArray(m.headers) && Array.isArray(m.rows)) cand[d] = m; });
+  const NM = D.nextMaster || D.dockMaster, nAll = apptsOf(NM), nd = mainDate(nAll);
+  if (nd) cand[nd] = NM;
+  const all = Object.keys(cand).sort(), today = planToday();
+  planOpts = all.filter(d => d >= today);
+  if (!planOpts.length) planOpts = all.slice(-1);
+  planDate = planOpts.includes(planSel) ? planSel : (planOpts.includes(nd) ? nd : planOpts[planOpts.length - 1] || "");
+  planAppts = planDate ? (planDate === nd ? nAll : apptsOf(cand[planDate])) : [];
   const pl = D.plans[planDate] || {};
   planAssign = pl.assign || {}; planUph = pl.uph || null; planUphF = pl.uphF || {};
+}
+function setPlanDate(d) { planSel = d; buildPlan(); render(); }
+function planDateLabel(d) {
+  const t = planToday(), x = new Date(d + "T00:00:00"), tm = new Date(t + "T00:00:00"); tm.setDate(tm.getDate() + 1);
+  const w = "日月火水木金土"[x.getDay()];
+  return (d === t ? "当日 " : d === ymd(tm) ? "翌日 " : "") + (x.getMonth() + 1) + "/" + x.getDate() + "(" + w + ")";
 }
 // HC・LHは配置ダッシュボードの配置サマリ（IN）と同じ数え方（PC版の着車プランと同じ）
 //   選択シフトの人だけ／管理者は除外／LH＝各人のLHの合計（未入力は0）／出退勤時刻が無い人も数える
@@ -681,7 +719,8 @@ function toggleNg() { showNg = !showNg; render(); }
 function renderPlan() {
   const sh = shifts();
   if (!sh.includes(shift)) shift = sh[0];
-  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
+  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("")
+    + (planOpts.length > 1 ? `<span class="sw-sep"></span>` + planOpts.map(d => `<button class="${d === planDate ? "on" : ""}" onclick="setPlanDate('${esc(d)}')">${esc(planDateLabel(d))}</button>`).join("") : "");
   const F = planCalc();
   const tot = { n: 0, u: 0, hc: 0, lh: 0, cap: 0 };
   D.floors.forEach(f => { const x = F[f.name]; tot.n += x.n; tot.u += x.u; tot.hc += x.hc; tot.lh += x.lh; tot.cap += x.cap; });
@@ -1216,13 +1255,13 @@ function renderPunch() {
       .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
     if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
-      <div class="pm-rh"><span class="nm">${esc(r.name || "（不明）")}<small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${r.retTime ? '<em class="out">退勤済</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
+      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${r.retTime ? '<em class="out">退勤済</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
       <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}"><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
   }
   document.querySelectorAll("#pmList .pm-row").forEach(el => el.querySelector(".pm-rh").onclick = () => { const k = el.dataset.k; pmOpen[k] = !pmOpen[k]; el.classList.toggle("open", !!pmOpen[k]); });
-  document.getElementById("pmFt").innerHTML = `閲覧専用です（1分ごとに更新）。詳しい履歴・集計はPCの監視画面で。<br><a href="javascript:void(0)" onclick="pmResetKey()">閲覧用の鍵を変更</a>`;
+  document.getElementById("pmFt").innerHTML = `閲覧専用です（1分ごとに更新）。<span style="background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px">黄色の名前</span>は手入力（貸アカウント）。詳しい履歴・集計はPCの監視画面で。<br><a href="javascript:void(0)" onclick="pmResetKey()">閲覧用の鍵を変更</a>`;
 }
 (function () {
   let t = null;
@@ -1243,6 +1282,7 @@ function start() {
   on(root.child("floors"), v => { D.floors = Array.isArray(v) ? v.filter(Boolean) : []; });
   on(root.child("nextMaster"), v => { D.nextMaster = v; buildPlan(); });
   on(root.child("plans"), v => { D.plans = v || {}; buildPlan(); });
+  on(root.child("planMasters"), v => { D.planMasters = v || {}; buildPlan(); });
   on(root.child("planRules"), v => { D.rules = v || {}; });
   on(root.child("doorCommands"), v => { D.doorCmds = v || {}; });
   on(root.child("doorState"), v => { D.doorNow = v || {}; });
