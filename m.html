@@ -272,7 +272,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-row{border-bottom:1px solid #eef0f4;} .pm-row:last-child{border-bottom:0;}
 .pm-gh{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:800;background:#f1f5f9;color:#374151;border-bottom:1px solid #e5e7eb;} .pm-gh b{margin-left:auto;font-weight:700;font-size:11.5px;} .pm-gh.night{background:#1e1b4b;color:#fff;} .pm-gh.out{background:#e5e7eb;color:#4b5563;}
 .pm-rh{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
-.pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#faf8ff;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
+.pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#f3fdf6;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
 .pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pm-rh .nm .n.lent{background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px;box-shadow:inset 0 0 0 1px #f0d98a;}
 .pm-rh .nm small{display:block;font-weight:600;font-size:11px;color:var(--sub);}
@@ -280,7 +280,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-rh .nm small em.out{background:#e5e7eb;color:#4b5563;}
 .pm-dots{flex:1;min-width:0;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
 .pm-dots i{aspect-ratio:1/1;border-radius:4px;background:#fff;border:1px dashed #cbd2da;}
-.pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.v{background:#7c3aed;border:0;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
+.pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.v{background:#22c55e;border:2px solid #7c3aed;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
 .pm-rh .cv{flex:none;font-size:10px;color:#9ca3af;transition:transform .15s;} .pm-row.open .pm-rh .cv{transform:rotate(180deg);}
 .pm-det{display:none;padding:2px 10px 10px 13px;} .pm-row.open .pm-det{display:block;}
 .pm-meta{font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 6px;} .pm-meta b{color:var(--ink);} .pm-meta .al{color:#2563eb;font-weight:700;}
@@ -290,7 +290,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-sl.g{background:#dcfce7;border:1px solid #86efac;} .pm-sl.g .k{color:#15803d;} .pm-sl.g .t{color:#14532d;} .pm-sl.g .x{color:#6b7280;}
 .pm-sl.y{background:#fef3c7;border:1px solid #fcd34d;} .pm-sl.y .k,.pm-sl.y .x{color:#a16207;} .pm-sl.y .t{color:#713f12;}
 .pm-sl.r{background:#fee2e2;border:1px solid #fca5a5;} .pm-sl.r .k,.pm-sl.r .x{color:#b91c1c;} .pm-sl.r .t{color:#7f1d1d;}
-.pm-sl.v{background:#ede9fe;border:2px solid #8b5cf6;} .pm-sl.v .k,.pm-sl.v .x{color:#5b21b6;} .pm-sl.v .t{color:#4c1d95;}
+.pm-sl.v{background:#dcfce7;border:2px solid #8b5cf6;} .pm-sl.v .k{color:#15803d;} .pm-sl.v .t{color:#14532d;} .pm-sl.v .x{color:#5b21b6;}
 .pm-sl.v::before{content:'↺';position:absolute;top:0;right:2px;font-size:9px;font-weight:800;color:#7c3aed;}
 .pm-sl.off{background:#f3f4f6;border:1px solid #eceef1;} .pm-sl.off .k{color:#cfd3d9;}
 .pm-msg{margin-top:6px;font-size:12px;line-height:1.45;} .pm-msg div{margin-bottom:2px;} .pm-msg .r{color:#b91c1c;font-weight:700;} .pm-msg .y{color:#a16207;font-weight:700;} .pm-msg .v{color:#5b21b6;font-weight:700;} .pm-msg .m{color:var(--sub);}
@@ -435,6 +435,7 @@ const D = {
   dockMaster: null, placement: {}, idxStatus: {}, idxMaster: null, floors: [],
   nextMaster: null, planMasters: {}, plans: {}, rules: {}, doorCmds: {}, doorNow: {},
   roster: [], custom: {}, layout: {}, floorMove: {}, nameOverride: {}, pmaster: null,
+  nx: {roster: [], custom: {}, layout: {}, floorMove: {}}, hDay: "",
   targetUPH: { 日勤: 0, 夜勤: 0 },
 };
 let view = "dock", shift = "日勤", openId = null, showNg = false;
@@ -673,6 +674,12 @@ function planDateLabel(d) {
 // HC・LHは配置ダッシュボードの配置サマリ（IN）と同じ数え方（PC版の着車プランと同じ）
 //   選択シフトの人だけ／管理者は除外／LH＝各人のLHの合計（未入力は0）／出退勤時刻が無い人も数える
 function planCalc() {
+  // 計画日が配置ダッシュボードの当日より後なら、配置ダッシュボードの翌日分で数える
+  if (planDate && planDate > (D.hDay || planToday()) && !planCalc.inner) {
+    const keep = {roster:D.roster, custom:D.custom, layout:D.layout, floorMove:D.floorMove};
+    Object.assign(D, D.nx); planCalc.inner = true;
+    try { return planCalc(); } finally { Object.assign(D, keep); planCalc.inner = false; }
+  }
   const F = {};
   D.floors.forEach(f => F[f.name] = { hc: 0, lh: 0, cap: 0, n: 0, u: 0 });
   people().forEach(p => {
@@ -1289,6 +1296,12 @@ function start() {
   on(db.ref("custom"), v => { D.custom = v || {}; });
   on(db.ref("layout"), v => { D.layout = v || {}; });
   on(db.ref("floorMove"), v => { D.floorMove = v || {}; });
+  // 配置ダッシュボードの翌日分（next/）と当日の日付。着車プランで計画日が当日より後なら翌日分で数える
+  on(db.ref("next/roster"), v => { D.nx.roster = Array.isArray(v) ? v : (v ? Object.values(v) : []); });
+  on(db.ref("next/custom"), v => { D.nx.custom = v || {}; });
+  on(db.ref("next/layout"), v => { D.nx.layout = v || {}; });
+  on(db.ref("next/floorMove"), v => { D.nx.floorMove = v || {}; });
+  on(db.ref("dayMeta"), v => { D.hDay = v && v.date || ""; });
   on(db.ref("nameOverride"), v => { D.nameOverride = v || {}; });
   on(db.ref("master"), v => { D.pmaster = v || null; });
   on(db.ref("targetUPH"), v => { const x = v || {}; D.targetUPH = { 日勤: +(x.日勤 && x.日勤.in) || 0, 夜勤: +(x.夜勤 && x.夜勤.in) || 0 }; });
