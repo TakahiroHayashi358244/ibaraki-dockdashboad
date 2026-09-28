@@ -205,7 +205,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .card.dragging{opacity:.4;}
 .card.s-arrive{border-left-color:var(--accent);}
 .card.s-done{border-left-color:var(--green);}
-/* 着車から2時間超：画面から完了にできない（ドックマスタでCLOSEDにする） */
+/* 着車から2時間以上：画面から完了にできない（ドックマスタでCLOSEDにする） */
 .card.longstay{border-color:#e0a030;border-left-color:#e0a030;background:#fffaf0;}
 .card.longstay .c-topright::before{
   content:"要ドックマスタ";font-size:9.5px;font-weight:800;color:#8a6d00;background:#fff3cd;
@@ -990,7 +990,7 @@ const IDX_KEEP_H = 48;              // idxStatus の保持時間（これより�
 const IDX_AUTO_KEY = "dock_idx_auto";
 let idxStatusMap = {};              // 最新の /dock/idxStatus
 let idxAuto = true;                 // このPCで自動完了を有効にするか（localStorage保存）
-// 着車からこの時間を超えたカードは、画面から「完了」へ動かせない
+// 着車からこの時間に達したカードは、画面から「完了」へ動かせない（2時間ちょうども不可）
 // （ドックマスタでコメントを入れてCLOSEDにする運用。CLOSEDを受け取れば自動で完了へ移動する）
 const LONG_STAY_MS = 2 * 60 * 60000;
 
@@ -1276,7 +1276,7 @@ function cardHTML(c){
     rows+=`<div class="c-row"><span>${f}</span><span>${esc(v)}</span></div>`;
   });
   const cls = (c.status==='arrive'?'s-arrive':c.status==='done'?'s-done':'')
-    + ((c.status==='arrive' && c.arriveAt && Date.now()-c.arriveAt > LONG_STAY_MS) ? ' longstay' : '');
+    + ((c.status==='arrive' && c.arriveAt && Date.now()-c.arriveAt >= LONG_STAY_MS) ? ' longstay' : '');
   const od = isOverdue(c)?'overdue':'';
   const showLate = od && c.status!=='arrive';   // 着車中はラベル非表示（色のみ）
   const hasDetail = state.detailFields.length>0;
@@ -1608,9 +1608,9 @@ function moveCardTo(c, zone, bay){
   if(!c) return false;
   if(!requireOperator()) return false;
   // 着車から2時間を超えたカードは、画面から完了にできない（ドックマスタで直接CLOSEDにする）
-  if(zone==='done' && c.status!=='done' && c.arriveAt && Date.now()-c.arriveAt > LONG_STAY_MS){
+  if(zone==='done' && c.status!=='done' && c.arriveAt && Date.now()-c.arriveAt >= LONG_STAY_MS){
     const h=Math.floor((Date.now()-c.arriveAt)/3600000), mi=Math.round(((Date.now()-c.arriveAt)%3600000)/60000);
-    warn('着車から'+h+'時間'+mi+'分たっています（2時間超）。この画面では完了にできません。'
+    warn('着車から'+h+'時間'+mi+'分たっています（2時間以上）。この画面では完了にできません。'
       + 'ドックマスタでコメントを入力してCLOSEDにしてください。CLOSEDになれば自動で完了へ移動します。');
     return false;
   }
