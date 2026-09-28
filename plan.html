@@ -27,6 +27,10 @@ header h1 .dot.on{background:#3ec96a;box-shadow:0 0 8px #3ec96a;}
 .dseg button{border:0;background:#fff;padding:7px 11px;font:inherit;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
 .dseg button+button{border-left:1px solid var(--line);}
 .dseg button.on{background:var(--accent);color:#fff;}
+.hc-src{font-size:12px;font-weight:800;border-radius:7px;padding:4px 9px;white-space:nowrap;border:1px solid}
+.hc-src.td{background:#f1f5f9;color:#1e293b;border-color:#cbd5e1}
+.hc-src.nx{background:#fff7ed;color:#9a3412;border-color:#fdba74}
+.hc-src.warn{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
 .stat.saved{background:#fff4e0;border-color:#f0cf8f;color:#7a4d00;}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
 .btn.primary:hover{background:var(--accent2);}
@@ -291,6 +295,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
       </select>
     </label>
     <span class="dseg" title="翌日分を組み直している間も、保存しておいた当日分を確認できます"><button type="button" id="dsToday" onclick="showSavedDay(0)">当日</button><button type="button" id="dsNext" onclick="showNextCsv()">翌日</button></span>
+    <span class="hc-src" id="hcSrc" title="HC・LHに使っている配置ダッシュボードの日付"></span>
     <button class="btn" onclick="document.getElementById('csvFile').click()">CSV読込</button>
     <span class="save-st" id="saveSt"></span>
     <span class="sp"></span>
@@ -439,7 +444,7 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
 /* =====================================================================
    着車プラン
    - 予約: /dock/nextMaster（翌日分CSV・ドックダッシュボードと共有） or /dock/master
-   - 人員: 配置ダッシュボードのルート（roster/custom/admins/layout/floorMove/master/targetUPH）
+   - 人員: 配置ダッシュボード（当日＝ルート直下、翌日＝next/ 以下の roster/custom/layout/floorMove。master/targetUPH は共通）
    - 計画: /dock/plans/<YYYY-MM-DD> = {assign:{<apptId>:{f,h}}, uph, updatedAt}
    ===================================================================== */
 const FIREBASE_CONFIG = {
@@ -836,6 +841,7 @@ function axis(spans) {
   return { a, b };
 }
 function compute() {
+  pickHC();
   const { spans, info } = inSpans();
   const ax = axis(spans);
   const H = []; for (let h = ax.a; h < ax.b; h++) H.push(h);
@@ -889,6 +895,22 @@ function backlogCalc(fl, H) {
 
 /* ============ 描画 ============ */
 let LAST = null;
+/* 配置ダッシュボードの人員：計画日が配置ダッシュボードの当日より後なら翌日分、それ以外は当日分 */
+const HC = {cur:{roster:[], custom:{}, layout:{}, floorMove:{}}, nxt:{roster:[], custom:{}, layout:{}, floorMove:{}}, curDate:"", nxtDate:"", nxtImported:false};
+const hcLabel = k => { if (!k) return ""; const [y, m, d] = k.split("-").map(Number); return `${m}/${d}(${WD[new Date(y, m - 1, d).getDay()]})`; };
+function pickHC() {
+  const cd = HC.curDate || planToday();
+  const useNext = !!S.date && S.date > cd;
+  const o = useNext ? HC.nxt : HC.cur;
+  S.roster = o.roster; S.custom = o.custom; S.layout = o.layout; S.floorMove = o.floorMove;
+  const el = document.getElementById("hcSrc"); if (!el) return;
+  const nd = HC.nxtDate || ymd(new Date(new Date(cd + "T00:00:00").getTime() + 86400000));
+  let txt, cls;
+  if (!useNext){ txt = `配置：${hcLabel(cd)}分（当日）`; cls = "td"; if (S.date && S.date !== cd){ txt += `／計画日と違う日`; cls = "warn"; } }
+  else if (!HC.nxtImported && !(HC.nxt.roster || []).length){ txt = `配置：翌日分（${hcLabel(nd)}）未取込`; cls = "warn"; }
+  else { txt = `配置：${hcLabel(nd)}分（翌日）`; cls = "nx"; if (S.date !== nd){ txt += `／計画日と違う日`; cls = "warn"; } }
+  el.textContent = txt; el.className = "hc-src " + cls;
+}
 function render() {
   const wrap = document.getElementById("gridWrap");
   const R = LAST = compute();
@@ -2115,10 +2137,16 @@ function setupDB() {
   listen(dock.child("floors"), "dock/floors", s => { const f = s.val(); if (Array.isArray(f) && f.length) { S.floors = f.filter(Boolean).map(x => ({ name: x.name, bays: Array.isArray(x.bays) ? x.bays : [] })); if (S.date) render(); } });
   // 配置ダッシュボード（ルート直下）
   const rr = () => { if (S.date) render(); };
-  listen(fbDB.ref("roster"), "roster", s => { const v = s.val(); S.roster = Array.isArray(v) ? v : (v ? Object.values(v) : []); rr(); });
-  listen(fbDB.ref("custom"), "custom", s => { S.custom = s.val() || {}; rr(); });
-  listen(fbDB.ref("layout"), "layout", s => { S.layout = s.val() || {}; rr(); });
-  listen(fbDB.ref("floorMove"), "floorMove", s => { S.floorMove = s.val() || {}; rr(); });
+  // 当日分＝ルート直下、翌日分＝next/ 以下（配置ダッシュボードの当日／翌日）。計画日で使い分ける（pickHC）
+  const arr = v => Array.isArray(v) ? v : (v ? Object.values(v) : []);
+  [["", HC.cur], ["next/", HC.nxt]].forEach(([base, o]) => {
+    listen(fbDB.ref(base + "roster"), base + "roster", s => { o.roster = arr(s.val()); rr(); });
+    listen(fbDB.ref(base + "custom"), base + "custom", s => { o.custom = s.val() || {}; rr(); });
+    listen(fbDB.ref(base + "layout"), base + "layout", s => { o.layout = s.val() || {}; rr(); });
+    listen(fbDB.ref(base + "floorMove"), base + "floorMove", s => { o.floorMove = s.val() || {}; rr(); });
+  });
+  listen(fbDB.ref("dayMeta"), "dayMeta", s => { const v = s.val(); HC.curDate = v && v.date || ""; rr(); });
+  listen(fbDB.ref("next/meta"), "next/meta", s => { const v = s.val(); HC.nxtDate = v && v.date || ""; HC.nxtImported = !!(v && v.imported); rr(); });
   listen(fbDB.ref("master"), "master", s => { S.pmaster = s.val() || null; rr(); });
   listen(fbDB.ref("targetUPH"), "targetUPH", s => {
     const v = s.val() || {};
