@@ -102,6 +102,13 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .plan-list,.done-list{display:flex;flex-direction:column;gap:9px;min-height:100%;}
 .dropzone{transition:background .15s;}
 .dropzone.dragover{background:rgba(120,140,160,.12);}
+/* 2時間以上経過したカードを完了枠へドラッグしたときの警告表示 */
+.dropzone.nodrop{background:rgba(224,80,80,.13);box-shadow:inset 0 0 0 2px #e05050;cursor:not-allowed;}
+.dropzone.nodrop::before{
+  content:"完了にできません：着車から2時間以上／ドックマスタでCLOSEDにしてください";
+  display:block;position:sticky;top:0;z-index:5;margin:-2px -2px 8px;
+  background:#e05050;color:#fff;font-size:11.5px;font-weight:700;line-height:1.35;
+  padding:6px 8px;border-radius:6px;text-align:center;}
 
 /* ===== Arrive column floors ===== */
 .floor{display:flex;min-height:0;}
@@ -1570,7 +1577,20 @@ function dragStart(e){
   if(c && c.status==='plan' && c.noshow){ e.preventDefault(); toast('欠車のカードは動かせません'); return; }
   dragId=e.target.dataset.id;e.target.classList.add('dragging');e.dataTransfer.effectAllowed='move';
 }
-function dragEnd(e){e.target.classList.remove('dragging');document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));}
+function dragEnd(e){e.target.classList.remove('dragging');clearDropMarks();}
+// 着車から2時間以上たっていて、この画面から完了にできないカードか
+function longStayBlocked(c){
+  return !!(c && c.status!=='done' && c.arriveAt && Date.now()-c.arriveAt >= LONG_STAY_MS);
+}
+function clearDropMarks(){
+  document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));
+  document.querySelectorAll('.nodrop').forEach(x=>x.classList.remove('nodrop'));
+}
+// ドロップ先の枠に「置ける／置けない」を表示する
+function markZone(el, c){
+  if(el.dataset.zone==='done' && longStayBlocked(c)){ el.classList.add('nodrop'); el.classList.remove('dragover'); return false; }
+  el.classList.add('dragover'); el.classList.remove('nodrop'); return true;
+}
 function dragOver(e){e.preventDefault();e.currentTarget.classList.add('dragover');}
 function dragLeave(e){e.currentTarget.classList.remove('dragover');}
 
@@ -1659,10 +1679,15 @@ function drop(e){
 // 予定 / 完了：枠全体をドロップゾーンに
 ['plan-zone','done-zone'].forEach(id=>{
   const el=document.getElementById(id);
-  el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('dragover');});
-  el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.classList.remove('dragover');});
+  el.addEventListener('dragover',e=>{
+    e.preventDefault();
+    const c=state.cards.find(x=>x.id===dragId);
+    const ok=markZone(el, c);
+    if(!ok && e.dataTransfer) e.dataTransfer.dropEffect='none';
+  });
+  el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget)){el.classList.remove('dragover');el.classList.remove('nodrop');}});
   el.addEventListener('drop',e=>{
-    e.preventDefault();el.classList.remove('dragover');
+    e.preventDefault();el.classList.remove('dragover');el.classList.remove('nodrop');
     const c=state.cards.find(x=>x.id===dragId);if(!c)return;
     moveCardTo(c, el.dataset.zone, null);
   });
@@ -1722,17 +1747,17 @@ function cardTouchEnd(e){
   render();
 }
 function highlightDropAt(x,y){
-  document.querySelectorAll('.dragover').forEach(el=>el.classList.remove('dragover'));
+  clearDropMarks();
   if(touchGhost) touchGhost.style.visibility='hidden';
   const el=document.elementFromPoint(x,y);
   if(touchGhost) touchGhost.style.visibility='visible';
   if(!el) return;
   const slot=el.closest('.bay-slot'); if(slot){ slot.classList.add('dragover'); return; }
-  const zone=el.closest('.dropzone'); if(zone){ zone.classList.add('dragover'); }
+  const zone=el.closest('.dropzone'); if(zone){ markZone(zone, touchCard); }
 }
 function cleanupTouchVisuals(){
   if(touchGhost){ touchGhost.remove(); touchGhost=null; }
-  document.querySelectorAll('.dragover').forEach(el=>el.classList.remove('dragover'));
+  clearDropMarks();
   document.querySelectorAll('.card.dragging').forEach(el=>el.classList.remove('dragging'));
   touchMoved=false;
 }
