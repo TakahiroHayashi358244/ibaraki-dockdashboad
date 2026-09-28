@@ -290,6 +290,9 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-sl.g{background:#dcfce7;border:1px solid #86efac;} .pm-sl.g .k{color:#15803d;} .pm-sl.g .t{color:#14532d;} .pm-sl.g .x{color:#6b7280;}
 .pm-sl.y{background:#fef3c7;border:1px solid #fcd34d;} .pm-sl.y .k,.pm-sl.y .x{color:#a16207;} .pm-sl.y .t{color:#713f12;}
 .pm-sl.r{background:#fee2e2;border:1px solid #fca5a5;} .pm-sl.r .k,.pm-sl.r .x{color:#b91c1c;} .pm-sl.r .t{color:#7f1d1d;}
+.pm-sl.hh::after{content:"≡";position:absolute;left:2px;bottom:0;font-size:10px;font-weight:900;opacity:.8;}
+.pm-slpop{position:fixed;left:10px;right:10px;bottom:14px;z-index:60;background:#1f2733;color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.6;box-shadow:0 6px 18px rgba(0,0,0,.35);}
+.pm-slpop b{display:block;font-size:12px;color:#fbbf24;margin-bottom:3px;} .pm-slpop small{color:#cbd5e1;margin-left:6px;}
 .pm-sl.x{background:#b91c1c;border:2px solid #7f1d1d;} .pm-sl.x .k,.pm-sl.x .t,.pm-sl.x .x{color:#fff;} .pm-sl.x .t{font-weight:900;}
 .pm-sl.v{background:#dcfce7;border:2px solid #8b5cf6;} .pm-sl.v .k{color:#15803d;} .pm-sl.v .t{color:#14532d;} .pm-sl.v .x{color:#5b21b6;}
 .pm-sl.v::before{content:'↺';position:absolute;top:0;right:2px;font-size:9px;font-weight:800;color:#7c3aed;}
@@ -816,6 +819,17 @@ function showPerson(k) {
   clearTimeout(showPerson._t);
   showPerson._t = setTimeout(() => { el.hidden = true; }, 3000);
 }
+// 打刻カードのタップ：その枠の打刻の履歴（二重打刻をまとめた枠など）
+document.addEventListener("click", e => {
+  const old = document.querySelector(".pm-slpop"); if (old) old.remove();
+  const c = e.target.closest && e.target.closest(".pm-sl[data-h]"); if (!c) return;
+  e.stopPropagation();
+  let h = []; try { h = JSON.parse(c.dataset.h); } catch (x) {}
+  const d = document.createElement("div"); d.className = "pm-slpop";
+  d.innerHTML = `<b>${esc(c.dataset.hk || "")}の枠の打刻 ${h.length}回</b>` + h.map(x => `<div>${esc(x.t)}　${esc(x.kind)}${x.amz ? `（Amazon：${esc(x.amz)}）` : ""}<small>${esc(x.pc || "")}</small></div>`).join("");
+  document.body.appendChild(d);
+  setTimeout(() => { if (d.isConnected) d.remove(); }, 8000);
+}, true);
 function renderHaichi() {
   const sh = shifts();
   if (!sh.includes(shift)) shift = sh[0];
@@ -1264,7 +1278,7 @@ function renderPunch() {
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
       <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}${r.critical ? '<em class="crit">最重要</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
       <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
-        <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}"><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
+        <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}${x.h && x.h.length > 1 ? " hh" : ""}"${x.h && x.h.length ? ` data-h="${esc(JSON.stringify(x.h))}" data-hk="${esc(x.k)}"` : ""}><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
   }
   document.querySelectorAll("#pmList .pm-row").forEach(el => el.querySelector(".pm-rh").onclick = () => { const k = el.dataset.k; pmOpen[k] = !pmOpen[k]; el.classList.toggle("open", !!pmOpen[k]); });
