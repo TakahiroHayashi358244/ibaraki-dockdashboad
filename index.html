@@ -69,7 +69,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   cursor:pointer;font-variant-numeric:tabular-nums;user-select:none;}
 
 /* ===== Board ===== */
-.board{flex:1;display:grid;grid-template-columns:1fr 2.1fr 1fr;gap:14px;padding:14px 16px;overflow:hidden;}
+.board{flex:1;display:grid;grid-template-columns:1fr 2.45fr 1fr;gap:14px;padding:14px 16px;overflow:hidden;}
 .col{
   background:#fff;border:1.5px solid var(--green);
   border-radius:18px;display:flex;flex-direction:column;overflow:hidden;
@@ -150,7 +150,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   0%{transform:translateX(0);}
   100%{transform:translateX(var(--shift,0));}   /* 1セグメント分＋gap だけ左へ流れて折り返す */
 }
-.bay-label .bl-alpha{color:#ff8a5c;}        /* 英字(A/B)の色 */
+.bay-label .bl-alpha{color:#ff8a5c;}
+.bay-label{flex-wrap:wrap;row-gap:2px;}
+.bay-label .bl-track{text-overflow:ellipsis;overflow:hidden;max-width:100%;}
+.bay-label .bl-sub{display:block;font-size:10px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:0;line-height:1.1;margin-top:1px;}        /* 英字(A/B)の色 */
 .bay-label .bay-time{
   font-size:11px;font-weight:700;color:#fff;
   background:rgba(255,255,255,.18);padding:1px 6px;border-radius:5px;
@@ -1371,37 +1374,14 @@ function openIdxTrouble(){
     + bad.map(x=>`${x.c.id}  ${(x.c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'')}\n  → ${x.m.target} / ${x.m.message||'理由不明'}`).join('\n\n'));
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
-// バース名が枠からはみ出すものだけ、マーキー（横スクロール）を有効化
+// バース名が枠に収まらないときは、文字を少し小さくして収める（横に流れる表示はやめた）
 function setupBayMarquee(){
   requestAnimationFrame(()=>{
     document.querySelectorAll('.bay-label .bl-clip').forEach(clip=>{
       const tr=clip.querySelector('.bl-track'); if(!tr) return;
-      // 既存のmarquee状態をリセット（複製を解除し元の単一表示に戻す）
-      if(tr.dataset.orig!==undefined){
-        tr.innerHTML=tr.dataset.orig;
-      } else {
-        tr.dataset.orig=tr.innerHTML;
-      }
-      tr.classList.remove('marquee');
-      tr.style.removeProperty('--shift'); tr.style.removeProperty('--gap');
-      tr.style.removeProperty('animation-duration');
-      // 収まらなければ連続ループ化
-      const over=tr.scrollWidth - clip.clientWidth;
-      if(over>2){
-        const gap=24;
-        const seg=tr.innerHTML;
-        // 本体＋複製の2セグメントを横並びに
-        tr.innerHTML=`<span class="bl-seg">${seg}</span><span class="bl-seg">${seg}</span>`;
-        tr.style.setProperty('--gap', gap+'px');
-        // 1セグメント幅を測る（複製後の半分弱）
-        const firstSeg=tr.querySelector('.bl-seg');
-        const segW=firstSeg?firstSeg.offsetWidth:tr.scrollWidth/2;
-        const shift=-(segW+gap);
-        tr.style.setProperty('--shift', shift+'px');
-        const dur=Math.max(5, Math.abs(shift)/18);   // 流れる速度
-        tr.style.animationDuration=dur+'s';
-        tr.classList.add('marquee');
-      }
+      tr.style.removeProperty('font-size');
+      let fs=parseFloat(getComputedStyle(tr).fontSize)||15;
+      while(tr.scrollWidth>clip.clientWidth+1 && fs>9){ fs-=0.5; tr.style.fontSize=fs+'px'; }
     });
   });
 }
@@ -1410,7 +1390,9 @@ function formatBayLabel(b){
   const s=String(b);
   const m=s.match(/^(\d+)([A-Za-z]+)(.*)$/);
   if(m){
-    return esc(m[1])+'<span class="bl-alpha">'+esc(m[2])+'</span>'+esc(m[3]);
+    // 番号のあとの補足（例：(コンテナ専用)）は小さく2行目に出して、枠に収める
+    const sub=m[3].trim().replace(/^[（(]\s*/,'').replace(/\s*[）)]$/,'');
+    return esc(m[1])+'<span class="bl-alpha">'+esc(m[2])+'</span>'+(sub?'<small class="bl-sub">'+esc(sub)+'</small>':'');
   }
   return esc(s);
 }
