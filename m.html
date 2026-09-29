@@ -1276,6 +1276,8 @@ function renderPunch() {
   const rows = PM.rows;
   const cnt = { r: 0, y: 0, v: 0, g: 0 };
   rows.forEach(r => { if (cnt[r.level] != null) cnt[r.level]++; });
+  cnt.g += cnt.v;                              // 読み直しのリカバリ（紫）は正常として数える
+  cnt.v = rows.filter(r => r.recov).length;    // リカバリは件数だけ別に数える
   document.getElementById("sub").textContent = (PM.paused ? "一時停止中 ・ " : "") + `出勤 ${rows.filter(r => r.listed).length}名 ・ ${pmHm(PM.at)}更新`;
   document.getElementById("pmTabs").innerHTML = [["all", "全員", rows.length, ""], ["r", "異常", cnt.r, "r"], ["y", "要確認", cnt.y, "y"], ["v", "リカバリ", cnt.v, "v"], ["g", "正常", cnt.g, "g"]]
     .map(t => `<button type="button" data-f="${t[0]}" class="${t[3]}${pmF === t[0] ? " on" : ""}"><b>${t[2]}</b><span>${t[1]}</span></button>`).join("");
@@ -1290,7 +1292,7 @@ function renderPunch() {
     }).join("") + (g.hot && g.hot[1] && !g.steps.length ? `<span class="hot">${L[1]} 未打刻${g.hot[1]}名</span>` : "") + `</div></div>`; }).join("") + `</div></details>` : "";
   // 1人1行
   const q = atFold(pmQ);
-  const list = rows.filter(r => (pmF === "all" || r.level === pmF) && (!q || atFold(`${r.name} ${r.badge} ${r.alias}`).indexOf(q) >= 0));
+  const list = rows.filter(r => (pmF === "all" || (pmF === "v" ? r.recov : pmF === "g" ? (r.level === "g" || r.level === "v") : r.level === pmF)) && (!q || atFold(`${r.name} ${r.badge} ${r.alias}`).indexOf(q) >= 0));
   const PM_GL = { night: "夜勤（勤務中）", day: "日勤（勤務中）", out: "退勤済み（IDカード返却）" };
   const pmGrp = r => r.group || (r.retTime ? "out" : r.night ? "night" : "day");
   const PM_GO = { night: 0, day: 1, out: 2 };
