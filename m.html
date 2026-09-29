@@ -283,7 +283,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.x{background:#7f1d1d;border:2px solid #fecaca;} .pm-dots i.v{background:#22c55e;border:2px solid #7c3aed;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
 .pm-rh .cv{flex:none;font-size:10px;color:#9ca3af;transition:transform .15s;} .pm-row.open .pm-rh .cv{transform:rotate(180deg);}
 .pm-det{display:none;padding:2px 10px 10px 13px;} .pm-row.open .pm-det{display:block;}
-.pm-meta{font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 6px;} .pm-meta b{color:var(--ink);} .pm-meta .al{color:#2563eb;font-weight:700;} .pm-meta .og{color:var(--sub);}
+.pm-meta{font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 6px;} .pm-meta b{color:var(--ink);} .pm-meta .al{color:#2563eb;font-weight:700;}
 .pm-slots{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;} .pm-slots.x8{grid-template-columns:repeat(8,1fr);}
 .pm-sl{border:1px dashed #d1d5db;border-radius:6px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;position:relative;overflow:hidden;}
 .pm-sl .k{font-size:9px;color:#9ca3af;font-weight:700;line-height:1.1;white-space:nowrap;} .pm-sl .t{font-size:12.5px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;} .pm-sl .x{font-size:8.5px;font-weight:700;line-height:1.05;white-space:nowrap;}
@@ -1277,15 +1277,9 @@ function renderPunch() {
     if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
       <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}${r.critical ? '<em class="crit">最重要</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
-      <div class="pm-det">${pmIdLine(r)}<div class="pm-meta">${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
+      <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}${x.h && x.h.length > 1 ? " hh" : ""}"${x.h && x.h.length ? ` data-h="${esc(JSON.stringify(x.h))}" data-hk="${esc(x.k)}"` : ""}><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
-  }
-  // 詳細の1段目：エイリアスと、手入力の人だけバッチIDの元の名前（2段目に出勤・貸出・返却）
-  function pmIdLine(r) {
-    const og = r.lent && r.origName && r.origName !== r.name ? r.origName : "";
-    if (!r.alias && !og) return "";
-    return `<div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${og ? `<span class="og">元：${esc(og)}</span>` : ""}</div>`;
   }
   document.querySelectorAll("#pmList .pm-row").forEach(el => el.querySelector(".pm-rh").onclick = () => { const k = el.dataset.k; pmOpen[k] = !pmOpen[k]; el.classList.toggle("open", !!pmOpen[k]); });
   document.getElementById("pmFt").innerHTML = `閲覧専用です（1分ごとに更新）。<span style="background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px">黄色の名前</span>は手入力（貸アカウント）。詳しい履歴・集計はPCの監視画面で。<br><a href="javascript:void(0)" onclick="pmResetKey()">閲覧用の鍵を変更</a>`;
