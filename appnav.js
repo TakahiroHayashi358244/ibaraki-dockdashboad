@@ -13,7 +13,8 @@
     { id: "dock",   name: "ドックダッシュボード", url: "https://takahirohayashi358244.github.io/ibaraki-dockdashboad/" },
     { id: "plan",   name: "着車プラン",           url: "https://takahirohayashi358244.github.io/ibaraki-dockdashboad/plan.html" },
     { id: "haichi", name: "配置ダッシュボード",   url: "https://takahirohayashi358244.github.io/ibaraki-haichi-dashboard/" },
-    { id: "punch",  name: "打刻漏れ監視",         url: "https://punch-relay-hfo1.takahiro884.workers.dev/" }
+    { id: "punch",  name: "打刻漏れ監視",         url: "https://punch-relay-hfo1.takahiro884.workers.dev/" },
+    { id: "radio",  name: "貸出管理",             url: "https://radio-lending.takahiro884.workers.dev/m.html" }
   ];
 
   var me = document.currentScript;
