@@ -112,6 +112,8 @@ body[data-v="punch"] header{background:#3b1d5e;}
 .ngrow div{color:var(--sub);margin-top:1px;}
 
 /* --- 配置 --- */
+.hnote{border-radius:9px;padding:7px 10px;margin-bottom:8px;font-size:12px;font-weight:700;line-height:1.45;}
+.hnote.ok{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;} .hnote.no{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;}
 .kpis4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;}
 .kpi4{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 6px;text-align:center;}
 .kpi4 span{display:block;font-size:10.5px;color:var(--sub);font-weight:700;}
@@ -439,7 +441,7 @@ const D = {
   dockMaster: null, placement: {}, idxStatus: {}, idxMaster: null, floors: [],
   nextMaster: null, planMasters: {}, plans: {}, rules: {}, doorCmds: {}, doorNow: {},
   roster: [], custom: {}, layout: {}, floorMove: {}, nameOverride: {}, pmaster: null,
-  nx: {roster: [], custom: {}, layout: {}, floorMove: {}}, hDay: "",
+  nx: {roster: [], custom: {}, layout: {}, floorMove: {}, nameOverride: {}}, hDay: "", nxMeta: null,
   targetUPH: { 日勤: 0, 夜勤: 0 },
 };
 let view = "dock", shift = "日勤", openId = null, showNg = false;
@@ -810,6 +812,11 @@ function chip(p) {
 }
 // 丸バッジをタップしたときの吹き出し
 function showPerson(k) {
+  if (hSel === "next" && view === "haichi" && !showPerson.inner) {
+    const keep = {roster:D.roster, custom:D.custom, layout:D.layout, floorMove:D.floorMove, nameOverride:D.nameOverride};
+    Object.assign(D, D.nx); showPerson.inner = true;
+    try { return showPerson(k); } finally { Object.assign(D, keep); showPerson.inner = false; }
+  }
   const p = people().find(x => uidEnc(x.no + "_" + x.name) === k);
   const el = document.getElementById("pop");
   if (!p) { el.hidden = true; return; }
@@ -830,10 +837,25 @@ document.addEventListener("click", e => {
   document.body.appendChild(d);
   setTimeout(() => { if (d.isConnected) d.remove(); }, 8000);
 }, true);
+// 配置の日付：当日（配置ダッシュボードの当日分）／翌日（翌日分 next/）
+let hSel = "today";
+try { hSel = localStorage.getItem("mHaichiDay") === "next" ? "next" : "today"; } catch (e) { /* 無視 */ }
+function setHDay(v) { hSel = v; try { localStorage.setItem("mHaichiDay", v); } catch (e) { /* 無視 */ } render(); }
+const hTodayDate = () => D.hDay || ymd(new Date());
+const hNextDate = () => { if (D.nxMeta && D.nxMeta.date) return D.nxMeta.date; const d = new Date(hTodayDate() + "T00:00:00"); d.setDate(d.getDate() + 1); return ymd(d); };
+const hLabel = (d, pre) => { const x = new Date(d + "T00:00:00"); return `${pre} ${x.getMonth() + 1}/${x.getDate()}(${"日月火水木金土"[x.getDay()]})`; };
 function renderHaichi() {
+  if (hSel === "next" && !renderHaichi.inner) {
+    const keep = {roster:D.roster, custom:D.custom, layout:D.layout, floorMove:D.floorMove, nameOverride:D.nameOverride};
+    Object.assign(D, D.nx); renderHaichi.inner = true; _roleAutoVer = -1;
+    try { return renderHaichi(); } finally { Object.assign(D, keep); renderHaichi.inner = false; _roleAutoVer = -1; }
+  }
   const sh = shifts();
   if (!sh.includes(shift)) shift = sh[0];
-  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
+  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("")
+    + `<span class="sw-sep"></span>`
+    + `<button class="${hSel === "today" ? "on" : ""}" onclick="setHDay('today')">${esc(hLabel(hTodayDate(), "当日"))}</button>`
+    + `<button class="${hSel === "next" ? "on" : ""}" onclick="setHDay('next')">${esc(hLabel(hNextDate(), "翌日"))}</button>`;
 
   const all = people().filter(p => p.shift === shift);
   const work = all.filter(p => !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
@@ -875,7 +897,14 @@ function renderHaichi() {
       <div class="hf-b">${nw.map(x => `<div class="gr"><div class="gr-h"><b>${esc(x.label)}</b><span class="n">${x.list.length}名</span></div>
         <div class="chips">${x.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")}</div></div>`;
   }
-  document.getElementById("hBody").innerHTML = h || `<div class="empty">データがありません</div>`;
+  let note = "";
+  if (hSel === "next") {
+    const im = D.nxMeta && D.nxMeta.imported;
+    note = im && im.at
+      ? `<div class="hnote ok">${esc(hLabel(hNextDate(), "翌日"))}分：取込済み ${new Date(im.at).getMonth() + 1}/${new Date(im.at).getDate()} ${hhmm(im.at)}（日勤${im.day || 0}名・夜勤${im.night || 0}名）。朝5:00に当日へ反映されます</div>`
+      : `<div class="hnote no">${esc(hLabel(hNextDate(), "翌日"))}分：未取込</div>`;
+  }
+  document.getElementById("hBody").innerHTML = note + (all.length ? h : `<div class="empty">データがありません</div>`);
 }
 
 /* ---------- まとめて描画（表示中のものだけ） ---------- */
@@ -1316,6 +1345,8 @@ function start() {
   on(db.ref("next/custom"), v => { D.nx.custom = v || {}; });
   on(db.ref("next/layout"), v => { D.nx.layout = v || {}; });
   on(db.ref("next/floorMove"), v => { D.nx.floorMove = v || {}; });
+  on(db.ref("next/nameOverride"), v => { D.nx.nameOverride = v || {}; });
+  on(db.ref("next/meta"), v => { D.nxMeta = v || null; });
   on(db.ref("dayMeta"), v => { D.hDay = v && v.date || ""; });
   on(db.ref("nameOverride"), v => { D.nameOverride = v || {}; });
   on(db.ref("master"), v => { D.pmaster = v || null; });
