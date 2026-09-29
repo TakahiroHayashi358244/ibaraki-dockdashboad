@@ -277,11 +277,13 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-rows{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:8px;}
 .pm-row{border-bottom:1px solid #eef0f4;} .pm-row:last-child{border-bottom:0;}
 .pm-gh{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:800;background:#f1f5f9;color:#374151;border-bottom:1px solid #e5e7eb;} .pm-gh b{margin-left:auto;font-weight:700;font-size:11.5px;} .pm-gh.night{background:#1e1b4b;color:#fff;} .pm-gh.out{background:#e5e7eb;color:#4b5563;}
-.pm-rh{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
+.pm-rh{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
 .pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#f3fdf6;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
-.pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:13px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pm-rh .nm .n.lent{background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px;box-shadow:inset 0 0 0 1px #f0d98a;}
-.pm-rh .nm small{display:block;font-weight:600;font-size:11px;color:var(--sub);}
+.pm-rh .nm small{display:block;font-weight:600;font-size:10px;line-height:1.2;color:var(--sub);}
+.pm-rh .nm small.al{color:#2563eb;font-weight:700;}
+.pm-meta .pl{color:#0f766e;}
 .pm-rh .nm small em{font-style:normal;background:#1e1b4b;color:#fff;border-radius:4px;padding:0 4px;margin-left:4px;font-size:10px;}
 .pm-rh .nm small em.out{background:#e5e7eb;color:#4b5563;} .pm-rh .nm small em.crit{background:#b91c1c;color:#fff;font-weight:900;}
 .pm-dots{flex:1;min-width:0;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
@@ -1313,8 +1315,8 @@ function renderPunch() {
       .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${r.four ? ((r.slots[x.slot - 1] || {}).k || x.slot + "回目") : PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
     if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
-      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}${r.critical ? '<em class="crit">最重要</em>' : ""}</small></span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
-      <div class="pm-det"><div class="pm-meta">${r.alias ? `<span class="al">${esc(r.alias)}</span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
+      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}${r.critical ? '<em class="crit">最重要</em>' : ""}</small>${r.alias ? `<small class="al">${esc(r.alias)}</small>` : ""}</span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
+      <div class="pm-det"><div class="pm-meta">${r.plan ? `<span class="pl">配置 <b>${esc(r.plan.st)}〜${esc(r.plan.et)}</b></span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}${x.h && x.h.length > 1 ? " hh" : ""}"${x.h && x.h.length ? ` data-h="${esc(JSON.stringify(x.h))}" data-hk="${esc(x.k)}"` : ""}><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
   }
