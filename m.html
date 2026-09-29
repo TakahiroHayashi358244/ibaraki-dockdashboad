@@ -282,13 +282,13 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-rh .nm small em.out{background:#e5e7eb;color:#4b5563;} .pm-rh .nm small em.crit{background:#b91c1c;color:#fff;font-weight:900;}
 .pm-dots{flex:1;min-width:0;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
 .pm-dots i{aspect-ratio:1/1;border-radius:4px;background:#fff;border:1px dashed #cbd2da;}
-.pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.x{background:#7f1d1d;border:2px solid #fecaca;} .pm-dots i.v{background:#22c55e;border:2px solid #7c3aed;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
+.pm-dots i.g{background:#22c55e;border:0;} .pm-dots i.y{background:#f59e0b;border:0;} .pm-dots i.r{background:#ef4444;border:0;} .pm-dots i.x{background:#7f1d1d;border:2px solid #fecaca;} .pm-dots i.v{background:#22c55e;border:2px solid #7c3aed;} .pm-dots i.vr{background:#22c55e;border:2px solid #dc2626;} .pm-dots i.off{background:#eceef1;border:0;} .pm-dots i.none{visibility:hidden;}
 .pm-rh .cv{flex:none;font-size:10px;color:#9ca3af;transition:transform .15s;} .pm-row.open .pm-rh .cv{transform:rotate(180deg);}
 .pm-det{display:none;padding:2px 10px 10px 13px;} .pm-row.open .pm-det{display:block;}
 .pm-meta{font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:4px 12px;margin:2px 0 6px;} .pm-meta b{color:var(--ink);} .pm-meta .al{color:#2563eb;font-weight:700;}
 .pm-slots{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;} .pm-slots.x8{grid-template-columns:repeat(8,1fr);}
 .pm-sl{border:1px dashed #d1d5db;border-radius:6px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;position:relative;overflow:hidden;}
-.pm-sl .k{font-size:9px;color:#9ca3af;font-weight:700;line-height:1.1;white-space:nowrap;} .pm-sl .t{font-size:12.5px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;} .pm-sl .x{font-size:8.5px;font-weight:700;line-height:1.05;white-space:nowrap;}
+.pm-sl .k{font-size:9px;color:#9ca3af;font-weight:700;line-height:1.1;white-space:nowrap;} .pm-sl .t{font-size:12.5px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;} .pm-sl .x{font-size:8.5px;font-weight:700;line-height:1.05;white-space:nowrap;display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:0 1px;box-sizing:border-box;text-align:center;}
 .pm-sl.g{background:#dcfce7;border:1px solid #86efac;} .pm-sl.g .k{color:#15803d;} .pm-sl.g .t{color:#14532d;} .pm-sl.g .x{color:#6b7280;}
 .pm-sl.y{background:#fef3c7;border:1px solid #fcd34d;} .pm-sl.y .k,.pm-sl.y .x{color:#a16207;} .pm-sl.y .t{color:#713f12;}
 .pm-sl.r{background:#fee2e2;border:1px solid #fca5a5;} .pm-sl.r .k,.pm-sl.r .x{color:#b91c1c;} .pm-sl.r .t{color:#7f1d1d;}
@@ -298,6 +298,8 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-sl.x{background:#b91c1c;border:2px solid #7f1d1d;} .pm-sl.x .k,.pm-sl.x .t,.pm-sl.x .x{color:#fff;} .pm-sl.x .t{font-weight:900;}
 .pm-sl.v{background:#dcfce7;border:2px solid #8b5cf6;} .pm-sl.v .k{color:#15803d;} .pm-sl.v .t{color:#14532d;} .pm-sl.v .x{color:#5b21b6;}
 .pm-sl.v::before{content:'↺';position:absolute;top:0;right:2px;font-size:9px;font-weight:800;color:#7c3aed;}
+.pm-sl.vr{background:#dcfce7;border:2px solid #dc2626;} .pm-sl.vr .k{color:#15803d;} .pm-sl.vr .t{color:#14532d;} .pm-sl.vr .x{color:#b91c1c;font-weight:800;}
+.pm-sl.vr::before{content:'↺';position:absolute;top:0;right:2px;font-size:9px;font-weight:800;color:#dc2626;}
 .pm-sl.off{background:#f3f4f6;border:1px solid #eceef1;} .pm-sl.off .k{color:#cfd3d9;}
 .pm-msg{margin-top:6px;font-size:12px;line-height:1.45;} .pm-msg div{margin-bottom:2px;} .pm-msg .r{color:#b91c1c;font-weight:700;} .pm-msg .y{color:#a16207;font-weight:700;} .pm-msg .v{color:#5b21b6;font-weight:700;} .pm-msg .m{color:var(--sub);}
 .pm-key{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:10px;font-size:13px;line-height:1.6;}
