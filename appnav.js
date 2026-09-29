@@ -1,8 +1,8 @@
 /* =====================================================================
-   appnav.js — ドックダッシュボード / 着車プラン / 配置ダッシュボード / 打刻漏れ監視 の画面切替
+   appnav.js — ドックダッシュボード / 着車プラン / 配置ダッシュボード / 打刻漏れ監視 / 貸出管理 の画面切替
    使い方（各ページの </body> の直前に1行）:
      <script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="dock"></script>
-   data-app : このページのID（dock / plan / haichi / punch）
+   data-app : このページのID（dock / plan / haichi / punch / radio）
    data-title（任意）: 名称が入っている要素のセレクタ（既定: "header h1"）
    ページ名の部分がボタンになり、押すと切替メニューが出ます。同じタブで画面が切り替わります。
    ===================================================================== */
