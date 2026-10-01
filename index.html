@@ -262,10 +262,6 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .c-idx.checkin{background:#0277bd;color:#fff;box-shadow:0 0 0 2px rgba(2,119,189,.18);}
 .c-idx.wait{background:#e3f2fd;color:#0d47a1;}
 .c-idx.err{background:#ffebee;color:#b71c1c;}
-.c-idx-retry{display:inline-block;margin:0 0 4px 4px;font:inherit;font-size:10px;font-weight:800;padding:1px 8px;border-radius:9px;border:1px solid #b71c1c;background:#fff;color:#b71c1c;cursor:pointer;line-height:1.5}
-.c-idx-retry:hover{background:#b71c1c;color:#fff}
-.c-idx-retry:disabled{opacity:.6;cursor:default}
-.bay-slot .card .c-idx-retry{margin:0;font-size:8.5px;padding:1px 5px;align-self:stretch}
 .stat.idx-warn{display:none;cursor:pointer;background:#ffebee;color:#b71c1c;}
 .stat.idx-queue{display:none;background:#e8f1f7;color:#1f5f7d;}
 .stat.idx-queue.show{display:flex;}
@@ -1342,9 +1338,11 @@ function latestCmdFor(id){
 // IDXの現在のステータスを表示する（IDX側で変更してもダッシュボードから変更しても同じ表示）。
 function idxBadgeOf(c){
   const cmd=latestCmdFor(c.id);
-  if(cmd && cmd.state==='error') return `<span class="c-idx err" title="${escAttr(cmd.message||'')}">IDX 未反映</span>`
-    + (idxRevActive() ? `<button type="button" class="c-idx-retry" draggable="false" title="IDXへ ${escAttr(cmd.target)} への変更をもう一度指示します"
-        onmousedown="event.stopPropagation()" onclick="event.stopPropagation();retryIdx('${escAttr(c.id)}', this)">もう一度送る</button>` : '');
+  if(cmd && cmd.state==='error'){
+    const left=IDX_RETRY_MAX-(cmd.retry||0);
+    const sub=left>0 ? (cmd.retried ? '・再送中' : '・3分後に再送') : '・IDXで変更してください';
+    return `<span class="c-idx err" title="${escAttr((cmd.message||'')+(cmd.retry?`（自動再送 ${cmd.retry}回目でも失敗）`:''))}">IDX 未反映${sub}</span>`;
+  }
   if(cmd && (cmd.state==='pending'||cmd.state==='running'))
     return `<span class="c-idx wait">IDX ${cmd.target==='CLOSED'?'クローズ中':'着車登録中'}…</span>`;
   // IDXから届いた状態と、指示の結果のうち新しいほうを表示
@@ -1373,19 +1371,33 @@ function refreshIdxTrouble(){
     q.classList.toggle('show', n>0);
   }
 }
-// 「IDX 未反映」のカードから、同じ指示（CLOSED／CHECKED_IN）をもう一度送る
-function retryIdx(id, btn){
-  const c=state.cards.find(x=>x.id===id); if(!c) return;
-  const cmd=latestCmdFor(id);
-  if(!cmd || cmd.state!=='error'){ toast('このカードはすでに再送済みか、反映済みです'); return; }
-  if(!idxRevActive()){ warn('IDXへの逆連携がOFFのため送れません（設定を確認してください）'); return; }
-  if(btn){ btn.disabled=true; btn.textContent='送信中…'; }
-  sendIdxCommand(c, cmd.target);
+// IDXに反映できなかった指示を、3分後に自動でもう一度送る（最大2回。開いているPCのどれか1台が実行）
+//  ・その後にカードが動いた（別の指示が出た／完了・着車から外れた）ときは送らない
+var IDX_RETRY_MS = 3*60000, IDX_RETRY_MAX = 2;
+function autoRetryIdx(){
+  if(!idxRevActive()) return;
+  const now=Date.now();
+  Object.keys(idxCmdMap||{}).forEach(k=>{
+    const m=idxCmdMap[k];
+    if(!m || m.state!=='error' || m.retried || (m.retry||0)>=IDX_RETRY_MAX) return;
+    if(idxRev.code && m.code && m.code!==idxRev.code) return;
+    if(now-(m.doneAt||m.at||0) < IDX_RETRY_MS) return;
+    if(latestCmdFor(m.id)!==m) return;                                    // もっと新しい指示がある
+    const c=state.cards.find(x=>x.id===m.id); if(!c) return;
+    if(m.target==='CLOSED' && c.status!=='done') return;                  // 完了から外した
+    if(m.target==='CHECKED_IN' && c.status!=='arrive') return;            // 着車から外した
+    // 1台だけが送る：指示に「再送済み」の印を付けられたPCだけが送る
+    fbDB.ref(DOCK_ROOT+'/'+IDX_CMD_PATH+'/'+k+'/retried').transaction(v=>v ? undefined : Date.now(), (err, ok)=>{
+      if(err || !ok) return;
+      sendIdxCommand(c, m.target, {retry:(m.retry||0)+1, auto:true});
+    });
+  });
 }
+setInterval(autoRetryIdx, 30000);
 function openIdxTrouble(){
   const bad=state.cards.map(c=>({c, m:latestCmdFor(c.id)})).filter(x=>x.m && x.m.state==='error');
   if(!bad.length){ toast('IDXへ反映できていないカードはありません'); return; }
-  alert('IDXへ反映できていないカードです。カードの「もう一度送る」で送り直すか、IDXの画面で直接変更してください。\n\n'
+  alert('IDXへ反映できていないカードです。3分後に自動でもう一度送ります（2回まで）。それでも反映できないときは、IDXの画面で直接変更してください。\n\n'
     + bad.map(x=>`${x.c.id}  ${(x.c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'')}\n  → ${x.m.target} / ${x.m.message||'理由不明'}`).join('\n\n'));
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
@@ -3292,11 +3304,12 @@ function cleanupIdxWorkers(){
 }
 
 // IDXへステータス変更を指示する
-function sendIdxCommand(c, target){
+function sendIdxCommand(c, target, extra){
   if(!idxRevActive()) return;
   const ref=fbDB.ref(DOCK_ROOT+'/'+IDX_CMD_PATH).push();
-  const cmd={ id:c.id, target, at:Date.now(), code:idxRev.code, site:IDX_SITE,
-    from:operator.trim()||'-', carrier:(c.fields["Carrier"]||''), state:'pending' };
+  const cmd=Object.assign({ id:c.id, target, at:Date.now(), code:idxRev.code, site:IDX_SITE,
+    from:(extra&&extra.auto ? '自動再送' : (operator.trim()||'-')), carrier:(c.fields["Carrier"]||''), state:'pending' }, extra||{});
+  if(extra&&extra.auto){ delete cmd.auto; cmd.from='自動再送'; }
   myCmdKeys[ref.key]=cmd;
   if(!idxWorkerAlive()) warn('マスターPCが応答していません。指示は積みましたが、10分以内に復帰しないと実行されません。');
   ref.set(cmd)
