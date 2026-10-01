@@ -262,6 +262,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .c-idx.checkin{background:#0277bd;color:#fff;box-shadow:0 0 0 2px rgba(2,119,189,.18);}
 .c-idx.wait{background:#e3f2fd;color:#0d47a1;}
 .c-idx.err{background:#ffebee;color:#b71c1c;}
+.c-idx-retry{display:inline-block;margin:0 0 4px 4px;font:inherit;font-size:10px;font-weight:800;padding:1px 8px;border-radius:9px;border:1px solid #b71c1c;background:#fff;color:#b71c1c;cursor:pointer;line-height:1.5}
+.c-idx-retry:hover{background:#b71c1c;color:#fff}
+.c-idx-retry:disabled{opacity:.6;cursor:default}
+.bay-slot .card .c-idx-retry{margin:0;font-size:8.5px;padding:1px 5px;align-self:stretch}
 .stat.idx-warn{display:none;cursor:pointer;background:#ffebee;color:#b71c1c;}
 .stat.idx-queue{display:none;background:#e8f1f7;color:#1f5f7d;}
 .stat.idx-queue.show{display:flex;}
@@ -1338,7 +1342,9 @@ function latestCmdFor(id){
 // IDXの現在のステータスを表示する（IDX側で変更してもダッシュボードから変更しても同じ表示）。
 function idxBadgeOf(c){
   const cmd=latestCmdFor(c.id);
-  if(cmd && cmd.state==='error') return `<span class="c-idx err" title="${escAttr(cmd.message||'')}">IDX 未反映</span>`;
+  if(cmd && cmd.state==='error') return `<span class="c-idx err" title="${escAttr(cmd.message||'')}">IDX 未反映</span>`
+    + (idxRevActive() ? `<button type="button" class="c-idx-retry" draggable="false" title="IDXへ ${escAttr(cmd.target)} への変更をもう一度指示します"
+        onmousedown="event.stopPropagation()" onclick="event.stopPropagation();retryIdx('${escAttr(c.id)}', this)">もう一度送る</button>` : '');
   if(cmd && (cmd.state==='pending'||cmd.state==='running'))
     return `<span class="c-idx wait">IDX ${cmd.target==='CLOSED'?'クローズ中':'着車登録中'}…</span>`;
   // IDXから届いた状態と、指示の結果のうち新しいほうを表示
@@ -1367,10 +1373,19 @@ function refreshIdxTrouble(){
     q.classList.toggle('show', n>0);
   }
 }
+// 「IDX 未反映」のカードから、同じ指示（CLOSED／CHECKED_IN）をもう一度送る
+function retryIdx(id, btn){
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  const cmd=latestCmdFor(id);
+  if(!cmd || cmd.state!=='error'){ toast('このカードはすでに再送済みか、反映済みです'); return; }
+  if(!idxRevActive()){ warn('IDXへの逆連携がOFFのため送れません（設定を確認してください）'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='送信中…'; }
+  sendIdxCommand(c, cmd.target);
+}
 function openIdxTrouble(){
   const bad=state.cards.map(c=>({c, m:latestCmdFor(c.id)})).filter(x=>x.m && x.m.state==='error');
   if(!bad.length){ toast('IDXへ反映できていないカードはありません'); return; }
-  alert('IDXへ反映できていないカードです。IDXの画面で直接変更してください。\n\n'
+  alert('IDXへ反映できていないカードです。カードの「もう一度送る」で送り直すか、IDXの画面で直接変更してください。\n\n'
     + bad.map(x=>`${x.c.id}  ${(x.c.fields["Carrier"]||'').replace(/^\[[^\]]*\]/,'')}\n  → ${x.m.target} / ${x.m.message||'理由不明'}`).join('\n\n'));
 }
 function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
