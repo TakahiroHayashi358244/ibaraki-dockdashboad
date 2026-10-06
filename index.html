@@ -279,9 +279,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 .memo-saved.unsaved{color:#c0392b;}
 .memo-saved.done{color:var(--green);}
 .btn.attn{box-shadow:0 0 0 3px rgba(31,111,139,.25);}
-.c-bay-done{font-size:11px;font-weight:800;color:#fff;background:#546e7a;
+.c-bay-done{font-size:11px;font-weight:800;color:#fff;background:#546e7a;white-space:nowrap;
   border-radius:6px;padding:1px 7px;letter-spacing:.02em;cursor:pointer;
   transition:filter .12s,box-shadow .12s;}
+.c-bay-done .bd-sub{font-size:9px;font-weight:700;opacity:.9;margin-left:3px;letter-spacing:0;}
 .c-bay-done:hover{filter:brightness(1.18);box-shadow:0 0 0 2px rgba(40,60,80,.22);}
 .c-done-time{font-size:11px;font-weight:700;color:var(--green);
   background:#eafaf0;border-radius:5px;padding:2px 7px;white-space:nowrap;}
@@ -1297,7 +1298,7 @@ function cardHTML(c){
   const bayStyle = bayFi>=0 ? ` style="background:var(--f${bayFi%5})"` : '';   // 階層の色に合わせる
   const doneBay = bayName
     ? `<span class="c-bay-done"${bayStyle} title="${esc(bayName)}に着車（クリックで詳細）"
-        onclick="openDetail('${escAttr(c.id)}');event.stopPropagation();">${esc(bayName)}</span>` : '';
+        onclick="openDetail('${escAttr(c.id)}');event.stopPropagation();">${doneBayLabel(bayName)}</span>` : '';
   const doneRow = (c.status==='done' && c.doneAt)
     ? `<span class="c-done-time">完了 ${hhmm(c.doneAt)}</span>` : '';
   // 着車→完了の所要時間（30分以上オレンジ/60分以上赤）
@@ -1411,6 +1412,11 @@ function setupBayMarquee(){
       while(tr.scrollWidth>clip.clientWidth+1 && fs>9){ fs-=0.5; tr.style.fontSize=fs+'px'; }
     });
   });
+}
+// 完了カード右上のバース表示：番号のあとの補足（例：(コンテナ専用)）は、同じ行に小さく出す（2行にならないように）
+function doneBayLabel(b){
+  const s=String(b), m=s.match(/^([^（(]+?)\s*[（(]\s*(.+?)\s*[）)]\s*$/);
+  return m ? esc(m[1])+'<small class="bd-sub">'+esc(m[2])+'</small>' : esc(s);
 }
 // バース番号の表示整形：数字直後の英字(A/B等)のみ色を変える
 function formatBayLabel(b){
