@@ -280,6 +280,7 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-rh{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 8px;border-left:5px solid #d1d5db;cursor:pointer;}
 .pm-row.r .pm-rh{border-left-color:#ef4444;background:#fff7f7;} .pm-row.y .pm-rh{border-left-color:#f59e0b;background:#fffcf0;} .pm-row.v .pm-rh{border-left-color:#7c3aed;background:#f3fdf6;} .pm-row.g .pm-rh{border-left-color:#22c55e;}
 .pm-rh .nm{flex:0 0 128px;min-width:0;font-weight:800;font-size:13px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pm-rh .nm small.co{color:#0f766e;font-weight:600;}
 .pm-rh .nm .n.lent{background:#fff3cd;color:#7a5a00;border-radius:4px;padding:0 4px;box-shadow:inset 0 0 0 1px #f0d98a;}
 .pm-rh .nm small{display:block;font-weight:600;font-size:10px;line-height:1.2;color:var(--sub);}
 .pm-rh .nm small.al{color:#2563eb;font-weight:700;}
@@ -432,7 +433,7 @@ const DOCK_ROOT = "dock", ID_FIELD = "Appointment Id";
 const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
 const DOOR_TTL = 3 * 3600000, DOORSTATE_TTL = 7 * 24 * 3600000;
 const PLACES = ["OUT", "IN", "ICQA", "other"];
-const NONWORK = [["WAIT", "待機"], ["ABSENT", "欠勤"], ["HOLIDAY", "休日"]];
+const NONWORK = [["WAIT", "待機"], ["ABSENT", "欠勤"], ["HOLIDAY", "休日"], ["ADMIN", "管理者"]];   // 管理者＝配置ダッシュボードの管理者Zone
 // PC版（配置ダッシュボード）と同じ配色
 const ROLE_STYLES = {
   Manager: { bg: "#059669", fg: "#fff" }, Supervisor: { bg: "#d97706", fg: "#fff" },
@@ -636,7 +637,7 @@ function locOf(p) {
   const k = uidEnc(p.no + "_" + p.name), L = D.layout[k];
   const valid = (pl, sub) => !pmasterOk() || (Array.isArray(D.pmaster[pl]) && D.pmaster[pl].includes(sub));
   if (L !== undefined && L !== null) {
-    if (["WAIT", "ABSENT", "HOLIDAY", "other"].includes(L)) return L;
+    if (["WAIT", "ABSENT", "HOLIDAY", "ADMIN", "other"].includes(L)) return L;
     const pt = String(L).split("|");
     if (pt.length >= 2 && valid(pt[0], pt[1])) return pt[0] + "|" + pt[1];
     return "WAIT";
@@ -866,7 +867,7 @@ function renderHaichi() {
     + `<button class="${hSel === "next" ? "on" : ""}" onclick="setHDay('next')">${esc(hLabel(hNextDate(), "翌日"))}</button>`;
 
   const all = people().filter(p => p.shift === shift);
-  const work = all.filter(p => !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
+  const work = all.filter(p => !["WAIT", "ABSENT", "HOLIDAY", "ADMIN"].includes(locOf(p)));
   if (view === "haichi") document.getElementById("sub").textContent = `稼働 ${work.length}名 / 全${all.length}名`;
 
   const sum = list => ({ hc: list.length, lh: list.reduce((s, p) => s + (p.lh || 0), 0) });
@@ -878,7 +879,7 @@ function renderHaichi() {
   let h = "";
   D.floors.forEach((f, i) => {
     const fn = f.name;
-    const mem = all.filter(p => floorOfP(p) === fn && !["WAIT", "ABSENT", "HOLIDAY"].includes(locOf(p)));
+    const mem = all.filter(p => floorOfP(p) === fn && !["WAIT", "ABSENT", "HOLIDAY", "ADMIN"].includes(locOf(p)));
     const lh = mem.reduce((s, p) => s + (p.lh || 0), 0), col = `var(--f${i % 5})`;
     const groups = [];
     PLACES.forEach(pl => {
@@ -1315,7 +1316,7 @@ function renderPunch() {
       .concat((r.recovered || []).map(x => `<div class="v">リカバリ：${r.four ? ((r.slots[x.slot - 1] || {}).k || x.slot + "回目") : PM_STEP[x.slot] || x.slot + "回目"} ${pmHm(x.alertAt)} 警告 → ${pmHm(x.at)} 打刻（+${Math.round((x.at - x.alertAt) / 60000)}分）</div>`));
     if (!msgs.length) msgs.push(`<div class="m">${esc(r.state || "")}</div>`);
     return `<div class="pm-row ${r.level || ""}${pmOpen[key] ? " open" : ""}" data-k="${esc(key)}">
-      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span><small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}${r.critical ? '<em class="crit">最重要</em>' : ""}</small>${r.alias ? `<small class="al">${esc(r.alias)}</small>` : ""}</span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
+      <div class="pm-rh"><span class="nm"><span class="n${r.lent ? " lent" : ""}">${esc(r.name || "（不明）")}</span>${r.company ? `<small class="co">${esc(r.company)}</small>` : ""}<small>${esc(r.badge)}${r.night ? "<em>夜勤</em>" : ""}${(r.group ? r.group === "out" : r.retTime) ? '<em class="out">退勤済</em>' : ""}${r.critical ? '<em class="crit">最重要</em>' : ""}</small>${r.alias ? `<small class="al">${esc(r.alias)}</small>` : ""}</span><span class="pm-dots">${dots}</span><span class="cv">▼</span></div>
       <div class="pm-det"><div class="pm-meta">${r.plan ? `<span class="pl">配置 <b>${esc(r.plan.st)}〜${esc(r.plan.et)}</b></span>` : ""}${r.listed ? `${r.shiftStart ? `<span>出勤 <b>${pmHm(r.shiftStart)}</b></span>` : ""}<span>貸出 <b>${esc(r.lendTime || "—")}</b></span><span>返却 <b>${esc(r.retTime || "—")}</b></span>` : `<span style="color:#b91c1c">無線管理に未登録</span>`}</div>
         <div class="pm-slots${used8 ? " x8" : ""}">${ss.map(x => `<div class="pm-sl ${x.st}${x.h && x.h.length > 1 ? " hh" : ""}"${x.h && x.h.length ? ` data-h="${esc(JSON.stringify(x.h))}" data-hk="${esc(x.k)}"` : ""}><span class="k">${esc(x.k)}</span>${x.t ? `<span class="t">${esc(x.t)}</span>` : ""}${x.note ? `<span class="x">${esc(x.note)}</span>` : ""}</div>`).join("")}</div>
         <div class="pm-msg">${msgs.join("")}</div></div></div>`;
