@@ -63,6 +63,9 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 /* IDX（ドックマスター）から朝に自動で追加した便：薄い青の枠／ヘッダーに薄く台数 */
 .stat.st-added{color:#7aa7d6;} .stat.st-added b{color:#7aa7d6;font-weight:700;}
 .card.idx-added{outline:3px solid #a9d3f5;outline-offset:1px;}   /* 時間超過などの赤い枠とも並べて見えるよう、外側に薄い青 */
+.card.idx-cancel{outline:2px dashed #9aa5b1;outline-offset:1px;opacity:.6;}   /* ドックマスターでキャンセルになった便 */
+.card .c-cancel{align-self:flex-start;display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;margin:0 4px 4px 0;color:#4b5563;background:#e5e7eb;border:1px solid #cbd2d9;}
+.stat.st-cancel{color:#9aa5b1;} .stat.st-cancel b{color:#9aa5b1;font-weight:700;}
 .card .c-added{align-self:flex-start;display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;margin:0 4px 4px 0;color:#2f74b5;background:#e3f1fc;border:1px solid #b9dbf5;}
 .zoom-ctl{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;
   overflow:hidden;background:#fff;margin-right:6px;}
@@ -630,6 +633,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
       <div class="stat"><b id="st-arr">0</b>着車</div>
       <div class="stat"><b id="st-done">0</b>完了</div>
       <div class="stat st-added" id="st-added" hidden title="朝8:00にドックマスター（IDX）を確認して追加した便（新しいCSVを取り込むまでこの台数のまま）"><b id="st-added-n">0</b>追加</div>
+      <div class="stat st-cancel" id="st-cancel" hidden title="朝8:00にドックマスター（IDX）を確認して、キャンセルになっていた予定の便（新しいCSVを取り込むまでこの台数のまま）"><b id="st-cancel-n">0</b>キャンセル</div>
       <div class="stat idx-warn" id="st-idx" onclick="openIdxTrouble()" title="IDXへ反映できていないカード">
         <b id="st-idx-n">0</b>IDX未反映
       </div>
@@ -1030,6 +1034,8 @@ let idxMaster = null;                      // 最新の /dock/idxMaster
    IDX側のスクリプトが毎朝8:00に、画面の予定一覧を /dock/idxDaily に {at, rows:[{列名:値}]} で送る。
    取り込んだCSVにない Appointment Id で、CSVと同じ日付の便だけをカードに追加する（予定として）。
    追加した便は /dock/idxAdded {ids, count, srcAt} に記録 → 薄い青の枠・ヘッダーに「追加◯台」。
+   逆に、CSVにあってドックマスターでキャンセル（ステータスがCANCEL、または一覧に無い）になった予定の便は
+   /dock/idxAdded {cancel:{id:'status'|'missing'}, cancelCount} に記録 → 灰色の点線枠・ヘッダーに「キャンセル◯台」。
    台数はカードを動かしても変わらず、新しいCSVを取り込むと消える。追加は1回だけ（どのPCが受けても二重にならない） */
 let idxDaily = null, idxAdded = null;
 const schedDay = (v) => { const m=String(v||'').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/); return m ? m[1]+'/'+m[2].padStart(2,'0')+'/'+m[3].padStart(2,'0') : ''; };
@@ -1043,10 +1049,32 @@ function applyIdxDaily(){
   if(idxAdded && idxAdded.srcAt && idxAdded.srcAt>=d.at) return;            // この一覧は処理済み
   if(Date.now()-d.at > 18*3600000) return;                                  // 古い一覧（前の日の朝など）は使わない
   const have=new Set(state.cards.map(c=>c.id)), day=csvDay();
-  const add=d.rows.filter(r=>r && r[ID_FIELD] && !have.has(String(r[ID_FIELD])) && (!day || !schedDay(r['Schedule Date']) || schedDay(r['Schedule Date'])===day));
+  const sameDay=(r)=> !day || !schedDay(r['Schedule Date']) || schedDay(r['Schedule Date'])===day;
+  const isCancel=(r)=> /CANCEL/i.test(String(r.Status||''));
+  const add=d.rows.filter(r=>r && r[ID_FIELD] && !isCancel(r) && !have.has(String(r[ID_FIELD])) && sameDay(r));
+  // キャンセル：CSVの予定（まだ着車していない）の便で、ドックマスターでCANCEL、または一覧に無いもの
+  //  一覧に無い便は、一覧がきちんと読めているとき（CSVの便の半分以上が一覧にある）だけキャンセルとみなす
+  const inIdx=new Map(d.rows.filter(r=>r&&r[ID_FIELD]).map(r=>[String(r[ID_FIELD]), r]));
+  const csvToday=state.cards.filter(c=>!/^M/.test(c.id) && !(idxAdded&&idxAdded.ids&&idxAdded.ids[c.id]) && (!day || schedDay(c.fields&&c.fields['Schedule Date'])===day));
+  const coverOk=csvToday.length>0 && csvToday.filter(c=>inIdx.has(c.id)).length*2>=csvToday.length;
+  const cancel={};
+  csvToday.forEach(c=>{
+    if(c.status!=='plan') return;                       // 着車・完了した便は対象外
+    const r=inIdx.get(c.id);
+    if(r && isCancel(r)) cancel[c.id]='status';
+    else if(!r && coverOk) cancel[c.id]='missing';
+  });
   // 1台のPCだけが追加する（srcAt を先に書いたPCが実行）
   fbDB.ref(DOCK_ROOT+'/idxAdded/srcAt').transaction(v=> (v && v>=d.at) ? undefined : d.at, (err, ok)=>{
     if(err || !ok) return;
+    const nCancel=Object.keys(cancel).length;
+    if(nCancel){
+      const cu={}; cu[DOCK_ROOT+'/idxAdded/cancel']=cancel; cu[DOCK_ROOT+'/idxAdded/cancelCount']=nCancel;
+      fbDB.ref().update(cu).then(()=>{
+        toast('ドックマスターでキャンセルになった便が'+nCancel+'台あります（灰色の点線の枠）');
+        Object.keys(cancel).forEach(id=>{ const c=state.cards.find(x=>x.id===id); addLog({ ts:Date.now(), who:IDX_OP, type:'move', cardId:id, carrier:(c&&String(c.fields['Carrier']||'').replace(/^\[[^\]]*\]/,''))||id, from:'予定', to:cancel[id]==='status'?'キャンセル（ドックマスターでCANCEL）':'キャンセル（ドックマスターに無し）' }); });
+      }).catch(e=>{ console.error(e); warn('キャンセルの共有に失敗しました'); });
+    }
     if(!add.length){ return; }
     const ids=Object.assign({}, (idxAdded&&idxAdded.ids)||{});
     const newData=state.cards.map(x=>x.fields);
@@ -1364,12 +1392,13 @@ function cardHTML(c){
     ? `<span class="c-abs${c.noshow?' on':''}" onclick="toggleNoshow(event,'${cssEsc(c.id)}')" title="欠車（この便は来ません）。チェック中はカードを動かせません">${c.noshow?'✓ 欠車':'欠車'}</span>` : '';
   const movable = !(c.status==='plan' && c.noshow);
   const added = !!(idxAdded && idxAdded.ids && idxAdded.ids[c.id]);
-  return `<div class="card ${cls} ${od}${c.noshow?' noshow':''}${added?' idx-added':''}" draggable="${movable}" data-id="${c.id}"
+  const canceled = idxAdded && idxAdded.cancel ? idxAdded.cancel[c.id] : null;   // 'status'（CANCEL）／'missing'（ドックマスターに無し）
+  return `<div class="card ${cls} ${od}${c.noshow?' noshow':''}${added?' idx-added':''}${canceled?' idx-cancel':''}" draggable="${movable}" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     <div class="c-topright">${absBtn}${doneBay}${doneRow}${dur}${detailBtn}</div>
     ${showLate?'<span class="c-late">時間超過</span>':''}
     ${memoRow}
-    ${added?'<span class="c-added" title="朝8:00にドックマスター（IDX）で見つかり、自動で追加した便">追加</span>':''}${planBadgeOf(c)}${idxRow}
+    ${added?'<span class="c-added" title="朝8:00にドックマスター（IDX）で見つかり、自動で追加した便">追加</span>':''}${canceled?`<span class="c-cancel" title="${canceled==='status'?'ドックマスターでステータスがキャンセルになっています':'朝8:00の時点でドックマスターに見当たりません（キャンセルの可能性）'}">キャンセル${canceled==='missing'?'？':''}</span>`:''}${planBadgeOf(c)}${idxRow}
     ${idHtml}
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
@@ -1558,7 +1587,9 @@ function render(){
   document.getElementById('st-arr').textContent=state.cards.filter(c=>c.status==='arrive').length;
   document.getElementById('st-done').textContent=done.length;
   { const n=(idxAdded && idxAdded.count)||0, el=document.getElementById('st-added');   // 追加した台数（カードを動かしても変わらない）
-    if(el){ el.hidden=!n; document.getElementById('st-added-n').textContent=n; } }
+    if(el){ el.hidden=!n; document.getElementById('st-added-n').textContent=n; }
+    const k=(idxAdded && idxAdded.cancelCount)||0, ec=document.getElementById('st-cancel');
+    if(ec){ ec.hidden=!k; document.getElementById('st-cancel-n').textContent=k; } }
   if(typeof updateElapsed==='function') updateElapsed();
   if(typeof setupBayMarquee==='function') setupBayMarquee();
   if(typeof applySearch==='function') applySearch();   // 検索のハイライトを貼り直す
