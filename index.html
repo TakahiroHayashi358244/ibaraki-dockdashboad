@@ -1045,13 +1045,13 @@ function csvDay(){   // 取り込んだCSVの日付（一番多い日付）
 }
 function applyIdxDaily(){
   const d=idxDaily;
-  if(!d || !Array.isArray(d.rows) || !d.at || !fbReady || !fbDB || !fbMaster || !state.cards.length || !state.headers.length) return;
+  if(!d || !Array.isArray(d.rows) || !d.at || !fbReady || !fbDB || !fbMaster || !placementFresh || !state.cards.length || !state.headers.length) return;
   if(idxAdded && idxAdded.srcAt && idxAdded.srcAt>=d.at) return;            // この一覧は処理済み
   if(Date.now()-d.at > 18*3600000) return;                                  // 古い一覧（前の日の朝など）は使わない
   const have=new Set(state.cards.map(c=>c.id)), day=csvDay();
   if(day && d.date && day!==String(d.date).replace(/-/g,'/')) return;     // 取り込んでいるCSVと日付が違う一覧は使わない（CSVを入れ替えたら判定する）
   const sameDay=(r)=> !day || !schedDay(r['Schedule Date']) || schedDay(r['Schedule Date'])===day;
-  const add=d.rows.filter(r=>r && r[ID_FIELD] && !have.has(String(r[ID_FIELD])) && sameDay(r));
+  const add=d.rows.filter(r=>r && r[ID_FIELD] && !have.has(String(r[ID_FIELD])) && sameDay(r) && !isDock9999(r));   // Dock 9999 の便は追加しない
   // キャンセル：CSVの予定（まだ着車していない）の便で、ドックマスターの一覧から消えたもの
   //  一覧に無い便は、一覧がきちんと読めているとき（CSVの便の半分以上が一覧にある）だけキャンセルとみなす
   const inIdx=new Map(d.rows.filter(r=>r&&r[ID_FIELD]).map(r=>[String(r[ID_FIELD]), r]));
@@ -1075,21 +1075,39 @@ function applyIdxDaily(){
       }).catch(e=>{ console.error(e); warn('キャンセルの共有に失敗しました'); });
     }
     if(!add.length){ return; }
-    const ids=Object.assign({}, (idxAdded&&idxAdded.ids)||{});
-    const newData=state.cards.map(x=>x.fields);
-    add.forEach(r=>{ const obj={}; state.headers.forEach(h=>{ obj[h]=r[h]!=null?String(r[h]):''; }); obj[ID_FIELD]=String(r[ID_FIELD]); newData.push(obj); ids[obj[ID_FIELD]]=true; });
-    const valueRows=newData.map(obj=>state.headers.map(h=>obj[h]!=null?obj[h]:''));
-    const upd={};
-    upd[DOCK_ROOT+'/master']={headers:state.headers, rows:valueRows};
-    upd[DOCK_ROOT+'/idxAdded/ids']=ids;
-    upd[DOCK_ROOT+'/idxAdded/count']=Object.keys(ids).length;
-    upd[DOCK_ROOT+'/idxAdded/at']=Date.now();
-    fbDB.ref().update(upd).then(()=>{
-      toast('ドックマスターに追加の便が'+add.length+'台ありました。予定に追加しました');
-      add.forEach(r=>addLog({ ts:Date.now(), who:IDX_OP, type:'move', cardId:String(r[ID_FIELD]), carrier:String(r['Carrier']||'').replace(/^\[[^\]]*\]/,'')||String(r[ID_FIELD]), from:'', to:'予定（ドックマスターから追加）' }));
-    }).catch(e=>{ console.error(e); warn('IDXからの追加の共有に失敗しました'); });
+    // マスタへの追加は、サーバーの最新マスタに対して行う（このPCの画面の状態で全体を書き直さない）
+    const addIds={};
+    fbDB.ref(DOCK_ROOT+'/master').transaction(cur=>{
+      Object.keys(addIds).forEach(k=>delete addIds[k]);   // 再実行のたびに数え直す
+      if(!cur || !Array.isArray(cur.headers)) return cur;   // まだ読めていない → サーバー値で再実行される
+      const hs=cur.headers, ii=hs.indexOf(ID_FIELD);
+      let rows=Array.isArray(cur.rows) ? cur.rows.slice()
+             : (Array.isArray(cur.data) ? cur.data.map(o=>hs.map(h=>o&&o[h]!=null?o[h]:'')) : null);
+      if(!rows || ii<0) return cur;
+      const exist=new Set(rows.map(r=>String((r&&r[ii])||'')));
+      add.forEach(r=>{ const id=String(r[ID_FIELD]); if(exist.has(id)) return; exist.add(id); addIds[id]=true;
+        rows.push(hs.map(h=>h===ID_FIELD?id:(r[h]!=null?String(r[h]):''))); });
+      return {headers:hs, rows};
+    }, (err2, ok2)=>{
+      if(err2){ console.error(err2); warn('IDXからの追加の共有に失敗しました'); return; }
+      if(!ok2 || !Object.keys(addIds).length) return;
+      const ids=Object.assign({}, (idxAdded&&idxAdded.ids)||{}, addIds);
+      const upd={};
+      upd[DOCK_ROOT+'/idxAdded/ids']=ids;
+      upd[DOCK_ROOT+'/idxAdded/count']=Object.keys(ids).length;
+      upd[DOCK_ROOT+'/idxAdded/at']=Date.now();
+      fbDB.ref().update(upd).then(()=>{
+        const nAdd=Object.keys(addIds).length;
+        toast('ドックマスターに追加の便が'+nAdd+'台ありました。予定に追加しました');
+        add.filter(r=>addIds[String(r[ID_FIELD])]).forEach(r=>addLog({ ts:Date.now(), who:IDX_OP, type:'move', cardId:String(r[ID_FIELD]), carrier:String(r['Carrier']||'').replace(/^\[[^\]]*\]/,'')||String(r[ID_FIELD]), from:'', to:'予定（ドックマスターから追加）' }));
+      }).catch(e=>{ console.error(e); warn('IDXからの追加の共有に失敗しました'); });
+    }, false);
   });
 }
+// 朝8:00の確認でキャンセル（ドックマスターから消えていた）とみなした予定の便
+function isIdxCanceled(c){ return !!(c && c.status==='plan' && idxAdded && idxAdded.cancel && idxAdded.cancel[c.id]); }
+// ドックマスターで Dock 9999 に入っている便（追加の対象外）
+function isDock9999(r){ return /(^|\D)9999(\D|$)/.test(String((r&&r['Dock'])||'').trim()); }
 
 /* ============ CSV パーサ（クオート対応） ============ */
 function parseCSV(text){
@@ -1277,6 +1295,7 @@ function scheduleEnd(c){
 }
 function isOverdue(c){
   if(c.status==='done') return false;   // 完了は警告しない
+  if(isIdxCanceled(c)) return false;     // キャンセルの便は時間超過にしない
   const end=scheduleEnd(c);
   return end ? (Date.now() > end.getTime()) : false;
 }
@@ -1391,7 +1410,7 @@ function cardHTML(c){
     ? `<span class="c-abs${c.noshow?' on':''}" onclick="toggleNoshow(event,'${cssEsc(c.id)}')" title="欠車（この便は来ません）。チェック中はカードを動かせません">${c.noshow?'✓ 欠車':'欠車'}</span>` : '';
   const movable = !(c.status==='plan' && c.noshow);
   const added = !!(idxAdded && idxAdded.ids && idxAdded.ids[c.id]);
-  const canceled = idxAdded && idxAdded.cancel ? idxAdded.cancel[c.id] : null;   // ドックマスターの画面から消えた便
+  const canceled = isIdxCanceled(c);   // ドックマスターの画面から消えた便（予定のままのときだけ）
   return `<div class="card ${cls} ${od}${c.noshow?' noshow':''}${added?' idx-added':''}${canceled?' idx-cancel':''}" draggable="${movable}" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     <div class="c-topright">${absBtn}${doneBay}${doneRow}${dur}${detailBtn}</div>
@@ -1548,7 +1567,10 @@ function setDoneSort(v){ state.doneSort=v; render(); }
 function render(){
   refreshIdxTrouble();
   // plan（sortKey 昇順）
-  const plan=sortPlan(state.cards.filter(c=>c.status==='plan'));
+  // キャンセル（朝8:00にドックマスターから消えていた便）は一番下に並べ、予定の台数には数えない
+  const planAll=sortPlan(state.cards.filter(c=>c.status==='plan'));
+  const planActive=planAll.filter(c=>!isIdxCanceled(c)), planCanceled=planAll.filter(isIdxCanceled);
+  const plan=planActive.concat(planCanceled);
   document.getElementById('plan-list').innerHTML =
     plan.length?plan.map(cardHTML).join('')
       :(state.cards.length?'<div class="empty-hint">予定なし</div>'
@@ -1578,11 +1600,11 @@ function render(){
     </div></div>`;
   }).join('');
   // counts
-  document.getElementById('cnt-plan').textContent=plan.length+'件';
+  document.getElementById('cnt-plan').textContent=planActive.length+'件'+(planCanceled.length?'（キャンセル'+planCanceled.length+'）':'');
   document.getElementById('cnt-arr').textContent=state.cards.filter(c=>c.status==='arrive').length+'件';
   document.getElementById('cnt-done').textContent=done.length+'件';
   const dsSel=document.getElementById('doneSort'); if(dsSel && dsSel.value!==state.doneSort) dsSel.value=state.doneSort;
-  document.getElementById('st-plan').textContent=plan.length;
+  document.getElementById('st-plan').textContent=planActive.length;
   document.getElementById('st-arr').textContent=state.cards.filter(c=>c.status==='arrive').length;
   document.getElementById('st-done').textContent=done.length;
   { const n=(idxAdded && idxAdded.count)||0, el=document.getElementById('st-added');   // 追加した台数（カードを動かしても変わらない）
@@ -3099,6 +3121,7 @@ function renderLogs(){
 let fbReady=false, fbDB=null, fbApplying=false;
 let fbMaster=null;          // 最新master {headers,data}
 let fbPlacement={};         // 最新placement
+let placementFresh=false;   // 接続後に最新の配置を受け取ったか（受け取る前は配置を書き込まない）
 let fbMasterLoaded=false;   // master受信済みフラグ（初回seed判定用）
 function setSync(stateStr){
   const el=document.getElementById('syncStatus');
@@ -3178,6 +3201,7 @@ function setupDB(){
     // 接続状態
     fbDB.ref('.info/connected').on('value', s=>{
       const on=s.val()===true; fbReady=on; setSync(on?'on':'off');
+      if(!on) placementFresh=false;   // 切断中・スリープ明けは、最新の配置を受け取るまで書き込まない
     });
 
     // マスタ（CSVデータ）受信 → 統合再構築。
@@ -3198,6 +3222,7 @@ function setupDB(){
     // 配置状態 受信 → placementキャッシュ更新して統合
     root.child('placement').on('value', s=>{
       fbPlacement = s.val()||{};
+      placementFresh = true;
       if(fbMaster){ rebuildFromFB(); }
       else { fbApplying=true; applyPlacement(fbPlacement); fbApplying=false; }
       applyIdxStatus();
@@ -3331,6 +3356,7 @@ function setIdxAuto(on){
 // ・担当者名は IDX_OP 固定（requireOperator は通さない）
 function applyIdxStatus(){
   if(!idxAuto) return;
+  if(fbDB && !placementFresh) return;   // 最新の配置を受け取ってから判定（placement受信時にも呼ばれる）
   const m=idxStatusMap; if(!m || !state.cards.length) return;
   let changed=false;
   Object.keys(m).forEach(id=>{
@@ -3459,14 +3485,31 @@ function cleanupIdxStatus(){
 // 配置状態を送信
 function pushCards(){
   if(!fbReady || fbApplying || !fbDB) return;
-  const placement={};
-  state.cards.forEach(c=>{ placement[c.id]={
-    status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
-    arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
-    doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
-    idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null
-  }; });
-  fbDB.ref(DOCK_ROOT+'/placement').set(placement).catch(e=>console.error(e));
+  if(!placementFresh) return;   // 最新の配置をまだ受け取っていない（古い画面の状態で上書きしない）
+  // 変わったカードだけを書き込む（全体を上書きしない → 他のPCで着車したカードを消さない）
+  const upd={}; let n=0;
+  state.cards.forEach(c=>{
+    const v={
+      status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
+      arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
+      doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
+      idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null, noshow:c.noshow||null
+    };
+    const old=fbPlacement[c.id];
+    if(!old && samePlacement({status:'plan'}, v)) return;   // 何もしていない予定のカードは書かない
+    if(!samePlacement(old, v)){ upd[c.id]=v; n++; }
+  });
+  if(!n) return;
+  Object.keys(upd).forEach(k=>{ fbPlacement[k]=upd[k]; });
+  fbDB.ref(DOCK_ROOT+'/placement').update(upd).catch(e=>console.error(e));
+}
+const PL_KEYS=['status','bay','arriveAt','arriveBay','arriveOp','doneAt','doneOp','memo','idxClosedAt','doneBay','noshow'];
+function samePlacement(a, b){
+  if(!a) return false;
+  return PL_KEYS.every(k=>{
+    const x=(a[k]==null||a[k]===false||a[k]==='')?null:a[k], y=(b[k]==null||b[k]===false||b[k]==='')?null:b[k];
+    return k==='status' ? ((x||'plan')===(y||'plan')) : x===y;
+  });
 }
 // マスタ（CSV）を送信
 function pushMaster(headers,data){
