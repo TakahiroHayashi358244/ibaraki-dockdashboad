@@ -3121,7 +3121,7 @@ function renderLogs(){
 let fbReady=false, fbDB=null, fbApplying=false;
 let fbMaster=null;          // 最新master {headers,data}
 let fbPlacement={};         // 最新placement
-let placementFresh=false;   // 接続後に最新の配置を受け取ったか（受け取る前は配置を書き込まない）
+let placementFresh=false;   // ページを開いてから配置を一度でも受け取ったか（受け取る前は書き込まない。切断しても戻さない）
 let fbMasterLoaded=false;   // master受信済みフラグ（初回seed判定用）
 function setSync(stateStr){
   const el=document.getElementById('syncStatus');
@@ -3201,7 +3201,6 @@ function setupDB(){
     // 接続状態
     fbDB.ref('.info/connected').on('value', s=>{
       const on=s.val()===true; fbReady=on; setSync(on?'on':'off');
-      if(!on) placementFresh=false;   // 切断中・スリープ明けは、最新の配置を受け取るまで書き込まない
     });
 
     // マスタ（CSVデータ）受信 → 統合再構築。
@@ -3484,8 +3483,8 @@ function cleanupIdxStatus(){
 
 // 配置状態を送信
 function pushCards(){
-  if(!fbReady || fbApplying || !fbDB) return;
-  if(!placementFresh) return;   // 最新の配置をまだ受け取っていない（古い画面の状態で上書きしない）
+  if(fbApplying || !fbDB) return;   // 一瞬の切断中でも書き込む（再接続時に自動で送られる）
+  if(!placementFresh) return;       // ページを開いた直後で、まだ配置を一度も受け取っていない
   // 変わったカードだけを書き込む（全体を上書きしない → 他のPCで着車したカードを消さない）
   const upd={}; let n=0;
   state.cards.forEach(c=>{
