@@ -1,8 +1,8 @@
 /* =====================================================================
-   appnav.js — ドックダッシュボード / 着車プラン / 配置ダッシュボード / 打刻漏れ監視 / 貸出管理 の画面切替
+   appnav.js — ドックダッシュボード / 着車プラン / 配置ダッシュボード / 打刻漏れ監視 / 貸出管理 / 間接打刻 管理 の画面切替
    使い方（各ページの </body> の直前に1行）:
      <script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="dock"></script>
-   data-app : このページのID（dock / plan / haichi / punch / radio）
+   data-app : このページのID（dock / plan / haichi / punch / radio / indirect）
    data-title（任意）: 名称が入っている要素のセレクタ（既定: "header h1"）
    ページ名の部分がボタンになり、押すと切替メニューが出ます。同じタブで画面が切り替わります。
    ===================================================================== */
@@ -14,7 +14,8 @@
     { id: "plan",   name: "着車プラン",           url: "https://takahirohayashi358244.github.io/ibaraki-dockdashboad/plan.html" },
     { id: "haichi", name: "配置ダッシュボード",   url: "https://takahirohayashi358244.github.io/ibaraki-haichi-dashboard/" },
     { id: "punch",  name: "打刻漏れ監視",         url: "https://punch-relay-hfo1.takahiro884.workers.dev/" },
-    { id: "radio",  name: "貸出管理",             url: "https://radio-lending.takahiro884.workers.dev/pc.html" }
+    { id: "radio",  name: "貸出管理",             url: "https://radio-lending.takahiro884.workers.dev/pc.html" },
+    { id: "indirect", name: "間接打刻 管理",      url: "https://indirect-relay-hfo1.takahiro884.workers.dev/admin" }
   ];
 
   var me = document.currentScript;
@@ -43,8 +44,9 @@
   }
 
   // 見出しの中から、ページ名の文字だけをボタンに置き換える（ロゴや接続表示はそのまま）
-  function findNameNode(root) {
+  function findNameNode(root, extra) {
     var names = APPS.map(function (a) { return a.name; });
+    if (extra) names.unshift(extra);   // 一覧にないページ（古い appnav.js を読んだ場合など）でも、見出しの文字を置き換える
     var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
     var n;
     while ((n = w.nextNode())) {
@@ -59,8 +61,8 @@
     var h = document.querySelector(sel);
     if (!h || h.querySelector(".appnav-btn")) return;
     css();
-    var found = findNameNode(h);
     var curApp = APPS.filter(function (a) { return a.id === cur; })[0];
+    var found = findNameNode(h, curApp ? curApp.name : (document.title || "").trim());
     var label = curApp ? curApp.name : (found ? found.name : document.title);
 
     var btn = document.createElement("button");
