@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#334155">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HFO1 間接">
+<title>HFO1 間接・TOT</title>
+<style>
+:root{--ink:#1f2b38;--sub:#697a8c;--line:#e3e8ee;--bg:#eef2f6;--mw:430px;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;}
+html{background:#d9dee4;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.4;
+  display:flex;flex-direction:column;height:100%;overflow:hidden;width:100%;max-width:var(--mw);margin:0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 0 24px rgba(0,0,0,.08);}
+header{flex:none;background:#334155;color:#fff;padding:calc(env(safe-area-inset-top) + 7px) 10px 7px;}
+.h1{display:flex;align-items:center;gap:8px;}
+.navbtn{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:16px;font-weight:800;color:#fff;}
+.navbtn .cr{font-size:10px;opacity:.75;}
+.h1 .sub{font-size:12px;opacity:.92;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.h1 .dot{margin-left:auto;width:9px;height:9px;border-radius:50%;background:#ff8a8a;flex:none;} .h1 .dot.on{background:#8ce99a;} .h1 .dot.warn{background:#fbbf24;}
+.navmenu{position:fixed;left:max(8px, calc(50% - var(--mw) / 2 + 8px));top:calc(env(safe-area-inset-top) + 42px);z-index:60;min-width:210px;background:#fff;border:1px solid #d8e0e8;border-radius:12px;box-shadow:0 12px 34px rgba(20,35,50,.32);padding:5px;}
+.navmenu[hidden],.navmask[hidden]{display:none;}
+.navmenu a{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:9px;color:#1f2b38;font-size:14px;font-weight:700;text-decoration:none;}
+.navmenu a .mk{width:7px;height:7px;border-radius:50%;flex:none;} .navmenu a.cur{color:#334155;} .navmenu a.cur .mk{background:#334155;}
+.navmask{position:fixed;inset:0;z-index:55;}
+main{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 8px 20px;}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.tabs button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:4px 0 5px;font:inherit;color:var(--sub);cursor:pointer;}
+.tabs button b{display:block;font-size:18px;line-height:1.2;color:var(--ink);font-variant-numeric:tabular-nums;} .tabs button span{font-size:10px;font-weight:700;}
+.tabs button.t b{color:#b91c1c;} .tabs button.n b{color:#111827;} .tabs button.i b{color:#2563eb;}
+.tabs button.on{outline:2px solid #1f3864;outline-offset:-2px;background:#f4f7ff;}
+.areas{display:flex;gap:5px;margin-top:6px;overflow-x:auto;scrollbar-width:none;} .areas::-webkit-scrollbar{display:none;}
+.areas button{flex:none;display:flex;align-items:center;gap:5px;font:inherit;font-size:12px;font-weight:700;padding:5px 10px;min-height:32px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+.areas button i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+.areas button.on{border:2px solid #1f3864;background:#f4f7ff;}
+.srch{margin-top:6px;} .srch input{width:100%;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;}
+.axis{position:relative;height:16px;margin:8px 26px 0 140px;}
+.axis span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:var(--sub);white-space:nowrap;}
+.rows{display:flex;flex-direction:column;gap:4px;margin-top:2px;}
+.row{background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+.rh{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 6px;border-left:5px solid #d1d5db;cursor:pointer;min-height:46px;}
+.row.none .rh{border-left-color:#111827;background:#f3f4f6;} .row.tot .rh{border-left-color:#ef4444;background:#fff7f7;} .row.ind .rh{border-left-color:#2563eb;}
+.nm{flex:0 0 124px;min-width:0;line-height:1.15;}
+.nm b{display:block;font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nm small{display:block;font-size:10px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nm small.al{color:#2563eb;font-weight:700;}
+.nm em{font-style:normal;border-radius:4px;padding:0 4px;margin-left:4px;font-size:10px;font-weight:800;} .nm small.al em:first-child{margin-left:0;}
+em.none{background:#111827;color:#fff;} em.wait,em.failed{background:#fef3c7;color:#92400e;} em.done{background:#dcfce7;color:#15803d;} em.out{background:#e5e7eb;color:#4b5563;}
+.trk{flex:1;min-width:0;position:relative;height:16px;background:#f4f6f8;border-radius:3px;}
+.trk.big{height:28px;border-radius:5px;}
+.trk i{position:absolute;top:2px;bottom:2px;border-radius:2px;} .trk.big i{top:4px;bottom:4px;border-radius:3px;}
+.trk i.ind{box-shadow:inset 2px 0 0 #fff;} .trk i.pre{opacity:.6;} .trk i.wt{opacity:.55;}
+.trk .now{position:absolute;top:-2px;bottom:-2px;width:2px;background:#dc2626;}
+.cv{flex:none;font-size:10px;color:#9ca3af;transition:transform .15s;} .row.open .cv{transform:rotate(180deg);}
+.det{display:none;padding:4px 10px 10px 13px;} .row.open .det{display:block;}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--sub);margin:2px 0 6px;} .meta b{color:var(--ink);} .meta .tt b{color:#b91c1c;}
+.ax2{position:relative;height:14px;} .ax2 span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:var(--sub);white-space:nowrap;}
+.ev{list-style:none;margin:8px 0 0;padding:0;font-size:12.5px;}
+.ev li{display:grid;grid-template-columns:42px 12px 1fr;gap:6px;align-items:start;padding:4px;border-radius:6px;}
+.ev li.hot{background:#f3f4f6;font-weight:700;}
+.ev li b{font-variant-numeric:tabular-nums;} .ev li i{width:10px;height:10px;border-radius:2px;margin-top:3px;display:inline-block;} .ev li small{color:var(--sub);font-weight:400;}
+.empty{color:var(--sub);font-size:12px;text-align:center;padding:14px 4px;}
+.err{margin:8px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
+.key{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:10px;font-size:13px;line-height:1.6;}
+.key input{width:100%;font-size:16px;padding:9px 10px;border:1px solid #cfd6e0;border-radius:9px;margin:8px 0;font-family:inherit;}
+.key button{width:100%;padding:10px;border:0;border-radius:9px;background:#334155;color:#fff;font:inherit;font-weight:700;}
+.ft{text-align:center;font-size:11px;color:var(--sub);padding:10px 0 calc(env(safe-area-inset-bottom) + 6px);} .ft a{color:var(--sub);}
+</style>
+</head>
+<body>
+<header>
+  <div class="h1">
+    <button class="navbtn" id="navBtn" aria-haspopup="menu"><span>間接・TOT</span><span class="cr">▼</span></button>
+    <span class="sub" id="sub">—</span>
+    <span class="dot" id="dot" title="TOT連携の受信状態"></span>
+  </div>
+</header>
+<div class="navmask" id="navMask" hidden></div>
+<div class="navmenu" id="navMenu" role="menu" hidden></div>
+<main id="main">
+  <div id="keyBox"></div>
+  <div id="body" hidden>
+    <div class="tabs" id="tabs"></div>
+    <div class="areas" id="areas"></div>
+    <div class="srch"><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="名前・バッチID・エイリアス・作業"></div>
+    <div id="err"></div>
+    <div class="axis" id="axis"></div>
+    <div class="rows" id="rows"><div class="empty">読み込み中…</div></div>
+    <div class="ft">閲覧専用です（1分ごとに更新）。灰＝勤務、色＝間接打刻、黒＝Time Off Task、赤線＝現在。<br>行を押すと、その人の時系列を開きます。<br><a href="javascript:void(0)" id="resetKey">閲覧用の鍵を変更</a></div>
+  </div>
+</main>
+<script>
+/* ==========================================================
+   HFO1 間接・TOT（スマホ用・閲覧専用）
+   間接打刻管理（indirect-relay-hfo1）の /api/timeline を、スマホ閲覧用の鍵で読む。
+   鍵は 間接打刻管理 → 設定 →「スマホ用URL（間接・TOT）」で開くと、この端末に保存される。
+   ========================================================== */
+const API = "https://indirect-relay-hfo1.takahiro884.workers.dev";
+// スマホ閲覧用の鍵（間接打刻管理 → 設定 →「スマホ用URL（間接・TOT）」の k= の後ろ）。ここに入れておくと、どのスマホでも入力なしで表示する。
+// 空欄なら、各スマホで初回に入力してもらう。※このファイルは公開されるため、鍵を知られても閲覧だけです（打刻監視の PUNCH_VIEW_KEY と同じ扱い）
+const IND_VIEW_KEY = "1540850d9c168e02e13c9c10c06d8bed";
+const M = "m.html";   // 現場ビュー（ほかの画面）
+const NAV = [["dock", "ドック状況"], ["plan", "着車プラン"], ["haichi", "配置"], ["att", "出勤者"], ["punch", "打刻監視"]];
+const MIN = 60000, HR = 3600000;
+const AREA = { Inbound: [221, 83, [53, 42, 48, 36, 50, 39, 45, 33]], Outbound: [21, 90, [40, 31, 36, 27, 38, 33, 29, 35]], ICQA: [175, 77, [26, 20, 23, 17, 25, 21, 18, 24]], Other: [262, 83, [58, 46, 52, 40, 55, 43, 49, 37]] };
+const BASE = "#cbd5e1", BLACK = "#111827";
+const JUDGE = { none: ["TOT・間接なし", 0, "間接なし"], failed: ["TOT・間接失敗", 1, "間接失敗"], wait: ["TOT・入力待ち", 2, "入力待ち"], done: ["TOT・反映待ち", 3, "反映待ち"] };
+const ST = { queued: "待ち", sending: "入力中", done: "完了", direct: "直接", failed: "失敗", unknown: "要確認", expired: "期限切れ" };
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const tm = t => { if (!t) return ""; const d = new Date(t); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const dur = ms => { const m = Math.max(0, Math.round(ms / MIN)); return m >= 60 ? Math.floor(m / 60) + "時間" + (m % 60 ? (m % 60) + "分" : "") : m + "分"; };
+const fold = s => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+
+let key = "", TL = null, loading = false, err = "", keyMsg = "";
+let tab = "tot", area = "", q = "";
+const open = {};
+try { tab = localStorage.getItem("ind_tab") || "tot"; } catch (e) { /* 無視 */ }
+// ?k=鍵 で開いたら保存して、URLから鍵を消す
+(function () {
+  const u = new URL(location.href), k = u.searchParams.get("k");
+  if (k) { try { localStorage.setItem("ind_key", k); } catch (e) { /* 無視 */ } u.searchParams.delete("k"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+  try { key = localStorage.getItem("ind_key") || k || IND_VIEW_KEY; } catch (e) { key = k || IND_VIEW_KEY; }
+})();
+
+/* ---------- 切替メニュー（現場ビューの各画面へ） ---------- */
+(function () {
+  const menu = document.getElementById("navMenu"), mask = document.getElementById("navMask");
+  menu.innerHTML = NAV.map(([v, n]) => `<a role="menuitem" href="${M}?v=${v}"><span class="mk"></span>${n}</a>`).join("") + `<a role="menuitem" class="cur" href="#"><span class="mk"></span>間接・TOT</a>`;
+  menu.querySelector("a.cur").addEventListener("click", e => { e.preventDefault(); close(); });
+  const close = () => { menu.hidden = true; mask.hidden = true; };
+  document.getElementById("navBtn").addEventListener("click", e => { e.stopPropagation(); const o = menu.hidden; menu.hidden = !o; mask.hidden = !o; });
+  mask.addEventListener("click", close);
+})();
+
+/* ---------- 読み込み ---------- */
+function load() {
+  if (!key || loading) return;
+  loading = true;
+  fetch(API + "/api/timeline", { headers: { "x-token": key }, cache: "no-store" })
+    .then(r => r.json().then(j => ({ st: r.status, j })))
+    .then(({ st, j }) => {
+      if (st === 401) { keyMsg = key === IND_VIEW_KEY && IND_VIEW_KEY ? "埋め込みの鍵が古くなっています（トークン変更など）。新しい鍵を入れてください" : "鍵が違います。間接打刻管理の設定にある「スマホ用URL（間接・TOT）」から開き直してください"; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } return; }
+      if (!j.ok) throw new Error(j.error || ("HTTP " + st));
+      TL = j; err = ""; colorCache = {};
+    })
+    .catch(e => { err = "間接打刻管理から読み込めませんでした（" + e.message + "）"; })
+    .then(() => { loading = false; render(); });
+}
+setInterval(() => { if (!document.hidden) load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+
+/* ---------- 帯の計算（PC版の管理画面と同じ考え方） ---------- */
+let colorCache = {};
+function colorOf(code) {
+  if (colorCache[code]) return colorCache[code];
+  const g = (TL && TL.groups[code]) || "Other";
+  const same = TL ? Object.keys(TL.groups).filter(c => TL.groups[c] === g) : [];
+  const i = Math.max(0, same.indexOf(code)), [h, s, ls] = AREA[g] || AREA.Other;
+  return (colorCache[code] = `hsl(${h} ${s}% ${ls[i % ls.length]}%)`);
+}
+const areaColor = g => { const [h, s, ls] = AREA[g]; return `hsl(${h} ${s}% ${ls[0]}%)`; };
+function hmMs(hm) {
+  if (!TL || !/^\d{1,2}:\d{2}/.test(String(hm || ""))) return null;
+  const [h, m] = String(hm).slice(0, 5).split(":").map(Number);
+  return Date.parse(TL.date + "T00:00:00+09:00") + (h * 60 + m) * MIN + (h < 5 ? 24 * HR : 0);
+}
+const live = p => p.ind.filter(s => !["failed", "expired"].includes(s.status));
+function build(p) {
+  const end = TL.today ? TL.now : null;
+  const periods = p.periods.map(x => [x[0], x[1] ?? end ?? x[0], x[2] || ""]).filter(x => x[1] > x[0]);
+  const tot = p.tot.map(x => [x[0], x[1], x[2] || ""]);
+  const working = periods.length && periods[periods.length - 1][1] >= (TL.now || 0) - MIN;
+  if (TL.today && working && p.cur && tot.length && TL.tot && tot[tot.length - 1][1] >= TL.tot.at - 2 * MIN) tot[tot.length - 1][1] = Math.max(tot[tot.length - 1][1], TL.now);
+  const L = live(p);
+  const ind = L.map((s, i) => {
+    const a = s.at, per = periods.find(x => a >= x[0] - 5 * MIN && a < x[1]);
+    const c = [per ? per[1] : (end ?? a + 30 * MIN)];
+    if (L[i + 1]) c.push(L[i + 1].at);
+    tot.forEach(v => { if (v[0] > a) c.push(v[0]); });
+    return { ...s, a, b: Math.max(Math.min(...c), a + MIN), g: TL.groups[s.code] || "Other" };
+  });
+  const merged = [];
+  for (const x of ind) { const m = merged[merged.length - 1]; if (m && m.code === x.code && x.a - m.b <= MIN) m.b = Math.max(m.b, x.b); else merged.push({ ...x }); }
+  return { periods, ind: merged, tot };
+}
+let R = [0, 1];
+function span(list) {
+  let lo = Infinity, hi = -Infinity;
+  list.forEach(p => { const b = build(p); [...b.periods, ...b.ind.map(x => [x.a, x.b]), ...b.tot].forEach(([a, c]) => { lo = Math.min(lo, a); hi = Math.max(hi, c); }); });
+  if (TL.today) hi = Math.max(hi, TL.now);
+  if (!isFinite(lo)) { lo = hmMs("07:00"); hi = hmMs("18:00"); }
+  lo = Math.floor((lo + 9 * HR) / HR) * HR - 9 * HR; hi = Math.ceil((hi + 9 * HR) / HR) * HR - 9 * HR;
+  if (hi - lo < 4 * HR) hi = lo + 4 * HR;
+  return [lo, hi];
+}
+const pos = t => ((t - R[0]) / (R[1] - R[0]) * 100).toFixed(3) + "%";
+const wid = (a, c) => (Math.max(0, c - a) / (R[1] - R[0]) * 100).toFixed(3) + "%";
+function ticksHtml() {
+  const h = (R[1] - R[0]) / HR, step = h > 8 ? 2 : 1, out = [];
+  for (let t = R[0]; t <= R[1]; t += step * HR) out.push(`<span style="left:${pos(t)}">${new Date(t + 9 * HR).getUTCHours()}時</span>`);
+  return out.join("");
+}
+function barsHtml(p) {
+  const b = build(p);
+  let h = b.periods.map(([a, c]) => `<i style="left:${pos(a)};width:${wid(a, c)};background:${BASE}"></i>`).join("");
+  h += b.ind.map(s => `<i class="ind${["queued", "sending", "unknown"].includes(s.status) ? " wt" : ""}" style="left:${pos(s.a)};width:${wid(s.a, s.b)};background:${colorOf(s.code)}"></i>`).join("");
+  h += b.tot.map(([a, c, k]) => `<i class="${k === "pre" ? "pre" : ""}" style="left:${pos(a)};width:${wid(a, c)};background:${BLACK}"></i>`).join("");
+  if (TL.today && TL.now >= R[0] && TL.now <= R[1]) h += `<span class="now" style="left:${pos(TL.now)}"></span>`;
+  return h;
+}
+function eventsHtml(p) {
+  const b = build(p);
+  const ev = [
+    ...p.slots.map(s => ({ t: hmMs(s.t), text: s.k, sub: "出退勤打刻", bg: BASE })).filter(e => e.t),
+    ...(b.periods[0] && b.periods[0][2] === "lend" ? [{ t: b.periods[0][0], text: "IDカード貸出", sub: "出退勤打刻なし", bg: BASE }] : []),
+    ...p.ind.map(s => { const x = b.ind.find(y => y.code === s.code && s.at >= y.a && s.at <= y.b);
+      return { t: s.at, text: `${s.name}（${s.code}）`, sub: "間接打刻・" + (ST[s.status] || s.status) + (x && x.a === s.at ? `・〜${TL.today && x.b === TL.now ? "現在" : tm(x.b)}` : ""), bg: colorOf(s.code) }; }),
+    ...b.tot.map(([a, e, k]) => ({ t: a, text: "Time Off Task", sub: `${tm(a)}〜${TL.today && e >= TL.now - MIN ? "現在" : tm(e)}（${dur(e - a)}）${k === "pre" ? "・時刻は推定" : ""}`, bg: BLACK, hot: true })),
+  ].sort((x, y) => y.t - x.t);
+  return ev.map(e => `<li${e.hot ? ' class="hot"' : ""}><b>${tm(e.t)}</b><i style="background:${e.bg}"></i><span>${esc(e.text)}<small>　${esc(e.sub)}</small></span></li>`).join("") || '<li><span></span><span></span><span class="empty">記録がありません</span></li>';
+}
+
+/* ---------- 描画 ---------- */
+function render() {
+  const kb = document.getElementById("keyBox"), body = document.getElementById("body");
+  if (!key) {
+    body.hidden = true;
+    document.getElementById("sub").textContent = "閲覧用の鍵が必要です";
+    kb.innerHTML = `<div class="key"><b>間接・TOT を見るには、閲覧用の鍵が必要です</b><br>PCの間接打刻管理 → 設定 →「スマホ用URL（間接・TOT）」をこのスマホで開くか、鍵（URLの k= の後ろ）を入力してください。この端末に保存され、次からは不要です。
+      <div style="color:#b91c1c">${esc(keyMsg)}</div><input id="keyIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="閲覧用の鍵"><button type="button" id="keySave">保存して表示</button></div>`;
+    document.getElementById("keySave").onclick = () => { const v = document.getElementById("keyIn").value.trim(); if (!v) return; key = v; keyMsg = ""; try { localStorage.setItem("ind_key", v); } catch (e) { /* 無視 */ } kb.innerHTML = ""; render(); load(); };
+    return;
+  }
+  kb.innerHTML = ""; body.hidden = false;
+  document.getElementById("err").innerHTML = err ? `<div class="err">${esc(err)}</div>` : "";
+  if (!TL) { document.getElementById("sub").textContent = "読み込み中…"; return; }
+
+  const hb = TL.tot, dot = document.getElementById("dot");
+  dot.className = "dot " + (hb && hb.ok ? "on" : hb ? "warn" : "");
+  const people = TL.persons.filter(p => p.listed || p.ind.length);
+  const working = people.filter(p => p.listed && !p.retTime).length;
+  document.getElementById("sub").textContent = `出勤 ${working}名 ・ ${hb ? "FCLM " + tm(hb.at) : "FCLM 未受信"} ・ ${tm(TL.now)}更新`;
+
+  const isTot = p => !!p.cur, isNone = p => p.cur && p.cur.judge === "none", hasInd = p => live(p).length > 0;
+  const T = [["all", "全員", people.length, ""], ["tot", "TOT", people.filter(isTot).length, "t"], ["none", "TOT・間接なし", people.filter(isNone).length, "n"], ["ind", "間接あり", people.filter(hasInd).length, "i"]];
+  document.getElementById("tabs").innerHTML = T.map(t => `<button type="button" data-t="${t[0]}" class="${t[3]}${tab === t[0] ? " on" : ""}"><b>${t[2]}</b><span>${t[1]}</span></button>`).join("");
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; try { localStorage.setItem("ind_tab", tab); } catch (e) { /* 無視 */ } render(); });
+  document.getElementById("areas").innerHTML = Object.keys(AREA).map(g => `<button type="button" data-a="${g}" class="${area === g ? "on" : ""}"><i style="background:${areaColor(g)}"></i>${g}</button>`).join("");
+  document.querySelectorAll("#areas button").forEach(b => b.onclick = () => { area = area === b.dataset.a ? "" : b.dataset.a; render(); });
+
+  const fq = fold(q);
+  let list = people.filter(p => tab === "all" || (tab === "tot" ? isTot(p) : tab === "none" ? isNone(p) : hasInd(p)))
+    .filter(p => !area || live(p).some(s => (TL.groups[s.code] || "Other") === area))
+    .filter(p => !fq || fold([p.name, p.badge, p.alias, ...p.ind.map(s => s.name + " " + s.code)].join(" ")).includes(fq));
+  // TOT（間接なし→失敗→入力待ち→反映待ち）→ 今日TOTがあった人 → 間接あり → それ以外。同じ組は出勤順
+  const firstIn = p => { const b = build(p); return b.periods.length ? b.periods[0][0] : Infinity; };
+  const rank = p => p.cur ? JUDGE[p.cur.judge][1] : p.tot.length ? 5 : hasInd(p) ? 7 : 9;
+  list.sort((a, b) => rank(a) - rank(b) || firstIn(a) - firstIn(b));
+  R = span(list.length ? list : people);
+  document.getElementById("axis").innerHTML = ticksHtml();
+
+  document.getElementById("rows").innerHTML = list.map(p => {
+    const b = build(p), c = p.cur, k = p.badge;
+    const cls = c ? (c.judge === "none" ? "none" : "tot") : hasInd(p) ? "ind" : "";
+    // 名前の欄は狭いので短い表示（行の左端の色でも TOT を示す）
+    const tag = c ? `<em class="${c.judge}">${Math.round(c.totMin)}分 ${JUDGE[c.judge][2]}</em>` : p.retTime ? '<em class="out">退勤済</em>' : "";
+    const work = b.periods.reduce((s, [a, e]) => s + (e - a), 0);
+    return `<div class="row ${cls}${open[k] ? " open" : ""}" data-k="${esc(k)}">
+      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${esc(p.badge)}</small><small class="al">${esc(p.alias || "")}${tag}</small></span>
+        <span class="trk">${barsHtml(p)}</span><span class="cv">▼</span></div>
+      <div class="det">
+        <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
+        <div class="ax2">${ticksHtml()}</div>
+        <div class="trk big">${barsHtml(p)}</div>
+        <ol class="ev">${eventsHtml(p)}</ol>
+      </div></div>`;
+  }).join("") || `<div class="empty">${tab === "tot" || tab === "none" ? "いま該当する TOT の人はいません" : "該当する人はいません"}</div>`;
+  document.querySelectorAll("#rows .row").forEach(el => el.querySelector(".rh").onclick = () => { const k = el.dataset.k; open[k] = !open[k]; el.classList.toggle("open", !!open[k]); });
+}
+(function () {
+  let t = null;
+  document.getElementById("q").addEventListener("input", e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value; render(); }, 150); });
+  document.getElementById("resetKey").onclick = () => { if (!confirm("この端末に保存した閲覧用の鍵を消去しますか？")) return; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } render(); };
+})();
+render(); load();
+</script>
+</body>
+</html>

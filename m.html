@@ -511,8 +511,10 @@ function setView(v) {
 function closeMenu() { document.getElementById("navMenu").hidden = true; document.getElementById("navMask").hidden = true; }
 (function () {
   const menu = document.getElementById("navMenu"), btn = document.getElementById("navBtn"), mask = document.getElementById("navMask");
-  menu.innerHTML = VIEWS.map(v => `<button class="${v.id === view ? "cur" : ""}" data-v="${v.id}"><span class="mk"></span>${v.name}</button>`).join("");
-  menu.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+  menu.innerHTML = VIEWS.map(v => `<button class="${v.id === view ? "cur" : ""}" data-v="${v.id}"><span class="mk"></span>${v.name}</button>`).join("")
+    + `<button data-href="indirect-m.html"><span class="mk"></span>間接・TOT</button>`;   // 別ページ（間接打刻管理を読む）
+  menu.querySelectorAll("button[data-href]").forEach(b => b.addEventListener("click", () => { location.href = b.dataset.href; }));
+  menu.querySelectorAll("button[data-v]").forEach(b => b.addEventListener("click", () => {
     menu.querySelectorAll("button").forEach(x => x.classList.toggle("cur", x === b));
     setView(b.dataset.v);
   }));
@@ -1371,7 +1373,12 @@ try {
   });
 } catch (e) { /* 無視 */ }
 
-try { const v = localStorage.getItem("mView"); if (v && VIEWS.some(x => x.id === v)) setView(v); else setView("dock"); } catch (e) { setView("dock"); }
+// ?v=画面 で開いたとき（間接・TOT のページのメニューから戻る等）はその画面を表示
+try {
+  const qv = new URLSearchParams(location.search).get("v");
+  if (qv && VIEWS.some(x => x.id === qv)) { setView(qv); history.replaceState(null, "", location.pathname + location.hash); }
+  else { const v = localStorage.getItem("mView"); if (v && VIEWS.some(x => x.id === v)) setView(v); else setView("dock"); }
+} catch (e) { setView("dock"); }
 setInterval(render, 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
 </script>
