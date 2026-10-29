@@ -68,10 +68,13 @@ em.none{background:#111827;color:#fff;} em.wait,em.failed{background:#fef3c7;col
 .key{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:10px;font-size:13px;line-height:1.6;}
 .key input{width:100%;font-size:16px;padding:9px 10px;border:1px solid #cfd6e0;border-radius:9px;margin:8px 0;font-family:inherit;}
 .key button{width:100%;padding:10px;border:0;border-radius:9px;background:#334155;color:#fff;font:inherit;font-weight:700;}
+/* 現場ビュー（m.html）に埋め込んだときは、見出しと切替メニューは m.html 側を使う */
+body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmenu,body.embed .navmask{display:none !important;}
 .ft{text-align:center;font-size:11px;color:var(--sub);padding:10px 0 calc(env(safe-area-inset-bottom) + 6px);} .ft a{color:var(--sub);}
 </style>
 </head>
 <body>
+<script>if (/[?&]embed=1/.test(location.search)) document.body.classList.add("embed");</script>
 <header>
   <div class="h1">
     <button class="navbtn" id="navBtn" aria-haspopup="menu"><span>間接・TOT</span><span class="cr">▼</span></button>
@@ -150,8 +153,8 @@ function load() {
     .catch(e => { err = "間接打刻管理から読み込めませんでした（" + e.message + "）"; })
     .then(() => { loading = false; render(); });
 }
-setInterval(() => { if (!document.hidden) load(); }, 60000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+setInterval(() => { if (!document.hidden && active) load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && active) load(); });
 
 /* ---------- 帯の計算（PC版の管理画面と同じ考え方） ---------- */
 let colorCache = {};
@@ -225,11 +228,19 @@ function eventsHtml(p) {
 }
 
 /* ---------- 描画 ---------- */
+const EMBED = document.body.classList.contains("embed");
+function setSub(t) {
+  document.getElementById("sub").textContent = t;
+  if (EMBED && parent !== window) parent.postMessage({ indSub: t }, "*");   // m.html の見出しに出す
+}
+// 埋め込み時：m.html でこの画面を開いている間だけ自動更新する
+let active = true;   // 埋め込みの iframe は、その画面を初めて開いたときに作られるので最初は表示中
+window.addEventListener("message", e => { const d = e.data || {}; if (d.indActive == null) return; active = !!d.indActive; if (active) { load(); setSub(document.getElementById("sub").textContent); } });
 function render() {
   const kb = document.getElementById("keyBox"), body = document.getElementById("body");
   if (!key) {
     body.hidden = true;
-    document.getElementById("sub").textContent = "閲覧用の鍵が必要です";
+    setSub("閲覧用の鍵が必要です");
     kb.innerHTML = `<div class="key"><b>間接・TOT を見るには、閲覧用の鍵が必要です</b><br>PCの間接打刻管理 → 設定 →「スマホ用URL（間接・TOT）」をこのスマホで開くか、鍵（URLの k= の後ろ）を入力してください。この端末に保存され、次からは不要です。
       <div style="color:#b91c1c">${esc(keyMsg)}</div><input id="keyIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="閲覧用の鍵"><button type="button" id="keySave">保存して表示</button></div>`;
     document.getElementById("keySave").onclick = () => { const v = document.getElementById("keyIn").value.trim(); if (!v) return; key = v; keyMsg = ""; try { localStorage.setItem("ind_key", v); } catch (e) { /* 無視 */ } kb.innerHTML = ""; render(); load(); };
@@ -237,13 +248,13 @@ function render() {
   }
   kb.innerHTML = ""; body.hidden = false;
   document.getElementById("err").innerHTML = err ? `<div class="err">${esc(err)}</div>` : "";
-  if (!TL) { document.getElementById("sub").textContent = "読み込み中…"; return; }
+  if (!TL) { setSub("読み込み中…"); return; }
 
   const hb = TL.tot, dot = document.getElementById("dot");
   dot.className = "dot " + (hb && hb.ok ? "on" : hb ? "warn" : "");
   const people = TL.persons.filter(p => p.listed || p.ind.length);
   const working = people.filter(p => p.listed && !p.retTime).length;
-  document.getElementById("sub").textContent = `出勤 ${working}名 ・ ${hb ? "FCLM " + tm(hb.at) : "FCLM 未受信"} ・ ${tm(TL.now)}更新`;
+  setSub(`出勤${working}名・${hb ? "FCLM " + tm(hb.at) : "FCLM未受信"}・${tm(TL.now)}更新`);
 
   const isTot = p => !!p.cur, isNone = p => p.cur && p.cur.judge === "none", hasInd = p => live(p).length > 0;
   const T = [["all", "全員", people.length, ""], ["tot", "TOT", people.filter(isTot).length, "t"], ["none", "TOT・間接なし", people.filter(isNone).length, "n"], ["ind", "間接あり", people.filter(hasInd).length, "i"]];
