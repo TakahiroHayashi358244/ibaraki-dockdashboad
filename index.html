@@ -1126,7 +1126,7 @@ function isDock9999(r){ return /(^|\D)9999(\D|$)/.test(String((r&&r['Dock'])||''
    → 毎朝8:00と同じ処理（applyIdxDaily）で、追加の便・キャンセルの便を判定する。
    IDX側から一定時間応答がないときは、最後に受け取った一覧でもう一度判定するかを聞く。 */
 const IDX_DAILY_REQ_PATH = "idxDailyReq";
-const IDX_MANUAL_WAIT_MS = 60000;
+const IDX_MANUAL_WAIT_MS = 120000;   // IDX側は画面を読み直してから送るため長め
 let idxManual = null;   // {prevAt, waitAt, forceStart, timer}
 function setIdxCheckBtn(busy){
   const b=document.getElementById('idxCheckBtn'); if(!b) return;
@@ -1142,7 +1142,7 @@ function manualIdxCheck(){
   if(!state.cards.length){ warn('先にCSVを取り込んでください'); return; }
   if(idxManual){ toast('確認中です。しばらくお待ちください'); return; }
   const reqAt=Date.now();
-  idxManual={ prevAt:(idxDaily&&idxDaily.at)||0, waitAt:0, forceStart:0, timer:setTimeout(onIdxManualTimeout, IDX_MANUAL_WAIT_MS) };
+  idxManual={ reqAt, prevAt:(idxDaily&&idxDaily.at)||0, waitAt:0, forceStart:0, acked:false, timer:setTimeout(onIdxManualTimeout, IDX_MANUAL_WAIT_MS) };
   setIdxCheckBtn(true);
   fbDB.ref(DOCK_ROOT+'/'+IDX_DAILY_REQ_PATH).set({ at:reqAt, by:operator.trim(), code:idxRev.code||'', site:IDX_SITE })
     .then(()=>{
@@ -1150,11 +1150,21 @@ function manualIdxCheck(){
     })
     .catch(e=>{ endIdxManual(); warn('IDXへの依頼を送れませんでした: '+(e&&e.message?e.message:'')); });
 }
+// IDX側の受付・失敗の知らせ（/dock/idxDailyReq に reqAt・state が書き足される）
+function onIdxDailyReqAck(v){
+  if(!idxManual || !v || v.reqAt!==idxManual.reqAt || !v.state) return;
+  if(v.state==='error'){ endIdxManual(); warn('IDX（'+(v.ackBy||'')+'）：'+(v.message||'一覧を送れませんでした')); return; }
+  if(!idxManual.acked && (v.state==='reloading' || v.state==='accepted')){
+    idxManual.acked=true;
+    toast('IDX（'+(v.ackBy||'')+'）が受け付けました。'+(v.state==='reloading'?'画面を読み直しています…':'一覧を確認しています…'));
+  }
+}
 // /dock/idxDaily を受け取ったとき（手動確認の待ち受け中だけ働く）
 function onIdxDailyForManual(r){
   if(!idxManual || idxManual.waitAt) return;
   const d=idxDaily;
   if(!d || !d.at || d.at<=idxManual.prevAt) return;   // まだ新しい一覧ではない
+  if(d.reqAt && idxManual.reqAt && d.reqAt!==idxManual.reqAt) return;   // 別の依頼への応答
   if(r && r!=='done'){ endIdxManual(); warn('IDXの一覧は届きましたが判定できませんでした：'+r); return; }
   idxManual.waitAt=d.at;
   checkIdxManualResult();
@@ -1177,7 +1187,7 @@ function onIdxManualTimeout(){
   endIdxManual();
   const d=idxDaily;
   if(!d || !d.at){ warn('ドックマスター（IDX）から応答がありません。IDXの監視スクリプトが動いているPCを確認してください'); return; }
-  const ok=confirm('ドックマスター（IDX）から'+Math.round(IDX_MANUAL_WAIT_MS/1000)+'秒以内に応答がありませんでした。\n'
+  const ok=confirm('ドックマスター（IDX）から'+Math.round(IDX_MANUAL_WAIT_MS/1000/60)+'分以内に一覧が届きませんでした。\n'
     +'IDXの監視スクリプトが動いているPC（マスターPC）を確認してください。\n\n'
     +'最後に受け取った一覧（'+hhmm(d.at)+' 受信）で、もう一度判定しますか？');
   if(!ok) return;
@@ -3308,6 +3318,7 @@ function setupDB(){
     // IDX（ドックマスター）から朝に追加した便（目印と台数）
     root.child('idxAdded').on('value', s=>{ idxAdded = s.val()||null; render(); checkIdxManualResult(); });
     // IDX側のスクリプトが朝8:00に送る予定一覧 → CSVにない便を追加
+    root.child(IDX_DAILY_REQ_PATH).on('value', s=>onIdxDailyReqAck(s.val()));
     root.child('idxDaily').on('value', s=>{ idxDaily = s.val()||null; const r=applyIdxDaily(); onIdxDailyForManual(r); });
     // IDX連携：CLOSEDになったAppointment Idを受信 → カードを完了へ移動
     root.child(IDX_PATH).on('value', s=>{
