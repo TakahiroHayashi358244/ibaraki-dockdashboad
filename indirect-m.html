@@ -46,7 +46,9 @@ main{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:
 .trk b.dr.np{background:transparent !important;border:1.5px solid #dc2626;border-radius:2px;color:#dc2626;}
 .ev li.np{background:#fef2f2;font-weight:700;}
 .why{font-size:12px;color:#374151;background:#f8fafc;border:1px solid var(--line);border-radius:7px;padding:5px 8px;margin:0 0 6px;}
-.srch{margin-top:6px;} .srch input{width:100%;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;}
+.srch{margin-top:6px;display:flex;gap:6px;} .srch input{flex:1 1 50%;min-width:0;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;}
+.srch select{flex:1 1 50%;min-width:0;font-size:16px;padding:7px 8px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;color:var(--ink);font-family:inherit;}
+.nm small .up{color:var(--ink);font-weight:800;margin-left:4px;}
 .axis{position:relative;height:16px;margin:8px 26px 0 140px;}
 .axis span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:var(--sub);white-space:nowrap;}
 .rows{display:flex;flex-direction:column;gap:4px;margin-top:2px;}
@@ -99,7 +101,7 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
   <div id="body" hidden>
     <div class="tabs" id="tabs"></div>
     <div class="areas" id="areas"></div>
-    <div class="srch"><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="名前・バッチID・エイリアス・作業"></div>
+    <div class="srch"><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="名前・ID・作業"><select id="srt" aria-label="並び替え"><option value="std">標準（TOT優先）</option><option value="uph">UPH高い順</option><option value="in">出勤順</option><option value="name">氏名順</option></select></div>
     <div id="err"></div>
     <div class="axis" id="axis"></div>
     <div class="rows" id="rows"><div class="empty">読み込み中…</div></div>
@@ -134,7 +136,8 @@ const dur = ms => { const m = Math.max(0, Math.round(ms / MIN)); return m >= 60 
 const fold = s => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g, "");
 
 let key = "", TL = null, loading = false, err = "", keyMsg = "";
-let tab = "tot", area = "", dcat = "", q = "";
+let tab = "tot", area = "", dcat = "", q = "", srt = "std";
+try { srt = localStorage.getItem("ind_srt") || "std"; } catch (e) { /* 無視 */ }
 const open = {};
 try { tab = localStorage.getItem("ind_tab") || "tot"; } catch (e) { /* 無視 */ }
 // ?k=鍵 で開いたら保存して、URLから鍵を消す
@@ -212,6 +215,8 @@ function build(p) {
 const uphOf = d => d.st === "WORK" && Number(d.hrs) > 0.004 ? Math.round((d.units ?? d.jobs ?? 0) / Number(d.hrs)) : null;
 const lastDir = p => { const l = (p.direct || []).filter(d => d.st === "WORK"); return l.length ? l.reduce((x, y) => (y.b >= x.b ? y : x)) : null; };
 const hasNp = p => (p.direct || []).some(d => d.st === "NOPUNCH");
+// 1日のUPH：当日のダイレクト作業（Jobあり・時間ありの区間）の Unit ÷ 時間。cat を渡すとその作業だけ
+const dayUph = (p, cat) => { let u = 0, h = 0; for (const d of p.direct || []) if (d.st === "WORK" && (!cat || d.cat === cat)) { u += d.units ?? d.jobs ?? 0; h += Number(d.hrs) || 0; } return h > 0.05 ? Math.round(u / h) : null; };
 let R = [0, 1];
 function span(list) {
   let lo = Infinity, hi = -Infinity;
@@ -303,7 +308,11 @@ function render() {
   // TOT（間接なし→失敗→入力待ち→反映待ち）→ 今日TOTがあった人 → 間接あり → それ以外。同じ組は出勤順
   const firstIn = p => { const b = build(p); return b.periods.length ? b.periods[0][0] : Infinity; };
   const rank = p => p.cur ? jd(p.cur.judge)[1] : p.tot.length ? 5 : hasInd(p) ? 7 : 9;
-  list.sort((a, b) => rank(a) - rank(b) || firstIn(a) - firstIn(b));
+  const uphMap = new Map(list.map(p => [p.badge, dayUph(p, dcat || null)]));
+  list.sort((a, b) => srt === "uph" ? ((uphMap.get(b.badge) ?? -1) - (uphMap.get(a.badge) ?? -1)) || firstIn(a) - firstIn(b)
+    : srt === "in" ? firstIn(a) - firstIn(b)
+    : srt === "name" ? String(a.name).localeCompare(String(b.name), "ja")
+    : rank(a) - rank(b) || firstIn(a) - firstIn(b));
   R = span(list.length ? list : people);
   document.getElementById("axis").innerHTML = ticksHtml();
 
@@ -315,10 +324,10 @@ function render() {
     const tag = (c ? `<em class="${c.judge}">${Math.round(c.totMin)}分 ${jd(c.judge)[2]}</em>` : p.retTime ? '<em class="out">退勤済</em>' : "") + (hasNp(p) && (tab === "np" || !c) ? '<em class="np">打刻なし</em>' : "");
     const work = b.periods.reduce((s, [a, e]) => s + (e - a), 0);
     return `<div class="row ${cls}${open[k] ? " open" : ""}" data-k="${esc(k)}">
-      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${esc(p.badge)}</small><small class="al">${esc(p.alias || "")}${tag}</small></span>
+      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${esc(p.badge)}${uphMap.get(k) != null ? `<span class="up">UPH ${uphMap.get(k)}</span>` : ""}</small><small class="al">${esc(p.alias || "")}${tag}</small></span>
         <span class="trk">${barsHtml(p)}</span><span class="cv">▼</span></div>
       <div class="det">
-        <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
+        <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${dayUph(p) != null ? `<span>1日のUPH <b>${dayUph(p)}</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
         ${c && c.ev ? `<div class="why">${esc(jd(c.judge)[0])}：${esc(c.ev)}</div>` : ""}
         <div class="ax2">${ticksHtml()}</div>
         <div class="trk big">${barsHtml(p, true)}</div>
@@ -330,6 +339,9 @@ function render() {
 (function () {
   let t = null;
   document.getElementById("q").addEventListener("input", e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value; render(); }, 150); });
+  const sel = document.getElementById("srt");
+  sel.value = srt;
+  sel.addEventListener("change", () => { srt = sel.value; try { localStorage.setItem("ind_srt", srt); } catch (e) { /* 無視 */ } render(); });
   document.getElementById("resetKey").onclick = () => { if (!confirm("この端末に保存した閲覧用の鍵を消去しますか？")) return; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } render(); };
 })();
 render(); load();
