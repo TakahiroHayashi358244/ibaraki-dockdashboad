@@ -210,7 +210,11 @@ function build(p) {
   const merged = [];
   for (const x of ind) { const m = merged[merged.length - 1]; if (m && m.code === x.code && x.a - m.b <= MIN) m.b = Math.max(m.b, x.b); else merged.push({ ...x }); }
   for (const d of direct) for (const x of merged) if (d.a < x.b && d.b > x.b && d.a >= x.a) d.a = x.b;
-  return { periods, ind: merged, tot, direct: direct.filter(d => d.b > d.a) };
+  // 表示は 0:00〜24:00（前日から続く夜勤は 0:00 で切る）
+  const ds = TL.dayStart || -Infinity, de = TL.dayEnd || Infinity;
+  const cut = x => Array.isArray(x) ? [Math.max(x[0], ds), Math.min(x[1], de), x[2]] : { ...x, a: Math.max(x.a, ds), b: Math.min(x.b, de) };
+  const ok = x => Array.isArray(x) ? x[1] > x[0] : x.b > x.a;
+  return { periods: periods.map(cut).filter(ok), ind: merged.map(cut).filter(ok), tot: tot.map(cut).filter(ok), direct: direct.filter(d => d.b > d.a).map(cut).filter(ok) };
 }
 const uphOf = d => d.st === "WORK" && Number(d.hrs) > 0.004 ? Math.round((d.units ?? d.jobs ?? 0) / Number(d.hrs)) : null;
 const lastDir = p => { const l = (p.direct || []).filter(d => d.st === "WORK"); return l.length ? l.reduce((x, y) => (y.b >= x.b ? y : x)) : null; };
@@ -324,7 +328,7 @@ function render() {
     const tag = (c ? `<em class="${c.judge}">${Math.round(c.totMin)}分 ${jd(c.judge)[2]}</em>` : p.retTime ? '<em class="out">退勤済</em>' : "") + (hasNp(p) && (tab === "np" || !c) ? '<em class="np">打刻なし</em>' : "");
     const work = b.periods.reduce((s, [a, e]) => s + (e - a), 0);
     return `<div class="row ${cls}${open[k] ? " open" : ""}" data-k="${esc(k)}">
-      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${esc(p.badge)}${uphMap.get(k) != null ? `<span class="up">UPH ${uphMap.get(k)}</span>` : ""}</small><small class="al">${esc(p.alias || "")}${tag}</small></span>
+      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${p.night ? '<b style="color:#4338ca">夜勤 </b>' : ""}${esc(p.badge)}${uphMap.get(k) != null ? `<span class="up">UPH ${uphMap.get(k)}</span>` : ""}</small><small class="al">${esc(p.alias || "")}${tag}</small></span>
         <span class="trk">${barsHtml(p)}</span><span class="cv">▼</span></div>
       <div class="det">
         <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${dayUph(p) != null ? `<span>1日のUPH <b>${dayUph(p)}</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
