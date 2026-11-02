@@ -1774,6 +1774,29 @@ function curDoor(a) {
   return csvDoor(a);
 }
 const doorFromIdx = a => { const v = S.doorNow[a.id]; return !!(v && v.door && Date.now() - (v.at || 0) < DOORSTATE_TTL && String(v.door) !== csvDoor(a)); };
+// IDXから届いたドア番号一覧（/dock/doorOptions）を使うか決める。
+// IDX側の保存で一部しか読めなかった一覧（例: 1件だけ）が入ることがあるため、
+// 件数が組み込み一覧の半分未満、またはどこかのフロアの番号が1件も無い一覧は使わず、組み込みの一覧で照合する。
+// （/dock/doorOptions 自体は書き換えない）
+function applyDoorOpts() {
+  const raw = S.doorOptsRaw || { list: [], at: 0, by: "" };
+  const l = raw.list.filter(x => /^\d{3,6}$/.test(x));
+  if (!l.length) { S.doorOpts = { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定" }; return; }
+  const fd = [...new Set((S.floors || []).map(f => floorDigit(f.name)).filter(Boolean))];
+  const need = fd.length ? fd : [...new Set(DOOR_LIST_DEFAULT.map(x => x[0]))];
+  const lack = need.filter(d => !l.some(x => x[0] === d));
+  if (l.length < Math.ceil(DOOR_LIST_DEFAULT.length / 2) || lack.length) {
+    S.doorOpts = { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定", bad: { n: l.length, at: raw.at, by: raw.by, lack } };
+    return;
+  }
+  S.doorOpts = { list: l, at: raw.at, src: "IDXから取得" };
+}
+// IDXの一覧を使っていない理由（不完全なとき）
+function doorOptsBadMsg() {
+  const b = S.doorOpts.bad; if (!b) return "";
+  const when = b.at ? new Date(b.at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+  return `IDXから届いた一覧が不完全なため（${b.n}件${when ? `・${when}保存` : ""}${b.lack.length ? `・${b.lack.map(d => d + "F").join("/")}の番号なし` : ""}）、組み込みの一覧で照合しています`;
+}
 // ドックマスタに実在する番号か（一覧が未取得のうちは判定しない）
 function doorExists(d) { return !S.doorOpts.list.length || S.doorOpts.list.includes(String(d)); }
 
@@ -1888,7 +1911,8 @@ function renderRuleFloors() {
 }
 function renderRuleDoors() {
   const o = document.getElementById("rlDoorOpt");
-  if (o) o.innerHTML = `ドックマスタの番号（${S.doorOpts.list.length}件・${esc(S.doorOpts.src)}）: ${esc(S.doorOpts.list.join(", "))}`;
+  if (o) o.innerHTML = `ドックマスタの番号（${S.doorOpts.list.length}件・${esc(S.doorOpts.src)}）: ${esc(S.doorOpts.list.join(", "))}`
+    + (S.doorOpts.bad ? `<br><span style="color:var(--alert)">${esc(doorOptsBadMsg())}</span>` : "");
   document.getElementById("rlDoors").innerHTML = S.floors.map((f, i) => {
     const auto = floorDoorsAuto(f.name);
     const keep = RULES.doors; RULES.doors = RDRAFT.doors || {};
@@ -2007,7 +2031,8 @@ function openDoorPush() {
   else if (!idxCode) { dpBaseMsg = "連携コードが未設定です。ドックダッシュボードの設定で「逆連携」の連携コードを入れてください"; run.disabled = true; }
   else if (!okN) { dpBaseMsg = `ドアを割り当てられません（${bad}台）。「ルール」の「ドックマスタのドア番号」を確認してください`; run.disabled = true; }
   else { dpBaseMsg = `変更できるのは ${okN}台` + (bad ? `（ドアが取れない ${bad}台 を除く）` : "") + "。反映する便にチェックを入れてください（試すときは「先頭1台だけ」）"; }
-  if (S.doorOpts.src === "既定") dpBaseMsg += " ／ 番号は組み込みの一覧で照合しています（IDX側の「ドア番号一覧を保存」を押すと実機の一覧に更新されます）";
+  if (S.doorOpts.bad) dpBaseMsg += " ／ " + doorOptsBadMsg();
+  else if (S.doorOpts.src === "既定") dpBaseMsg += " ／ 番号は組み込みの一覧で照合しています（IDX側の「ドア番号一覧を保存」を押すと実機の一覧に更新されます）";
   st.textContent = dpBaseMsg;
   st.className = "ai-status";
   renderDoorTab();
@@ -2197,11 +2222,11 @@ function setupDB() {
   });
   listen(dock.child("master"), "dock/master", s => { S.masters.current = normalizeMaster(s.val()); gotCur = true; if (S.date && S.src === "current") rebuildAppts(false); else first(); });
   listen(dock.child("doorState"), "dock/doorState", s => { S.doorNow = s.val() || {}; if (document.getElementById("dpModal").classList.contains("show") && !dpList.some(x => x.key)) { dpList = doorDiff().map(x => ({ ...x, key: null, sel: false })); renderDoorTab(); } });
-  listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {}; const l = Array.isArray(v.list) ? v.list.map(String) : [];
-    S.doorOpts = l.length ? { list: l, at: v.at || 0, src: "IDXから取得" } : { list: DOOR_LIST_DEFAULT.slice(), at: 0, src: "既定" }; });
+  listen(dock.child("doorOptions"), "dock/doorOptions", s => { const v = s.val() || {};
+    S.doorOptsRaw = { list: Array.isArray(v.list) ? v.list.map(String) : [], at: v.at || 0, by: v.by || "" }; applyDoorOpts(); });
   listen(dock.child("settings"), "dock/settings", s => { const v = s.val() || {}; idxCode = String((v.idxRev && v.idxRev.code) || ""); });
   listen(dock.child("planRules"), "dock/planRules", s => { if (!RDRAFT) { loadRules(s.val()); if (S.date) render(); } });
-  listen(dock.child("floors"), "dock/floors", s => { const f = s.val(); if (Array.isArray(f) && f.length) { S.floors = f.filter(Boolean).map(x => ({ name: x.name, bays: Array.isArray(x.bays) ? x.bays : [] })); if (S.date) render(); } });
+  listen(dock.child("floors"), "dock/floors", s => { const f = s.val(); if (Array.isArray(f) && f.length) { S.floors = f.filter(Boolean).map(x => ({ name: x.name, bays: Array.isArray(x.bays) ? x.bays : [] })); applyDoorOpts(); if (S.date) render(); } });
   // 配置ダッシュボード（ルート直下）
   const rr = () => { if (S.date) render(); };
   // 当日分＝ルート直下、翌日分＝next/ 以下（配置ダッシュボードの当日／翌日）。計画日で使い分ける（pickHC）
