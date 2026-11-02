@@ -64,6 +64,10 @@ header{
 .gr-h{display:flex;align-items:baseline;gap:6px;font-size:11.5px;color:var(--sub);margin-bottom:3px;}
 .gr-h b{font-size:12.5px;color:var(--ink);}
 .gr-h .n{margin-left:auto;font-variant-numeric:tabular-nums;}
+.gr-h .tp{font-variant-numeric:tabular-nums;font-size:11px;white-space:nowrap;}
+.gr-h .tp b{font-size:11.5px;}
+.kpi em.tp{color:var(--ink);font-weight:700;font-size:10.5px;}
+.ch i.u{background:#fff;border-radius:6px;padding:0 4px;opacity:1;font-weight:800;}
 .chips{display:flex;flex-wrap:wrap;gap:4px;}
 .ch{
   display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;
@@ -145,6 +149,62 @@ function locOf(p) {
 }
 const floorOf = p => (floorMove[uidEnc(uid(p))] !== undefined ? floorMove[uidEnc(uid(p))] : p.floor);
 const dispName = p => { const v = nameOverride[uidEnc(uid(p))]; return (v !== undefined && v !== "") ? v : p.name; };
+/* ===== 個人の過去30日UPH（間接打刻管理・FCLM）── PC版の配置ダッシュボードと同じ計算 =====
+   工程の右に UPH・TP（＝Σ 各人のUPH×LH）。実績がない人は工程の全体平均で見込む。
+   OUT は Pick・Pack の少ない方（ボトルネック）、IN は Receive・Stow を別々に（IN の Fork は Stow） */
+const MU_API = "https://indirect-relay-hfo1.takahiro884.workers.dev/api/fr/uphall?days=30&k=1540850d9c168e02e13c9c10c06d8bed";
+const MU_COL = { Pick: "#0891b2", Pack: "#db2777", Receive: "#ca8a04", Stow: "#16a34a" };
+const MU = { by: new Map(), people: [], fb: {}, ok: false, cache: new Map() };
+const MU_IT = {"髙":"高","﨑":"崎","嵜":"崎","德":"徳","濵":"浜","濱":"浜","邊":"辺","邉":"辺","齋":"斎","齊":"斎","槇":"槙","冨":"富","櫻":"桜","澤":"沢","國":"国","廣":"広","眞":"真","實":"実","惠":"恵","瀨":"瀬"};
+const muNorm = s => String(s || "").normalize("NFKC").replace(/[髙﨑嵜德濵濱邊邉齋齊槇冨櫻澤國廣眞實惠瀨]/g, c => MU_IT[c] || c).replace(/[\s　・.,，]/g, "").toLowerCase();
+const muCo = s => String(s || "").normalize("NFKC").replace(/\s/g, "").toLowerCase();
+function muLoad() {
+  fetch(MU_API, { cache: "no-store" }).then(r => r.json()).then(j => {
+    if (!j || !j.ok) return;
+    const m = new Map(), dup = new Set();
+    for (const q of j.people || []) for (const n of [q.name, q.alias]) { const k = muNorm(n); if (!k) continue; if (m.has(k) && m.get(k) !== q.cats) dup.add(k); m.set(k, q.cats); }
+    dup.forEach(k => m.delete(k));
+    MU.by = m; MU.people = j.people || []; MU.cache = new Map(); MU.ok = true;
+    for (const k of Object.keys(MU_COL)) { let u = 0, h = 0; for (const q of MU.people) { const c = q.cats && q.cats[k]; if (c && c.uph != null) { u += c.uph * c.hrs; h += c.hrs; } } MU.fb[k] = h > 0 ? u / h : null; }
+    render();
+  }).catch(e => console.warn("個人UPHの読込に失敗", e));
+}
+setTimeout(muLoad, 1200); setInterval(muLoad, 30 * 60000);
+function muCats(p) {
+  const dn = dispName(p), key = dn + "|" + p.name + "|" + p.role;
+  if (MU.cache.has(key)) return MU.cache.get(key);
+  let c = MU.by.get(muNorm(dn)) || MU.by.get(muNorm(p.name)) || null;
+  if (!c) {   // 外国籍の方：シフト表がフルネーム、打刻監視が呼び名のとき（同じ会社で「・」区切りの最後が一致する1人）
+    const co = muCo(p.role), segs = [dn, p.name].map(n => String(n || "").normalize("NFKC").split(/[・･\s　]+/).filter(Boolean)).filter(a => a.length > 1).map(a => muNorm(a[a.length - 1]));
+    if (segs.length && co) { const hit = MU.people.filter(q => { const qc = muCo(q.company); return qc && (qc.startsWith(co) || co.startsWith(qc)) && segs.includes(muNorm(q.name)); }); if (hit.length === 1) c = hit[0].cats; }
+  }
+  MU.cache.set(key, c);
+  return c;
+}
+function muSecCat(sub, pl) { const s = String(sub || ""); if (pl === "ICQA") return null; if (pl === "IN" && /fork/i.test(s)) return "Stow"; return /stow/i.test(s) ? "Stow" : /pick/i.test(s) ? "Pick" : /pack/i.test(s) ? "Pack" : /receiv|recive|rcv|decant|prep/i.test(s) ? "Receive" : null; }
+function muLocCat(p) { const l = locOf(p); if (!l.includes("|")) return null; const a = l.split("|"); return muSecCat(a[1], a[0]); }
+function muUph(p, cat) { const c = muCats(p); return c && c[cat] ? c[cat].uph : null; }
+function muCap(ps, cat) {
+  const o = { lh: 0, tp: 0, uph: null };
+  for (const p of ps) { const lh = p.lh || 0; o.lh += lh; const u = muUph(p, cat) ?? MU.fb[cat]; if (u != null) o.tp += u * lh; }
+  o.uph = o.lh > 0 && o.tp > 0 ? o.tp / o.lh : null;
+  return o;
+}
+const muN = n => Math.round(n).toLocaleString("ja-JP");
+function muGrp(g) {
+  if (!MU.ok || !g.cat) return "";
+  const c = muCap(g.list, g.cat);
+  return `<span class="tp" style="color:${MU_COL[g.cat]}">UPH <b>${c.uph != null ? Math.round(c.uph) : "—"}</b> TP <b>${muN(c.tp)}</b></span>`;
+}
+// 上のタイル：OUT は Pick・Pack の少ない方、IN は Receive・Stow それぞれ
+function muIO(list, io) {
+  if (!MU.ok) return "";
+  const cats = io === "OUT" ? ["Pick", "Pack"] : ["Receive", "Stow"], r = {};
+  cats.forEach(k => { const m = list.filter(p => muLocCat(p) === k); if (m.length) r[k] = muCap(m, k); });
+  const ks = Object.keys(r); if (!ks.length) return "";
+  if (io === "OUT") { const lo = ks.reduce((a, k) => (a == null || r[k].tp < r[a].tp ? k : a), null); return `<em class="tp">TP ${muN(r[lo].tp)}</em>`; }
+  return `<em class="tp">${ks.map(k => `${k[0]} ${muN(r[k].tp)}`).join(" / ")}</em>`;
+}
 const roleColor = r => ROLE_STYLES[r] || "#0891b2";
 const sortP = (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || (a.no - b.no);
 
@@ -155,8 +215,9 @@ function shifts() {
   [...s].forEach(x => { if (!base.includes(x)) base.push(x); });
   return base.length ? base : ["日勤"];
 }
-function chip(p) {
-  return `<span class="ch" style="background:${roleColor(p.role)}">${esc(dispName(p))}<i>${fmt1(p.lh || 0)}</i></span>`;
+function chip(p, cat) {
+  const u = cat && MU.ok ? muUph(p, cat) : null;   // 配置先の工程の UPH（実績がある人だけ）
+  return `<span class="ch" style="background:${roleColor(p.role)}">${esc(dispName(p))}<i>${fmt1(p.lh || 0)}</i>${u != null ? `<i class="u" style="color:${MU_COL[cat]}">${u}</i>` : ""}</span>`;
 }
 function render() {
   const sh = shifts();
@@ -171,10 +232,11 @@ function render() {
   // 上段：全体と工程別（OUT / IN / ICQA）
   const sum = list => ({ hc: list.length, lh: list.reduce((s, p) => s + (p.lh || 0), 0) });
   const byPlace = pl => sum(work.filter(p => locOf(p).split("|")[0] === pl));
-  const tile = (label, v, cls) => `<div class="kpi ${cls || ""}"><span>${label}</span><b>${v.hc}<small>名</small></b><em>LH ${fmt1(v.lh)}</em></div>`;
+  const tile = (label, v, cls, extra) => `<div class="kpi ${cls || ""}"><span>${label}</span><b>${v.hc}<small>名</small></b><em>LH ${fmt1(v.lh)}</em>${extra || ""}</div>`;
   const icqa = byPlace("ICQA");
+  const inPl = pl => work.filter(p => locOf(p).split("|")[0] === pl);
   document.getElementById("kpis").innerHTML =
-    tile("稼働", sum(work), "all") + tile("OUT", byPlace("OUT")) + tile("IN", byPlace("IN")) + tile("ICQA", icqa);
+    tile("稼働", sum(work), "all") + tile("OUT", byPlace("OUT"), "", muIO(inPl("OUT"), "OUT")) + tile("IN", byPlace("IN"), "", muIO(inPl("IN"), "IN")) + tile("ICQA", icqa);
 
   let h = "";
   floors.forEach((fn, i) => {
@@ -191,7 +253,7 @@ function render() {
       }
       (master[pl] || []).forEach(sub => {
         const g = mem.filter(p => locOf(p) === pl + "|" + sub);
-        if (g.length) groups.push({ label: pl, sub, list: g });
+        if (g.length) groups.push({ label: pl, sub, list: g, cat: muSecCat(sub, pl) });
       });
     });
     h += `<div class="fl${closed[fn] ? " cl" : ""}" data-f="${esc(fn)}">
@@ -200,8 +262,8 @@ function render() {
         <span class="m">${mem.length}名 ・ LH ${fmt1(lh)}</span></div>
       <div class="fl-b">${groups.length ? groups.map(g => `
         <div class="gr"><div class="gr-h"><b>${esc(g.sub || g.label)}</b>${g.sub ? `<span>${esc(g.label)}</span>` : ""}
-          <span class="n">${g.list.length}名 ・ ${fmt1(g.list.reduce((s, p) => s + (p.lh || 0), 0))}</span></div>
-          <div class="chips">${g.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")
+          <span class="n">${g.list.length}名 ・ ${fmt1(g.list.reduce((s, p) => s + (p.lh || 0), 0))}</span>${muGrp(g)}</div>
+          <div class="chips">${g.list.slice().sort(sortP).map(p => chip(p, g.cat)).join("")}</div></div>`).join("")
         : `<div class="empty">配置なし</div>`}</div>
     </div>`;
   });
@@ -212,7 +274,7 @@ function render() {
       <div class="fl-h" onclick="toggleFloor('_nw')"><span class="ar">▼</span><span class="nm" style="color:var(--sub)">待機・欠勤・休日</span>
         <span class="m">${nw.reduce((s, x) => s + x.list.length, 0)}名</span></div>
       <div class="fl-b">${nw.map(x => `<div class="gr"><div class="gr-h"><b>${esc(x.label)}</b><span class="n">${x.list.length}名</span></div>
-        <div class="chips">${x.list.slice().sort(sortP).map(chip).join("")}</div></div>`).join("")}</div></div>`;
+        <div class="chips">${x.list.slice().sort(sortP).map(p => chip(p)).join("")}</div></div>`).join("")}</div></div>`;
   }
   document.getElementById("body").innerHTML = h || `<div class="empty">データがありません</div>`;
 }
