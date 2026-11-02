@@ -403,6 +403,12 @@ header .zoom-ctl .zval{min-width:40px;font-size:11.5px;}
   <div class="modal">
     <h2>設定<span class="x" onclick="closeSettings()">×</span></h2>
     <div class="modal-body">
+      <div class="sec-title">処理能力の計算</div>
+      <div class="row-inp">
+        <label class="chk"><input type="radio" name="capMode" value="person">配置した人の 過去30日UPH（Receive・Stow の少ない方）</label>
+        <label class="chk"><input type="radio" name="capMode" value="target">IN 全員の LH × 目標UPH（従来）</label>
+      </div>
+      <div class="note" id="puNote"></div>
       <div class="sec-title">処理能力（IN 目標UPH）</div>
       <div class="row-inp">
         <label>日勤 <input type="number" id="uphDay" min="0" step="1"></label>
@@ -493,7 +499,7 @@ const S = {
   ],
   sel: null,
 };
-let CFG = { subsecOff: [], axS: null, axE: null, shift: "日勤" };
+let CFG = { subsecOff: [], axS: null, axE: null, shift: "日勤", capMode: "person" };
 try { Object.assign(CFG, JSON.parse(localStorage.getItem(LS_KEY) || "{}")); } catch (e) {}
 if (CFG.shift !== "日勤" && CFG.shift !== "夜勤") CFG.shift = "日勤";
 function saveCfg() { try { localStorage.setItem(LS_KEY, JSON.stringify(CFG)); } catch (e) {} }
@@ -735,6 +741,43 @@ function uphFor(floor, shift) {
   const o = S.plan.uphF && +S.plan.uphF[floor];
   return o > 0 ? o : uphOf(shift);
 }
+/* ---- 個人のUPH（過去30日・間接打刻管理 indirect-relay-hfo1 のFCLMデータ）----
+   処理能力を「配置した人それぞれの UPH × LH」で見る。IN は Receive と Stow の少ない方（ボトルネック）
+   Receive＝receive・decant・prep など、Stow＝stow と IN の Fork。それ以外の IN 工程（Dock・CheckIN・INQA など）は能力に数えない
+   UPH の実績がない人は、その工程の全員の平均（時間で重み付け）で見込む。名前で突き合わせる（配置ダッシュボードと同じ） */
+const PU_API = "https://indirect-relay-hfo1.takahiro884.workers.dev/api/fr/uphall?days=30&k=1540850d9c168e02e13c9c10c06d8bed";
+const PU = { by: new Map(), people: [], fb: {}, ok: false, cache: new Map() };
+const PU_IT = {"髙":"高","﨑":"崎","嵜":"崎","德":"徳","濵":"浜","濱":"浜","邊":"辺","邉":"辺","齋":"斎","齊":"斎","槇":"槙","冨":"富","櫻":"桜","澤":"沢","國":"国","廣":"広","眞":"真","實":"実","惠":"恵","瀨":"瀬"};
+const puNorm = s => String(s || "").normalize("NFKC").replace(/[髙﨑嵜德濵濱邊邉齋齊槇冨櫻澤國廣眞實惠瀨]/g, c => PU_IT[c] || c).replace(/[\s　・.,，]/g, "").toLowerCase();
+const puCo = s => String(s || "").normalize("NFKC").replace(/\s/g, "").toLowerCase();
+function loadPU() {
+  fetch(PU_API, { cache: "no-store" }).then(r => r.json()).then(j => {
+    if (!j || !j.ok) return;
+    const m = new Map(), dup = new Set();
+    for (const q of j.people || []) for (const n of [q.name, q.alias]) { const k = puNorm(n); if (!k) continue; if (m.has(k) && m.get(k) !== q.cats) dup.add(k); m.set(k, q.cats); }
+    dup.forEach(k => m.delete(k));
+    PU.by = m; PU.people = j.people || []; PU.cache = new Map(); PU.ok = true;
+    for (const k of ["Receive", "Stow"]) { let u = 0, h = 0; for (const q of PU.people) { const c = q.cats && q.cats[k]; if (c && c.uph != null) { u += c.uph * c.hrs; h += c.hrs; } } PU.fb[k] = h > 0 ? u / h : null; }
+    if (typeof render === "function" && S.floors && S.floors.length) render();
+  }).catch(e => console.warn("個人UPHの読込に失敗", e));
+}
+setTimeout(loadPU, 800); setInterval(loadPU, 30 * 60000);
+function puCats(p) {
+  const key = p.name + "|" + p.role;
+  if (PU.cache.has(key)) return PU.cache.get(key);
+  let c = PU.by.get(puNorm(p.name)) || null;
+  if (!c) {   // 外国籍の方：シフト表がフルネーム、打刻監視が呼び名のとき（同じ会社で「・」区切りの最後が一致する1人）
+    const a = String(p.name || "").normalize("NFKC").split(/[・･\s　]+/).filter(Boolean), co = puCo(p.role);
+    if (a.length > 1 && co) { const last = puNorm(a[a.length - 1]); const hit = PU.people.filter(q => { const qc = puCo(q.company); return qc && (qc.startsWith(co) || co.startsWith(qc)) && puNorm(q.name) === last; }); if (hit.length === 1) c = hit[0].cats; }
+  }
+  PU.cache.set(key, c);
+  return c;
+}
+function inCat(sub) { const s = String(sub || ""); return /fork|stow/i.test(s) ? "Stow" : /receiv|recive|rcv|decant|prep/i.test(s) ? "Receive" : null; }
+const usePU = () => CFG.capMode !== "target" && PU.ok;
+// ボトルネック：その日のフロアに Receive・Stow の両方がいれば少ない方、片方しかいなければその工程
+function bott(r, s, hasR, hasS) { return hasR && hasS ? Math.min(r, s) : hasR ? r : hasS ? s : 0; }
+
 /* ---- 休憩（この時間は作業しない＝LHを積まず、後ろの時間へずれる） ---- */
 const BREAK_DEFAULT = "12:00-12:45,15:00-15:15";
 let brkCache = { src: null, list: [] };
@@ -809,16 +852,20 @@ function inSpans() {
     const fl = floorOf(p);
     if (floorIdx(fl) < 0) { info.offFloor++; return; }
     const lh = num(p.lh) > 0 ? num(p.lh) : 0;             // サマリと同じ（未入力は0）
-    const uph = uphFor(fl, p.shift || CFG.shift);
-    const sm = info.sum[fl] || (info.sum[fl] = { hc: 0, lh: 0, cap: 0 });
+    const pu = usePU(), cat = pu ? inCat(l.split("|")[1]) : null;
+    let uph = uphFor(fl, p.shift || CFG.shift), est = false;
+    if (pu) { if (cat) { const c = puCats(p); uph = c && c[cat] ? c[cat].uph : null; if (uph == null) { uph = PU.fb[cat] || 0; est = true; } } else uph = 0; }
+    const sm = info.sum[fl] || (info.sum[fl] = { hc: 0, lh: 0, cap: 0, capR: 0, capS: 0, nR: 0, nS: 0, estN: 0 });
     sm.hc++; sm.lh += lh; sm.cap += lh * uph;
+    if (cat === "Receive") { sm.capR += lh * uph; sm.nR++; } else if (cat === "Stow") { sm.capS += lh * uph; sm.nS++; }
+    if (est) sm.estN++;
     let s = tnum(p.startT), e = tnum(p.endT);
     if (s == null || e == null) { info.noTime++; s = defS; e = defE; }
     if (e <= s) e += 24;
     if (CFG.shift === "夜勤" && s < 12) { s += 24; e += 24; }
     const dur = e - s;
     const work = dur - breakOv(s, e);          // 休憩を除いた実働時間
-    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph, shift: CFG.shift, lh });
+    out.push({ floor: fl, s, e, f: lh / (work > 0 ? work : dur), uph, shift: CFG.shift, lh, cat });
   });
   return { spans: out, info };
 }
@@ -848,7 +895,7 @@ function compute() {
   const F = {};
   S.floors.forEach(fl => {
     F[fl.name] = { name: fl.name, bays: fl.bays.length || 0, cells: {}, tot: { n: 0, u: 0, lh: 0, cap: 0, unk: 0 } };
-    H.forEach(h => F[fl.name].cells[h] = { hc: 0, lh: 0, cap: 0, trucks: [], units: 0, unk: 0, backlog: 0, lvl: "" });
+    H.forEach(h => F[fl.name].cells[h] = { hc: 0, lh: 0, cap: 0, capR: 0, capS: 0, trucks: [], units: 0, unk: 0, backlog: 0, lvl: "" });
   });
   spans.forEach(p => {
     const fl = F[p.floor]; if (!fl) return;
@@ -860,8 +907,11 @@ function compute() {
       if (e0 > s0) c.hc++;                                    // 在籍はしているのでHCは数える
       if (ov <= 0) return;
       c.lh += ov * p.f; c.cap += ov * p.f * p.uph;
+      if (p.cat === "Receive") c.capR += ov * p.f * p.uph; else if (p.cat === "Stow") c.capS += ov * p.f * p.uph;
     });
   });
+  // 個人UPHのときは、時間ごとの能力も Receive・Stow の少ない方
+  if (usePU()) Object.values(F).forEach(fl => { const sm = info.sum[fl.name] || {}; H.forEach(h => { const c = fl.cells[h]; c.cap = bott(c.capR, c.capS, sm.nR > 0, sm.nS > 0); }); });
   const un = {}; H.forEach(h => un[h] = []);
   S.appts.forEach(a => {
     const c = cellOf(a);
@@ -870,7 +920,11 @@ function compute() {
     else if (un[c.h]) un[c.h].push(a);
   });
   // フロア合計のHC・LH・処理可能数は配置サマリ（IN）と一致させる（表示時間外のLHも含む）
-  Object.values(F).forEach(fl => { fl.sum = info.sum[fl.name] || { hc: 0, lh: 0, cap: 0 }; backlogCalc(fl, H); });
+  Object.values(F).forEach(fl => {
+    fl.sum = info.sum[fl.name] || { hc: 0, lh: 0, cap: 0, capR: 0, capS: 0, nR: 0, nS: 0, estN: 0 };
+    if (usePU()) fl.sum = Object.assign({}, fl.sum, { cap: bott(fl.sum.capR, fl.sum.capS, fl.sum.nR > 0, fl.sum.nS > 0) });
+    backlogCalc(fl, H);
+  });
   const BY = computeBays();
   S.floors.forEach(fl => { const B = BY[fl.name]; S.appts.forEach(a => { const p = B.pos[a.key]; if (p && (p.over || p.dup)) { const c = F[fl.name].cells[cellOf(a).h]; if (c) c.over = true; } }); });
   return { H, F, un, info, spans, BY };
@@ -890,7 +944,7 @@ function backlogCalc(fl, H) {
   });
   t.end = b;
   t.hc = fl.hcDay || 0;
-  if (fl.sum) { t.hc = fl.sum.hc; t.lh = fl.sum.lh; t.cap = fl.sum.cap; }
+  if (fl.sum) { t.hc = fl.sum.hc; t.lh = fl.sum.lh; t.cap = fl.sum.cap; t.capR = fl.sum.capR; t.capS = fl.sum.capS; t.nR = fl.sum.nR; t.nS = fl.sum.nS; t.estN = fl.sum.estN; }
 }
 
 /* ============ 描画 ============ */
@@ -938,13 +992,13 @@ function render() {
     const fr = floorRule(fl.name);
     if (barMode) {
       const B = BY[fl.name];
-      h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh rhb" style="--fc:${floorColor(i)}" title="${esc(`着車 ${t.n}台 / ${fmt(t.u)}U\nIN HC ${t.hc}名 / LH ${fmt1(t.lh)}\n能力 ${fmt(t.cap)}U / 最終持越 ${fmt(t.end)}U`)}">
+      h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh rhb" style="--fc:${floorColor(i)}" title="${esc(`着車 ${t.n}台 / ${fmt(t.u)}U\nIN HC ${t.hc}名 / LH ${fmt1(t.lh)}\n能力 ${fmt(t.cap)}U / 最終持越 ${fmt(t.end)}U` + rsTip(t))}">
         <div class="rhh"><div class="fn">${esc(fl.name)}${fr.use ? "" : `<span class="off">使用しない</span>`}${fr.use && fr.prio !== 3 ? `<span class="pr">優先度 ${PRIO_LABEL[fr.prio]}</span>` : ""}</div>
-        <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U<br>HC <b>${t.hc}</b>名 ・LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U ・持越 <b>${fmt(t.end)}</b>U<br>同時上限 <b>${B.lim}</b>${B.over ? ` ・<b style="color:var(--alert)">バース不足 ${B.over}</b>` : ""}</div></div>
+        <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U<br>HC <b>${t.hc}</b>名 ・LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U ・持越 <b>${fmt(t.end)}</b>U${usePU() ? `<br><span style="font-size:10px">${rsTxt(t)}</span>` : ""}<br>同時上限 <b>${B.lim}</b>${B.over ? ` ・<b style="color:var(--alert)">バース不足 ${B.over}</b>` : ""}</div></div>
         ${B.lanes.map((ln, j) => `<div class="lbl${j >= B.nBays ? " x" : ""}${B.rsv.has(ln) ? " r" : ""}">${esc(ln)}${B.rsv.has(ln) ? "<small>専用</small>" : ""}</div>`).join("")}</th>`;
     } else
     h += `<tr class="${fr.use ? "" : "flOff"}"><th class="rh" style="--fc:${floorColor(i)}"><div class="fn">${esc(fl.name)}${fr.use ? "" : `<span class="off">使用しない</span>`}${fr.use && fr.prio !== 3 ? `<span class="pr">優先度 ${PRIO_LABEL[fr.prio]}</span>` : ""}</div>
-      <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U${t.unk ? `<br>うち推定 ${t.unk}台` : ""}<br>IN HC <b>${t.hc}</b>名 ・LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U<br>
+      <div class="ft">着車 <b>${t.n}</b>台 / <b>${fmt(t.u)}</b>U${t.unk ? `<br>うち推定 ${t.unk}台` : ""}<br>IN HC <b>${t.hc}</b>名 ・LH <b>${fmt1(t.lh)}</b><br>能力 <b>${fmt(t.cap)}</b>U${usePU() ? `<br><span style="font-size:10px">${rsTxt(t)}</span>` : ""}<br>
       最終持越 <b>${fmt(t.end)}</b>U<br>バース ${fl.bays.length}</div></th>`;
     R.H.forEach(hh => {
       const c = R.F[fl.name].cells[hh];
@@ -1065,11 +1119,18 @@ function layoutBars(R, BY) {
 let rsT = null; window.addEventListener("resize", () => { clearTimeout(rsT); rsT = setTimeout(() => { if (S.appts.length) render(); }, 200); });
 // セル上部：人員・能力と処理可能バー（前時間の持越＋着車 ÷ 能力）
 function barLvl(c) { return c.lvl || (c.load > 0 ? "ok" : ""); }
+// 個人UPHのときの Receive・Stow の内訳（フロア見出し・吹き出し用）
+function rsTxt(t) {
+  if (!usePU()) return "";
+  const lo = t.nR > 0 && t.nS > 0 ? (t.capR <= t.capS ? "R" : "S") : "";
+  return `R ${fmt(Math.round(t.capR || 0))}${lo === "R" ? "▼" : ""} ／ S ${fmt(Math.round(t.capS || 0))}${lo === "S" ? "▼" : ""}${!t.nS && t.nR ? "（Stow配置なし）" : !t.nR && t.nS ? "（Receive配置なし）" : ""}`;
+}
+function rsTip(t) { return usePU() ? `\n能力の内訳（個人UPH）：Receive ${fmt(Math.round(t.capR || 0))}U・Stow ${fmt(Math.round(t.capS || 0))}U（少ない方を能力とする）` + (t.estN ? `\n※UPHの実績がない${t.estN}名は工程の全体平均で計算` : "") : ""; }
 function cellHead(c) {
   const lv = barLvl(c);
   const w = Math.min(100, c.ratio * 100);
   const pct = c.cap > 0 ? Math.round(c.ratio * 100) + "%" : (c.load > 0 ? "人員0" : "");
-  const tip = `HC ${c.hc} / LH ${fmt1(c.lh)} / 能力 ${fmt(c.cap)}U\n前時間の持越 ${fmt(c.inb)}U + 着車 ${fmt(c.units)}U = ${fmt(c.load)}U\n残（次の時間へ） ${fmt(c.backlog)}U`;
+  const tip = `HC ${c.hc} / LH ${fmt1(c.lh)} / 能力 ${fmt(c.cap)}U` + (usePU() ? `（Receive ${fmt(Math.round(c.capR))}・Stow ${fmt(Math.round(c.capS))}）` : "") + `\n前時間の持越 ${fmt(c.inb)}U + 着車 ${fmt(c.units)}U = ${fmt(c.load)}U\n残（次の時間へ） ${fmt(c.backlog)}U`;
   return `<div class="m" title="${esc(tip)}"><span>HC <b>${c.hc}</b></span><span>LH <b>${fmt1(c.lh)}</b></span><span>能力 <b>${fmt(c.cap)}</b></span></div>
     <div class="ld" title="${esc(tip)}"><span class="bar"><i class="${lv === "ok" ? "" : lv}" style="width:${w}%"></i></span><span class="pct ${lv}">${pct}</span></div>
     ${c.trucks.length || c.backlog ? `<div class="ld"><span><b>${c.trucks.length}</b>台 <b>${fmt(c.units)}</b>U</span>${c.backlog > 0 ? `<span>残${fmt(c.backlog)}</span>` : ""}${c.over && CFG.view === "card" ? `<span class="tag alert">バース不足</span>` : ""}</div>` : ""}`;
@@ -1339,33 +1400,36 @@ function renderSummary() {
   if (w.hidden) return;
   const R = LAST || compute();
   const rows = [];
-  const T = { n: 0, hc: 0, lh: 0, u: 0, cap: 0 };
+  const T = { n: 0, hc: 0, lh: 0, u: 0, cap: 0, capR: 0, capS: 0 };
   S.floors.forEach((fl, i) => {
     const t = R.F[fl.name].tot;
-    T.n += t.n; T.hc += t.hc; T.lh += t.lh; T.u += t.u; T.cap += t.cap;
+    T.n += t.n; T.hc += t.hc; T.lh += t.lh; T.u += t.u; T.cap += t.cap; T.capR += t.capR || 0; T.capS += t.capS || 0;
     rows.push({ name: fl.name, color: floorColor(i), t });
   });
   const unN = S.appts.filter(a => !cellOf(a).f).length;
   const unU = S.appts.filter(a => !cellOf(a).f).reduce((s, a) => s + estU(a), 0);
   const line = (nm, color, t, editable) => {
     const d = t.cap - t.u;                                   // 処理可能数 − 処理予定数
-    const uphCell = editable
+    const pu = usePU();
+    const uphCell = editable && !pu
       ? `<input class="uph-in" type="number" min="0" step="1" value="${(S.plan.uphF && S.plan.uphF[nm]) || ""}" placeholder="${fmt(uphOf("日勤"))}" onchange="setFloorUph('${esc(nm)}',this.value)">`
       : `<b>${fmt(Math.round(t.lh > 0 ? t.cap / t.lh : 0))}</b>`;   // 合計は加重平均
     return `<tr${nm === "合計" ? ' class="tot"' : ""}><td><span class="fnm" style="color:${color}">${esc(nm)}</span></td>
       <td>${fmt(t.n)}</td><td>${fmt(t.hc)}</td><td>${fmt1(t.lh)}</td><td>${uphCell}</td>
+      ${pu ? `<td>${fmt(Math.round(t.capR || 0))}</td><td>${fmt(Math.round(t.capS || 0))}</td>` : ""}
       <td>${fmt(t.u)}</td><td>${fmt(Math.round(t.cap))}</td>
       <td class="${d < 0 ? "neg" : "pos"}">${d >= 0 ? "+" : ""}${fmt(Math.round(d))}</td></tr>`;
   };
   document.getElementById("sumBody").innerHTML =
     `<table class="sum-tab">
-      <thead><tr><th>フロア</th><th>着車</th><th>HC</th><th>LH</th><th>UPH</th><th>処理予定数</th><th>処理可能数</th><th>過不足</th></tr></thead>
+      <thead><tr><th>フロア</th><th>着車</th><th>HC</th><th>LH</th><th>UPH</th>${usePU() ? "<th>Receive</th><th>Stow</th>" : ""}<th>処理予定数</th><th>処理可能数</th><th>過不足</th></tr></thead>
       <tbody>${rows.map(r => line(r.name, r.color, r.t, true)).join("")}
-      ${unN ? `<tr><td><span class="fnm" style="color:#9aa8b8">未割当</span></td><td>${fmt(unN)}</td><td colspan="3"></td><td>${fmt(unU)}</td><td colspan="2"></td></tr>` : ""}
+      ${unN ? `<tr><td><span class="fnm" style="color:#9aa8b8">未割当</span></td><td>${fmt(unN)}</td><td colspan="${usePU() ? 5 : 3}"></td><td>${fmt(unU)}</td><td colspan="2"></td></tr>` : ""}
       ${line("合計", "#24506a", T)}</tbody>
     </table>
-    <div class="sum-note">HC・LH＝配置ダッシュボードの配置サマリ（${esc(CFG.shift)}）のINと同じ（人数／各人のLHの合計）／UPH＝フロアごとに設定できます（空欄は設定のUPH＝${fmt(uphOf("日勤"))}）。合計は実績の加重平均<br>
-      処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝LH × UPH<br>
+    <div class="sum-note">HC・LH＝配置ダッシュボードの配置サマリ（${esc(CFG.shift)}）のINと同じ（人数／各人のLHの合計）／${usePU()
+      ? `UPH＝処理可能数 ÷ IN の全LH／Receive・Stow＝配置した人の 過去30日UPH × LH の合計（Stow は IN の Fork を含む。実績がない人は工程の全体平均）<br>処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝Receive と Stow の少ない方（ボトルネック）`
+      : `UPH＝フロアごとに設定できます（空欄は設定のUPH＝${fmt(uphOf("日勤"))}）。合計は実績の加重平均<br>処理予定数＝割り当てた着車のUnits合計（Units不明はキャリアの平均で推定）／処理可能数＝LH × UPH`}<br>
       過不足＝処理可能数 − 処理予定数（マイナスはその日のうちに処理しきれない見込み）</div>`;
 }
 function setFloorUph(name, v) {
@@ -1485,6 +1549,8 @@ function openSettings() {
   document.getElementById("uphDay").placeholder = (S.targetUPH.日勤 && S.targetUPH.日勤.in) || "未設定";
   document.getElementById("uphNight").placeholder = (S.targetUPH.夜勤 && S.targetUPH.夜勤.in) || "未設定";
   document.getElementById("uphNote").textContent = `空欄は配置ダッシュボードの目標UPH（IN）を使用：日勤 ${fmt(S.targetUPH.日勤.in)} / 夜勤 ${fmt(S.targetUPH.夜勤.in)}。入力するとこの日の計画にだけ保存されます。`;
+  document.querySelectorAll('input[name="capMode"]').forEach(x => x.checked = x.value === (CFG.capMode || "person"));
+  document.getElementById("puNote").textContent = PU.ok ? `個人のUPHを読込済み（${PU.people.length}名分）。目標UPHは「従来」を選んだときだけ使います。` : "個人のUPHをまだ読み込めていません（読み込めるまでは従来の計算になります）。";
   const subs = inSubsecs();
   document.getElementById("subsecBox").innerHTML = subs.length ? subs.map(s => `<label class="chk"><input type="checkbox" data-s="${esc(s)}" ${CFG.subsecOff.includes(s) ? "" : "checked"}>${esc(s)}</label>`).join("") : `<span class="note">IN工程が見つかりません</span>`;
   document.getElementById("axS").value = CFG.axS == null ? "" : CFG.axS;
@@ -1501,6 +1567,7 @@ function closeSettings() {
   const uph = (d > 0 || n > 0) ? { 日勤: d > 0 ? d : 0, 夜勤: n > 0 ? n : 0 } : null;
   const uphChanged = JSON.stringify(uph) !== JSON.stringify(S.plan.uph || null);
   S.plan.uph = uph;
+  { const r = document.querySelector('input[name="capMode"]:checked'); if (r) CFG.capMode = r.value; }
   CFG.subsecOff = [...document.querySelectorAll("#subsecBox input[data-s]")].filter(x => !x.checked).map(x => x.dataset.s);
   const as = document.getElementById("axS").value, ae = document.getElementById("axE").value;
   CFG.axS = as === "" ? null : Math.max(0, Math.min(29, +as));
