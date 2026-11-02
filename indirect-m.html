@@ -44,6 +44,13 @@ main{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:
 .trk b.dr{position:absolute;bottom:2px;height:6px;border-radius:0 0 2px 2px;font-size:0;}
 .trk.big b.dr{bottom:4px;height:10px;font-size:8.5px;line-height:10px;color:#fff;padding:0 3px;overflow:hidden;white-space:nowrap;font-weight:700;}
 .trk b.dr.np{background:transparent !important;border:1.5px solid #dc2626;border-radius:2px;color:#dc2626;}
+.trk b.dr.prov{opacity:.45;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.5) 0 3px,transparent 3px 6px);}
+.ev li.prov{opacity:.7;}
+/* 全て・日勤・夜勤 */
+.shf{display:flex;gap:4px;margin-bottom:6px;align-items:center;}
+.shf button{flex:1;border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 0;font:inherit;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer;}
+.shf button.on{background:#1f3864;color:#fff;border-color:#1f3864;}
+.shf .dt{flex:none;font-size:11px;color:#4338ca;font-weight:700;padding:0 4px;}
 .ev li.np{background:#fef2f2;font-weight:700;}
 .why{font-size:12px;color:#374151;background:#f8fafc;border:1px solid var(--line);border-radius:7px;padding:5px 8px;margin:0 0 6px;}
 .srch{margin-top:6px;display:flex;gap:6px;} .srch input{flex:1 1 50%;min-width:0;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;}
@@ -99,13 +106,14 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
 <main id="main">
   <div id="keyBox"></div>
   <div id="body" hidden>
+    <div class="shf" id="shf"></div>
     <div class="tabs" id="tabs"></div>
     <div class="areas" id="areas"></div>
     <div class="srch"><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="名前・ID・作業"><select id="srt" aria-label="並び替え"><option value="std">標準（TOT優先）</option><option value="uph">UPH高い順</option><option value="in">出勤順</option><option value="name">氏名順</option></select></div>
     <div id="err"></div>
     <div class="axis" id="axis"></div>
     <div class="rows" id="rows"><div class="empty">読み込み中…</div></div>
-    <div class="ft">閲覧専用です（1分ごとに更新）。灰＝勤務、下半分の細い帯＝ダイレクト作業（FCLM・赤枠は出退勤の打刻なし）、色＝間接打刻、黒＝Time Off Task、赤線＝現在。<br>行を押すと、その人の時系列を開きます。<br><a href="javascript:void(0)" id="resetKey">閲覧用の鍵を変更</a></div>
+    <div class="ft">閲覧専用です（1分ごとに更新）。灰＝勤務、下半分の細い帯＝ダイレクト作業（FCLM・赤枠は出退勤の打刻なし・薄い斜線は反映待ちの推定）、色＝間接打刻、黒＝Time Off Task、赤線＝現在。<br>行を押すと、その人の時系列を開きます。<br><a href="javascript:void(0)" id="resetKey">閲覧用の鍵を変更</a></div>
   </div>
 </main>
 <script>
@@ -138,6 +146,16 @@ const fold = s => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g
 let key = "", TL = null, loading = false, err = "", keyMsg = "";
 let tab = "tot", area = "", dcat = "", q = "", srt = "std";
 try { srt = localStorage.getItem("ind_srt") || "std"; } catch (e) { /* 無視 */ }
+// 全て・日勤・夜勤（PC版と同じ）。夜勤は出勤した日の勤務なので、朝5時〜15時（今夜の夜勤がまだ始まっていない時間）は前日（昨夜〜今朝の夜勤）を表示する
+let shift = "all";
+try { shift = localStorage.getItem("ind_shift") || "all"; } catch (e) { /* 無視 */ }
+const bizYmd = t => new Date(t - 5 * HR + 9 * HR).toISOString().slice(0, 10);
+const prevDay = d => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); };
+function viewDate() {
+  const h = new Date().getHours();
+  return shift === "night" && h >= 5 && h < 15 ? prevDay(bizYmd(Date.now())) : "";
+}
+let loadedDate = null, reqDate = null;
 const open = {};
 try { tab = localStorage.getItem("ind_tab") || "tot"; } catch (e) { /* 無視 */ }
 // ?k=鍵 で開いたら保存して、URLから鍵を消す
@@ -161,12 +179,13 @@ try { tab = localStorage.getItem("ind_tab") || "tot"; } catch (e) { /* 無視 */
 function load() {
   if (!key || loading) return;
   loading = true;
-  fetch(API + "/api/timeline", { headers: { "x-token": key }, cache: "no-store" })
+  const vd = viewDate(); reqDate = vd;
+  fetch(API + "/api/timeline" + (vd ? "?date=" + vd : ""), { headers: { "x-token": key }, cache: "no-store" })
     .then(r => r.json().then(j => ({ st: r.status, j })))
     .then(({ st, j }) => {
       if (st === 401) { keyMsg = key === IND_VIEW_KEY && IND_VIEW_KEY ? "埋め込みの鍵が古くなっています（トークン変更など）。新しい鍵を入れてください" : "鍵が違います。間接打刻管理の設定にある「スマホ用URL（間接・TOT）」から開き直してください"; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } return; }
       if (!j.ok) throw new Error(j.error || ("HTTP " + st));
-      TL = j; err = ""; colorCache = {};
+      TL = j; err = ""; colorCache = {}; loadedDate = vd;
     })
     .catch(e => { err = "間接打刻管理から読み込めませんでした（" + e.message + "）"; })
     .then(() => { loading = false; render(); });
@@ -210,6 +229,18 @@ function build(p) {
   const merged = [];
   for (const x of ind) { const m = merged[merged.length - 1]; if (m && m.code === x.code && x.a - m.b <= MIN) m.b = Math.max(m.b, x.b); else merged.push({ ...x }); }
   for (const d of direct) for (const x of merged) if (d.a < x.b && d.b > x.b && d.a >= x.a) d.a = x.b;
+  // FCLM の反映待ちの間は、最後の区間の作業が続いているとみなして現在まで仮に伸ばす（薄い斜線）。次のデータで作業がなければ実績の帯だけが残る
+  if (TL.today && working && direct.length) {
+    if (TL._frLast == null) { let m = 0; for (const q of TL.persons) for (const d of q.direct || []) m = Math.max(m, d.b); TL._frLast = m; }
+    const last = direct.reduce((x, d) => (d.b > x.b ? d : x), direct[0]);
+    if (last.st === "WORK" && last.b >= TL._frLast - 16 * MIN && TL.now - last.b > MIN) {
+      const c = [TL.now, last.b + 45 * MIN, periods[periods.length - 1][1]];
+      merged.forEach(x => { if (x.a > last.b) c.push(x.a); });
+      tot.forEach(v => { if (v[0] > last.b) c.push(v[0]); });
+      const e = Math.min(...c);
+      if (e > last.b + MIN) direct.push({ a: last.b, b: e, cat: last.cat, st: "WORK", fn: "", jobs: 0, hrs: 0, units: 0, prov: true });
+    }
+  }
   // 表示は 0:00〜24:00（前日から続く夜勤は 0:00 で切る）
   const ds = TL.dayStart || -Infinity, de = TL.dayEnd || Infinity;
   const cut = x => Array.isArray(x) ? [Math.max(x[0], ds), Math.min(x[1], de), x[2]] : { ...x, a: Math.max(x.a, ds), b: Math.min(x.b, de) };
@@ -241,7 +272,8 @@ function ticksHtml() {
 function barsHtml(p, big) {
   const b = build(p);
   let h = b.periods.map(([a, c]) => `<i style="left:${pos(a)};width:${wid(a, c)};background:${BASE}"></i>`).join("");
-  h += b.direct.map(d => { const u = uphOf(d), mins = (d.b - d.a) / MIN;
+  h += b.direct.map(d => { if (d.prov) return `<b class="dr prov" style="left:${pos(d.a)};width:${wid(d.a, d.b)};background-color:${DIR_COL[d.cat] || DIR_COL.Other}"></b>`;
+    const u = uphOf(d), mins = (d.b - d.a) / MIN;
     const lab = big && mins >= 25 ? esc(DIR_NM[d.cat] || d.cat) + (u != null && mins >= 40 ? " " + u : "") : "";
     return `<b class="dr${d.st === "NOPUNCH" ? " np" : ""}" style="left:${pos(d.a)};width:${wid(d.a, d.b)};background:${DIR_COL[d.cat] || DIR_COL.Other}">${lab}</b>`; }).join("");
   h += b.ind.map(s => `<i class="ind${["queued", "sending", "unknown"].includes(s.status) ? " wt" : ""}" style="left:${pos(s.a)};width:${wid(s.a, s.b)};background:${colorOf(s.code)}"></i>`).join("");
@@ -257,10 +289,11 @@ function eventsHtml(p) {
     ...p.ind.map(s => { const x = b.ind.find(y => y.code === s.code && s.at >= y.a && s.at <= y.b);
       return { t: s.at, text: `${s.name}（${s.code}）`, sub: "間接打刻・" + (ST[s.status] || s.status) + (x && x.a === s.at ? `・〜${TL.today && x.b === TL.now ? "現在" : tm(x.b)}` : ""), bg: colorOf(s.code) }; }),
     ...b.direct.map(d => { const u = uphOf(d);
+      if (d.prov) return { t: d.a, text: `${DIR_NM[d.cat] || d.cat}（推定）`, sub: `${tm(d.a)}〜現在・FCLM の反映待ち（直前の作業が続いているとみなした表示）`, bg: DIR_COL[d.cat] || DIR_COL.Other, prov: true };
       return { t: d.a, text: `${DIR_NM[d.cat] || d.cat}${d.fn ? "（" + d.fn + "）" : ""}`, sub: (d.st === "NOPUNCH" ? "ダイレクト・出退勤の打刻なし" : "ダイレクト") + `・${tm(d.a)}〜${tm(d.b)}・Job ${Math.round(d.jobs || 0)}件` + (u != null ? `・UPH ${u}` : ""), bg: DIR_COL[d.cat] || DIR_COL.Other, np: d.st === "NOPUNCH" }; }),
     ...b.tot.map(([a, e, k]) => ({ t: a, text: "Time Off Task", sub: `${tm(a)}〜${TL.today && e >= TL.now - MIN ? "現在" : tm(e)}（${dur(e - a)}）${k === "pre" ? "・時刻は推定" : ""}`, bg: BLACK, hot: true })),
   ].sort((x, y) => y.t - x.t);
-  return ev.map(e => `<li${e.hot ? ' class="hot"' : e.np ? ' class="np"' : ""}><b>${tm(e.t)}</b><i style="background:${e.bg}"></i><span>${esc(e.text)}<small>　${esc(e.sub)}</small></span></li>`).join("") || '<li><span></span><span></span><span class="empty">記録がありません</span></li>';
+  return ev.map(e => `<li${e.hot ? ' class="hot"' : e.np ? ' class="np"' : e.prov ? ' class="prov"' : ""}><b>${tm(e.t)}</b><i style="background:${e.bg}"></i><span>${esc(e.text)}<small>　${esc(e.sub)}</small></span></li>`).join("") || '<li><span></span><span></span><span class="empty">記録がありません</span></li>';
 }
 
 /* ---------- 描画 ---------- */
@@ -288,9 +321,21 @@ function render() {
 
   const hb = TL.tot, dot = document.getElementById("dot");
   dot.className = "dot " + (hb && hb.ok ? "on" : hb ? "warn" : "");
-  const people = TL.persons.filter(p => p.listed || p.ind.length);
+  // 時間がたって夜勤の表示日が変わったら読み直す
+  if (viewDate() !== reqDate && !loading) { load(); }
+  const shiftOk = p => shift === "all" || (shift === "night" ? !!p.night : !p.night);
+  const all = TL.persons.filter(p => p.listed || p.ind.length);
+  const people = all.filter(shiftOk);
+  const nN = all.filter(p => p.night).length;
+  document.getElementById("shf").innerHTML = [["all", "全て", all.length], ["day", "日勤", all.length - nN], ["night", "夜勤", nN]]
+    .map(([v, n, c]) => `<button type="button" data-s="${v}" class="${shift === v ? "on" : ""}">${n} ${c}</button>`).join("")
+    + (TL.today ? "" : `<span class="dt">${TL.date.slice(5).replace("-", "/")}出勤</span>`);
+  document.querySelectorAll("#shf button").forEach(b => b.onclick = () => {
+    shift = b.dataset.s; try { localStorage.setItem("ind_shift", shift); } catch (e) { /* 無視 */ }
+    if (viewDate() !== reqDate) { load(); } render();
+  });
   const working = people.filter(p => p.listed && !p.retTime).length;
-  setSub(`出勤${working}名・${hb ? "FCLM " + tm(hb.at) : "FCLM未受信"}・${tm(TL.now)}更新`);
+  setSub(`${TL.today ? "" : TL.date.slice(5).replace("-", "/") + "の"}${shift === "night" ? "夜勤" : shift === "day" ? "日勤" : ""}出勤${working}名・${hb ? "FCLM " + tm(hb.at) : "FCLM未受信"}・${tm(TL.now)}更新`);
 
   const isTot = p => !!p.cur, isNone = p => p.cur && p.cur.judge === "none", hasInd = p => live(p).length > 0;
   const T = [["all", "全員", people.length, ""], ["tot", "TOT", people.filter(isTot).length, "t"], ["none", "TOT・間接なし", people.filter(isNone).length, "n"], ["ind", "間接あり", people.filter(hasInd).length, "i"], ["np", "打刻漏れ疑い", people.filter(hasNp).length, "p"]];
