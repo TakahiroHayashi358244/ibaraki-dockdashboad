@@ -56,6 +56,7 @@ main{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:
 .srch{margin-top:6px;display:flex;gap:6px;} .srch input{flex:1 1 50%;min-width:0;font-size:16px;padding:8px 10px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;outline:none;font-family:inherit;}
 .srch select{flex:1 1 50%;min-width:0;font-size:16px;padding:7px 8px;border:1px solid #cfd6e0;border-radius:9px;background:#fff;color:var(--ink);font-family:inherit;}
 .nm small .up{color:var(--ink);font-weight:800;margin-left:4px;}
+.nm small.pf{color:var(--ink);} .nm small.pf span{font-weight:800;}
 .axis{position:relative;height:16px;margin:8px 26px 0 140px;}
 .axis span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:var(--sub);white-space:nowrap;}
 .rows{display:flex;flex-direction:column;gap:4px;margin-top:2px;}
@@ -252,6 +253,8 @@ const lastDir = p => { const l = (p.direct || []).filter(d => d.st === "WORK"); 
 const hasNp = p => (p.direct || []).some(d => d.st === "NOPUNCH");
 // 1日のUPH：当日のダイレクト作業（Jobあり・時間ありの区間）の Unit ÷ 時間。cat を渡すとその作業だけ
 const dayUph = (p, cat) => { let u = 0, h = 0; for (const d of p.direct || []) if (d.st === "WORK" && (!cat || d.cat === cat)) { u += d.units ?? d.jobs ?? 0; h += Number(d.hrs) || 0; } return h > 0.05 ? Math.round(u / h) : null; };
+// 当日の Job（ダイレクト作業の件数・打刻なしの区間も含む）。cat を渡すとその作業だけ
+const dayJob = (p, cat) => { let j = 0; for (const d of p.direct || []) if (!cat || d.cat === cat) j += Number(d.jobs) || 0; return Math.round(j); };
 let R = [0, 1];
 function span(list) {
   let lo = Infinity, hi = -Infinity;
@@ -373,7 +376,7 @@ function render() {
     const tag = (c ? `<em class="${c.judge}">${Math.round(c.totMin)}分 ${jd(c.judge)[2]}</em>` : p.retTime ? '<em class="out">退勤済</em>' : "") + (hasNp(p) && (tab === "np" || !c) ? '<em class="np">打刻なし</em>' : "");
     const work = b.periods.reduce((s, [a, e]) => s + (e - a), 0);
     return `<div class="row ${cls}${open[k] ? " open" : ""}" data-k="${esc(k)}">
-      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${p.night ? '<b style="color:#4338ca">夜勤 </b>' : ""}${esc(p.badge)}${uphMap.get(k) != null ? `<span class="up">UPH ${uphMap.get(k)}</span>` : ""}</small><small class="al">${esc(p.alias || "")}${tag}</small></span>
+      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${p.night ? '<b style="color:#4338ca">夜勤 </b>' : ""}${esc(p.badge)}</small>${uphMap.get(k) != null || dayJob(p, dcat || null) ? `<small class="pf">UPH <span>${uphMap.get(k) ?? "—"}</span>　Job <span>${dayJob(p, dcat || null)}</span></small>` : ""}<small class="al">${esc(p.alias || "")}${tag}</small></span>
         <span class="trk">${barsHtml(p)}</span><span class="cv">▼</span></div>
       <div class="det">
         <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${dayUph(p) != null ? `<span>1日のUPH <b>${dayUph(p)}</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
