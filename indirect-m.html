@@ -252,9 +252,9 @@ const uphOf = d => d.st === "WORK" && Number(d.hrs) > 0.004 ? Math.round((d.unit
 const lastDir = p => { const l = (p.direct || []).filter(d => d.st === "WORK"); return l.length ? l.reduce((x, y) => (y.b >= x.b ? y : x)) : null; };
 const hasNp = p => (p.direct || []).some(d => d.st === "NOPUNCH");
 // 1日のUPH：当日のダイレクト作業（Jobあり・時間ありの区間）の Unit ÷ 時間。cat を渡すとその作業だけ
-const dayUph = (p, cat) => { let u = 0, h = 0; for (const d of p.direct || []) if (d.st === "WORK" && (!cat || d.cat === cat)) { u += d.units ?? d.jobs ?? 0; h += Number(d.hrs) || 0; } return h > 0.05 ? Math.round(u / h) : null; };
+const dayUph = (p, cat) => { let u = 0, h = 0; for (const d of p.direct || []) if (d.st === "WORK" && (cat ? d.cat === cat : d.cat !== "Other")) { u += d.units ?? d.jobs ?? 0; h += Number(d.hrs) || 0; } return h > 0.05 ? Math.round(u / h) : null; };
 // 当日の Job（ダイレクト作業の件数・打刻なしの区間も含む）。cat を渡すとその作業だけ
-const dayJob = (p, cat) => { let j = 0; for (const d of p.direct || []) if (!cat || d.cat === cat) j += Number(d.jobs) || 0; return Math.round(j); };
+const dayJob = (p, cat) => { let j = 0; for (const d of p.direct || []) if (cat ? d.cat === cat : d.cat !== "Other") j += Number(d.jobs) || 0; return Math.round(j); };
 let R = [0, 1];
 function span(list) {
   let lo = Infinity, hi = -Infinity;
@@ -277,7 +277,7 @@ function barsHtml(p, big) {
   let h = b.periods.map(([a, c]) => `<i style="left:${pos(a)};width:${wid(a, c)};background:${BASE}"></i>`).join("");
   h += b.direct.map(d => { if (d.prov) return `<b class="dr prov" style="left:${pos(d.a)};width:${wid(d.a, d.b)};background-color:${DIR_COL[d.cat] || DIR_COL.Other}"></b>`;
     const u = uphOf(d), mins = (d.b - d.a) / MIN;
-    const lab = big && mins >= 25 ? esc(DIR_NM[d.cat] || d.cat) + (u != null && mins >= 40 ? " " + u : "") : "";
+    const lab = big && mins >= 25 ? esc(DIR_NM[d.cat] || d.cat) + (u != null && mins >= 40 && d.cat !== "Other" ? " " + u : "") : "";
     return `<b class="dr${d.st === "NOPUNCH" ? " np" : ""}" style="left:${pos(d.a)};width:${wid(d.a, d.b)};background:${DIR_COL[d.cat] || DIR_COL.Other}">${lab}</b>`; }).join("");
   h += b.ind.map(s => `<i class="ind${["queued", "sending", "unknown"].includes(s.status) ? " wt" : ""}" style="left:${pos(s.a)};width:${wid(s.a, s.b)};background:${colorOf(s.code)}"></i>`).join("");
   h += b.tot.map(([a, c, k]) => `<i class="${k === "pre" ? "pre" : ""}" style="left:${pos(a)};width:${wid(a, c)};background:${BLACK}"></i>`).join("");
@@ -347,7 +347,7 @@ function render() {
   // 間接（エリア）とダイレクト（直近の作業・全体UPH）の絞り込み
   const stats = (TL.fr && TL.fr.stats) || {};
   document.getElementById("areas").innerHTML = '<span class="lb">間接</span>' + Object.keys(AREA).map(g => `<button type="button" data-a="${g}" class="${area === g ? "on" : ""}"><i style="background:${areaColor(g)}"></i>${g}</button>`).join("")
-    + '<span class="lb" style="margin-left:4px">ダイレクト</span>' + DIR.map(c => { const v = stats[c]; const u = v && (v.hour.uph ?? v.day.uph);
+    + '<span class="lb" style="margin-left:4px">ダイレクト</span>' + DIR.map(c => { const v = c === "Other" ? null : stats[c]; const u = v && (v.hour.uph ?? v.day.uph);
       return `<button type="button" data-d="${c}" class="d${dcat === c ? " on" : ""}"><span style="display:flex;align-items:center;gap:5px"><i style="background:${DIR_COL[c]}"></i>${DIR_NM[c]}</span>${v ? `<small>UPH 当日${v.day.uph ?? "—"}・1h ${v.hour.uph ?? "—"}</small>` : ""}</button>`; }).join("");
   document.querySelectorAll("#areas button[data-a]").forEach(b => b.onclick = () => { area = area === b.dataset.a ? "" : b.dataset.a; render(); });
   document.querySelectorAll("#areas button[data-d]").forEach(b => b.onclick = () => { dcat = dcat === b.dataset.d ? "" : b.dataset.d; render(); });
@@ -379,7 +379,7 @@ function render() {
       <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${p.night ? '<b style="color:#4338ca">夜勤 </b>' : ""}${esc(p.badge)}</small>${uphMap.get(k) != null || dayJob(p, dcat || null) ? `<small class="pf">UPH <span>${uphMap.get(k) ?? "—"}</span>　Job <span>${dayJob(p, dcat || null)}</span></small>` : ""}<small class="al">${esc(p.alias || "")}${tag}</small></span>
         <span class="trk">${barsHtml(p)}</span><span class="cv">▼</span></div>
       <div class="det">
-        <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${dayUph(p) != null ? `<span>1日のUPH <b>${dayUph(p)}</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
+        <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${dayUph(p) != null ? `<span>1日のUPH <b>${dayUph(p)}</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null && ld.cat !== "Other" ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
         ${c && c.ev ? `<div class="why">${esc(jd(c.judge)[0])}：${esc(c.ev)}</div>` : ""}
         <div class="ax2">${ticksHtml()}</div>
         <div class="trk big">${barsHtml(p, true)}</div>
