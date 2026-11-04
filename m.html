@@ -112,7 +112,7 @@ body[data-v="ind"] header{background:#334155;}
 .st div{flex:1;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 2px;text-align:center;}
 .st b{display:block;font-size:17px;line-height:1.2;font-variant-numeric:tabular-nums;}
 .st span{font-size:10px;color:var(--sub);}
-.st .ok b{color:var(--green);} .st .run b{color:#0277bd;} .st .wait b{color:#b3790c;} .st .ng b{color:var(--alert);}
+.st .ok b{color:var(--green);} .st .same b{color:#6b7280;} .st .run b{color:#0277bd;} .st .wait b{color:#b3790c;} .st .ng b{color:var(--alert);}
 .st .ng.has{cursor:pointer;border-color:#f0b4b4;background:#fff7f7;}
 .ngrow{background:#fff;border:1px solid #f0c9c9;border-left:4px solid var(--alert);border-radius:9px;padding:6px 9px;margin-bottom:6px;font-size:11.5px;}
 .ngrow b{font-size:12.5px;font-variant-numeric:tabular-nums;}
@@ -740,6 +740,8 @@ function reflectState(a) {
   const c = latestCmd(a.id);
   if (c && c.state === "running") return "run";
   if (c && c.state === "pending") return "wait";
+  // CSVを取り込んだ時点で、もう計画のフロアのドアだった便は「変更不要」（ドック反映で動かした便とは分ける）
+  if (done && a.dock && String(a.dock)[0] === floorDigit(f)) return "same";
   if (done) return "ok";
   if (c && c.state === "error") return "ng";
   return "no";
@@ -778,10 +780,11 @@ function renderPlan() {
       <div class="bar"><i class="${lv}" style="width:${Math.min(100, ratio * 100)}%"></i></div></div>`;
   }).join("") : `<div class="empty">フロア情報がありません</div>`;
 
-  const g = { ok: [], run: [], wait: [], ng: [], no: [] };
+  const g = { ok: [], same: [], run: [], wait: [], ng: [], no: [] };
   planAppts.forEach(a => { const s = reflectState(a); if (s) g[s].push(a); });
   document.getElementById("pSt").innerHTML =
     `<div class="ok"><b>${g.ok.length}</b><span>反映済</span></div>
+     <div class="same"><b>${g.same.length}</b><span>変更不要</span></div>
      <div class="run"><b>${g.run.length}</b><span>実行中</span></div>
      <div class="wait"><b>${g.wait.length}</b><span>待機中</span></div>
      <div class="ng${g.ng.length ? " has" : ""}" ${g.ng.length ? 'onclick="toggleNg()"' : ""}><b>${g.ng.length}</b><span>失敗${g.ng.length ? "（内容）" : ""}</span></div>
