@@ -114,7 +114,7 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
     <div id="err"></div>
     <div class="axis" id="axis"></div>
     <div class="rows" id="rows"><div class="empty">読み込み中…</div></div>
-    <div class="ft">閲覧専用です（1分ごとに更新）。灰＝勤務、下半分の細い帯＝ダイレクト作業（FCLM・赤枠は出退勤の打刻なし・薄い斜線は反映待ちの推定）、色＝間接打刻、黒＝Time Off Task、赤線＝現在。<br>行を押すと、その人の時系列を開きます。<br><a href="javascript:void(0)" id="resetKey">閲覧用の鍵を変更</a></div>
+    <div class="ft">閲覧専用です（1分ごとに更新）。灰＝勤務（薄い橙＝貸出管理に未登録で、打刻監視の打刻から作った勤務）、下半分の細い帯＝ダイレクト作業（FCLM・赤枠は出退勤の打刻なし・薄い斜線は反映待ちの推定）、色＝間接打刻、黒＝Time Off Task、赤線＝現在。<br>行を押すと、その人の時系列を開きます。<br><a href="javascript:void(0)" id="resetKey">閲覧用の鍵を変更</a></div>
   </div>
 </main>
 <script>
@@ -132,6 +132,10 @@ const NAV = [["dock", "ドック状況"], ["plan", "着車プラン"], ["haichi"
 const MIN = 60000, HR = 3600000;
 const AREA = { Inbound: [221, 83, [53, 42, 48, 36, 50, 39, 45, 33]], Outbound: [21, 90, [40, 31, 36, 27, 38, 33, 29, 35]], ICQA: [175, 77, [26, 20, 23, 17, 25, 21, 18, 24]], Other: [262, 83, [58, 46, 52, 40, 55, 43, 49, 37]] };
 const BASE = "#cbd5e1", BLACK = "#111827";
+const NOLEND = "#f5d0a1";   // 貸出管理に未登録（打刻監視には出退勤の打刻あり）の人の勤務の帯（PC版と同じ色）
+// 貸出未登録の人は IDカード返却の記録がないので、最後の打刻が「終了・退勤」なら退勤済みとする
+//  （休憩中は勤務の帯が閉じていても退勤済みにしない。2回打刻の「休憩（or終了）」は区別できないので勤務中のまま）
+const noLendOut = p => { if (!p.noLend) return false; const sl = (p.slots || []).filter(x => x.t); const k = sl.length ? String(sl[sl.length - 1].k || "") : ""; return /終了|退勤/.test(k) && !/or終了/.test(k); };
 const JUDGE = { none: ["TOT・間接なし", 0, "間接なし"], failed: ["TOT・間接失敗", 1, "間接失敗"], noreflect: ["TOT・間接反映なし", 1.5, "反映なし"], wait: ["TOT・入力待ち", 2, "入力待ち"], done: ["TOT・反映待ち", 3, "反映待ち"], reflected: ["TOT・間接作業中", 4, "間接中"], resume: ["TOT・ダイレクト復帰", 4.5, "復帰"] };
 // ダイレクト作業（FCLM Function Rollup・作業変化モニターから）
 const DIR = ["Stow", "Pick", "Pack", "Receive", "Other"];
@@ -274,7 +278,7 @@ function ticksHtml() {
 }
 function barsHtml(p, big) {
   const b = build(p);
-  let h = b.periods.map(([a, c]) => `<i style="left:${pos(a)};width:${wid(a, c)};background:${BASE}"></i>`).join("");
+  let h = b.periods.map(([a, c]) => `<i style="left:${pos(a)};width:${wid(a, c)};background:${p.noLend ? NOLEND : BASE}"></i>`).join("");
   h += b.direct.map(d => { if (d.prov) return `<b class="dr prov" style="left:${pos(d.a)};width:${wid(d.a, d.b)};background-color:${DIR_COL[d.cat] || DIR_COL.Other}"></b>`;
     const u = uphOf(d), mins = (d.b - d.a) / MIN;
     const lab = big && mins >= 25 ? esc(DIR_NM[d.cat] || d.cat) + (u != null && mins >= 40 && d.cat !== "Other" ? " " + u : "") : "";
@@ -287,7 +291,7 @@ function barsHtml(p, big) {
 function eventsHtml(p) {
   const b = build(p);
   const ev = [
-    ...p.slots.map(s => ({ t: hmMs(s.t), text: s.k, sub: "出退勤打刻", bg: BASE })).filter(e => e.t),
+    ...p.slots.map(s => ({ t: hmMs(s.t), text: s.k, sub: p.noLend ? "出退勤打刻（貸出管理に未登録）" : "出退勤打刻", bg: p.noLend ? NOLEND : BASE })).filter(e => e.t),
     ...(b.periods[0] && b.periods[0][2] === "lend" ? [{ t: b.periods[0][0], text: "IDカード貸出", sub: "出退勤打刻なし", bg: BASE }] : []),
     ...p.ind.map(s => { const x = b.ind.find(y => y.code === s.code && s.at >= y.a && s.at <= y.b);
       return { t: s.at, text: `${s.name}（${s.code}）`, sub: "間接打刻・" + (ST[s.status] || s.status) + (x && x.a === s.at ? `・〜${TL.today && x.b === TL.now ? "現在" : tm(x.b)}` : ""), bg: colorOf(s.code) }; }),
@@ -327,7 +331,7 @@ function render() {
   // 時間がたって夜勤の表示日が変わったら読み直す
   if (viewDate() !== reqDate && !loading) { load(); }
   const shiftOk = p => shift === "all" || (shift === "night" ? !!p.night : !p.night);
-  const all = TL.persons.filter(p => p.listed || p.ind.length);
+  const all = TL.persons.filter(p => p.listed || p.noLend || p.ind.length);
   const people = all.filter(shiftOk);
   const nN = all.filter(p => p.night).length;
   document.getElementById("shf").innerHTML = [["all", "全て", all.length], ["day", "日勤", all.length - nN], ["night", "夜勤", nN]]
@@ -337,7 +341,7 @@ function render() {
     shift = b.dataset.s; try { localStorage.setItem("ind_shift", shift); } catch (e) { /* 無視 */ }
     if (viewDate() !== reqDate) { load(); } render();
   });
-  const working = people.filter(p => p.listed && !p.retTime).length;
+  const working = people.filter(p => (p.listed && !p.retTime) || (p.noLend && !noLendOut(p))).length;
   setSub(`${TL.today ? "" : TL.date.slice(5).replace("-", "/") + "の"}${shift === "night" ? "夜勤" : shift === "day" ? "日勤" : ""}出勤${working}名・${hb ? "FCLM " + tm(hb.at) : "FCLM未受信"}・${tm(TL.now)}更新`);
 
   const isTot = p => !!p.cur, isNone = p => p.cur && p.cur.judge === "none", hasInd = p => live(p).length > 0;
@@ -373,10 +377,10 @@ function render() {
     const cls = c ? (c.judge === "none" ? "none" : "tot") : hasInd(p) ? "ind" : "";
     // 名前の欄は狭いので短い表示（行の左端の色でも TOT を示す）
     const ld = lastDir(p);
-    const tag = (c ? `<em class="${c.judge}">${Math.round(c.totMin)}分 ${jd(c.judge)[2]}</em>` : p.retTime ? '<em class="out">退勤済</em>' : "") + (hasNp(p) && (tab === "np" || !c) ? '<em class="np">打刻なし</em>' : "");
+    const tag = (c ? `<em class="${c.judge}">${Math.round(c.totMin)}分 ${jd(c.judge)[2]}</em>` : p.retTime || noLendOut(p) ? '<em class="out">退勤済</em>' : "") + (hasNp(p) && (tab === "np" || !c) ? '<em class="np">打刻なし</em>' : "");
     const work = b.periods.reduce((s, [a, e]) => s + (e - a), 0);
     return `<div class="row ${cls}${open[k] ? " open" : ""}" data-k="${esc(k)}">
-      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${p.night ? '<b style="color:#4338ca">夜勤 </b>' : ""}${esc(p.badge)}</small>${uphMap.get(k) != null || dayJob(p, dcat || null) ? `<small class="pf">UPH <span>${uphMap.get(k) ?? "—"}</span>　Job <span>${dayJob(p, dcat || null)}</span></small>` : ""}<small class="al">${esc(p.alias || "")}${tag}</small></span>
+      <div class="rh"><span class="nm"><b>${esc(p.name || "（氏名なし）")}</b><small>${p.night ? '<b style="color:#4338ca">夜勤 </b>' : ""}${p.noLend ? '<b style="color:#c2410c">貸出未登録 </b>' : ""}${esc(p.badge)}</small>${uphMap.get(k) != null || dayJob(p, dcat || null) ? `<small class="pf">UPH <span>${uphMap.get(k) ?? "—"}</span>　Job <span>${dayJob(p, dcat || null)}</span></small>` : ""}<small class="al">${esc(p.alias || "")}${tag}</small></span>
         <span class="trk">${barsHtml(p)}</span><span class="cv">▼</span></div>
       <div class="det">
         <div class="meta"><span>出勤 <b>${b.periods.length ? tm(b.periods[0][0]) : "—"}</b></span><span>勤務 <b>${dur(work)}</b></span><span>間接 <b>${live(p).length}回</b></span>${c ? `<span class="tt">TOT <b>${c.totMin}分（${tm(c.since)}〜）</b></span>` : ""}${dayUph(p) != null ? `<span>1日のUPH <b>${dayUph(p)}</b></span>` : ""}${ld ? `<span>直近 <b style="color:${DIR_COL[ld.cat] || DIR_COL.Other}">${DIR_NM[ld.cat] || ld.cat}</b>${uphOf(ld) != null && ld.cat !== "Other" ? ` UPH <b>${uphOf(ld)}</b>` : ""}</span>` : ""}${p.company ? `<span>${esc(p.company)}</span>` : ""}</div>
