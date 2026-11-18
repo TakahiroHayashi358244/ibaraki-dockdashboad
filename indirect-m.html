@@ -492,7 +492,14 @@ async function shot(v) {
   let cur = null;
   slClick = async () => {
     if (!gView || !TL) return;
-    if (!slKey) { alert("このスマホは Slack 送信の登録がまだです。\nPCの間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」を、このスマホで1回開いてください（送り先はPC側の設定のチャンネルです）。"); return; }
+    if (!slKey) {
+      // ホーム画面に追加したアプリは Safari と保存場所が別なので、URLで開いても鍵が届かない → ここで貼り付けて登録できるようにする
+      const v = (prompt("このスマホは Slack 送信の登録がまだです。\nPCの間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」の s= の後ろ（英数字32文字）を貼り付けてください。\n（URL全体を貼り付けても大丈夫です）") || "").trim();
+      const m = v.match(/(?:[?&]s=)?([0-9a-f]{32})\s*$/i);
+      if (!m) { if (v) alert("鍵の形が違います（英数字32文字）。もう一度お試しください。"); return; }
+      slKey = m[1].toLowerCase();
+      try { localStorage.setItem("ind_slack", slKey); } catch (e) { /* 無視 */ }
+    }
     const b = $("slBtn"); b.disabled = true; b.textContent = "作成中…";
     try {
       const v = gView, s = await shot(v);
