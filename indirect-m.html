@@ -90,6 +90,17 @@ em.noreflect{background:#fee2e2;color:#b91c1c;} em.reflected{background:#dbeafe;
 .key button{width:100%;padding:10px;border:0;border-radius:9px;background:#334155;color:#fff;font:inherit;font-weight:700;}
 /* 現場ビュー（m.html）に埋め込んだときは、見出しと切替メニューは m.html 側を使う */
 body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmenu,body.embed .navmask{display:none !important;}
+.slbtn{flex:none;border:0;border-radius:9px;background:#4a154b;color:#fff;font:inherit;font-size:13px;font-weight:800;padding:0 12px;cursor:pointer;} .slbtn:disabled{opacity:.6;}
+.sldlg{position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:calc(env(safe-area-inset-top) + 8px) 8px 8px;}
+.sldlg[hidden]{display:none;}
+.sldlg .bx{background:#fff;border-radius:12px;width:100%;max-width:var(--mw);max-height:100%;display:flex;flex-direction:column;overflow:hidden;}
+.sldlg .hd{display:flex;align-items:center;gap:6px;padding:9px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.sldlg .hd b{font-size:15px;} .sldlg .hd .msg{flex:1;font-size:12px;color:var(--sub);text-align:right;min-width:0;}
+.sldlg .hd button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.sldlg .hd button.go{background:#4a154b;color:#fff;border-color:#4a154b;} .sldlg .hd button:disabled{opacity:.6;}
+.sldlg .bd{overflow:auto;padding:8px 10px 12px;display:flex;flex-direction:column;gap:8px;}
+.sldlg .bd img{display:block;width:100%;border:1px solid var(--line);border-radius:8px;}
+.sldlg textarea{width:100%;min-height:110px;font-size:16px;font-family:inherit;padding:8px;border:1px solid #cfd6e0;border-radius:8px;}
 .ft{text-align:center;font-size:11px;color:var(--sub);padding:10px 0 calc(env(safe-area-inset-bottom) + 6px);} .ft a{color:var(--sub);}
 </style>
 </head>
@@ -103,6 +114,10 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
   </div>
 </header>
 <div class="navmask" id="navMask" hidden></div>
+<div class="sldlg" id="slDlg" hidden><div class="bx">
+  <div class="hd"><b>Slackに送る</b><span class="msg" id="slMsg"></span><button type="button" id="slClose">閉じる</button><button type="button" class="go" id="slSend">この内容で送信</button></div>
+  <div class="bd"><img id="slImg" alt="送る画像のプレビュー"><label style="font-size:12px;color:var(--sub)">一緒に送る文章<textarea id="slText"></textarea></label></div>
+</div></div>
 <div class="navmenu" id="navMenu" role="menu" hidden></div>
 <main id="main">
   <div id="keyBox"></div>
@@ -110,7 +125,7 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
     <div class="shf" id="shf"></div>
     <div class="tabs" id="tabs"></div>
     <div class="areas" id="areas"></div>
-    <div class="srch"><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="名前・ID・作業"><select id="srt" aria-label="並び替え"><option value="std">標準（TOT優先）</option><option value="uph">UPH高い順</option><option value="in">出勤順</option><option value="name">氏名順</option></select></div>
+    <div class="srch"><input id="q" type="search" inputmode="search" autocomplete="off" placeholder="名前・ID・作業"><select id="srt" aria-label="並び替え"><option value="std">標準（TOT優先）</option><option value="uph">UPH高い順</option><option value="in">出勤順</option><option value="name">氏名順</option></select><button type="button" class="slbtn" id="slBtn" hidden>Slackに送る</button></div>
     <div id="err"></div>
     <div class="axis" id="axis"></div>
     <div class="rows" id="rows"><div class="empty">読み込み中…</div></div>
@@ -148,6 +163,7 @@ const tm = t => { if (!t) return ""; const d = new Date(t); return String(d.getH
 const dur = ms => { const m = Math.max(0, Math.round(ms / MIN)); return m >= 60 ? Math.floor(m / 60) + "時間" + (m % 60 ? (m % 60) + "分" : "") : m + "分"; };
 const fold = s => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g, "");
 
+let gView = null;
 let key = "", TL = null, loading = false, err = "", keyMsg = "";
 let tab = "tot", area = "", dcat = "", q = "", srt = "std";
 try { srt = localStorage.getItem("ind_srt") || "std"; } catch (e) { /* 無視 */ }
@@ -168,6 +184,13 @@ try { tab = localStorage.getItem("ind_tab") || "tot"; } catch (e) { /* 無視 */
   const u = new URL(location.href), k = u.searchParams.get("k");
   if (k) { try { localStorage.setItem("ind_key", k); } catch (e) { /* 無視 */ } u.searchParams.delete("k"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
   try { key = localStorage.getItem("ind_key") || k || IND_VIEW_KEY; } catch (e) { key = k || IND_VIEW_KEY; }
+})();
+// Slack送信の鍵（間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」の s= の後ろ）。このファイルには埋め込まない（公開されるため）。開いた端末にだけ保存
+let slKey = "";
+(function () {
+  const u = new URL(location.href), s = u.searchParams.get("s");
+  if (s) { try { localStorage.setItem("ind_slack", s); } catch (e) { /* 無視 */ } u.searchParams.delete("s"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+  try { slKey = localStorage.getItem("ind_slack") || s || ""; } catch (e) { slKey = s || ""; }
 })();
 
 /* ---------- 切替メニュー（現場ビューの各画面へ） ---------- */
@@ -286,7 +309,7 @@ function barsHtml(p, big) {
     const lab = big && mins >= 25 ? esc(DIR_NM[d.cat] || d.cat) + (u != null && mins >= 40 && d.cat !== "Other" ? " " + u : "") : "";
     return `<b class="dr${d.st === "NOPUNCH" ? " np" : ""}" style="left:${pos(d.a)};width:${wid(d.a, d.b)};background:${DIR_COL[d.cat] || DIR_COL.Other}">${lab}</b>`; }).join("");
   h += b.find.map(x => { const c = areaColor(AREA[x.g] ? x.g : "Other");
-    return `<i class="ind fi" style="left:${pos(x.a)};width:${wid(x.a, x.b)};background:repeating-linear-gradient(135deg,${c} 0 6px,color-mix(in srgb,${c} 55%,#fff) 6px 9px)"></i>`; }).join("");
+    return `<i class="ind fi" data-c="${c}" style="left:${pos(x.a)};width:${wid(x.a, x.b)};background:repeating-linear-gradient(135deg,${c} 0 6px,color-mix(in srgb,${c} 55%,#fff) 6px 9px)"></i>`; }).join("");
   h += b.ind.map(s => `<i class="ind${["queued", "sending", "unknown"].includes(s.status) ? " wt" : ""}" style="left:${pos(s.a)};width:${wid(s.a, s.b)};background:${colorOf(s.code)}"></i>`).join("");
   h += b.tot.map(([a, c, k]) => `<i class="${k === "pre" ? "pre" : ""}" style="left:${pos(a)};width:${wid(a, c)};background:${BLACK}"></i>`).join("");
   if (TL.today && TL.now >= R[0] && TL.now <= R[1]) h += `<span class="now" style="left:${pos(TL.now)}"></span>`;
@@ -374,6 +397,8 @@ function render() {
     : srt === "in" ? firstIn(a) - firstIn(b)
     : srt === "name" ? String(a.name).localeCompare(String(b.name), "ja")
     : rank(a) - rank(b) || firstIn(a) - firstIn(b));
+  gView = { list, uphMap, tab, tabLabel: (T.find(t => t[0] === tab) || [])[1] || "", area, dcat, q, shift, working };
+  document.getElementById("slBtn").hidden = !slKey;
   R = span(list.length ? list : people);
   document.getElementById("axis").innerHTML = ticksHtml();
 
@@ -404,6 +429,93 @@ function render() {
   sel.value = srt;
   sel.addEventListener("change", () => { srt = sel.value; try { localStorage.setItem("ind_srt", srt); } catch (e) { /* 無視 */ } render(); });
   document.getElementById("resetKey").onclick = () => { if (!confirm("この端末に保存した閲覧用の鍵を消去しますか？")) return; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } render(); };
+})();
+/* ---------- Slackに送る（表示中の一覧を画像にして、管理画面と同じ送り先へ） ---------- */
+function loadH2C() {
+  if (window.html2canvas) return Promise.resolve();
+  return new Promise((ok, ng) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    sc.onload = ok; sc.onerror = () => ng(new Error("画像化の部品を読み込めませんでした（電波を確認してください）"));
+    document.head.appendChild(sc);
+  });
+}
+function viewLabel(v) {
+  const sh = v.shift === "night" ? "夜勤" : v.shift === "day" ? "日勤" : "全て";
+  return [sh, v.tabLabel, v.area ? "間接 " + v.area : "", v.dcat ? "直近のダイレクトが " + (DIR_NM[v.dcat] || v.dcat) : "", v.q ? "検索「" + v.q + "」" : ""].filter(Boolean).join("・");
+}
+// 文章の明細：ダイレクト作業で絞り込み中は UPH 高い順に名前と UPH、TOT のタブでは直近1時間に新しく TOT が始まった人
+function slackDetail(v) {
+  const out = [], nm = p => p.name || p.badge;
+  if (v.dcat) {
+    const l = v.list.map(p => ({ p, u: v.uphMap.get(p.badge) })).sort((a, b) => (b.u ?? -1) - (a.u ?? -1));
+    out.push("", `【${DIR_NM[v.dcat] || v.dcat} UPH 高い順】`, ...l.map((x, i) => `${i + 1}. ${nm(x.p)}　UPH ${x.u != null ? x.u : "—"}`));
+  }
+  if (v.tab === "tot" || v.tab === "none") {
+    if (!TL.today) return out.concat("", "（Time Off Task の新規発生は当日の表示のときだけ載せます）");
+    const now = TL.now || Date.now(), from = now - 60 * MIN, l = [];
+    for (const p of v.list) {
+      const segs = (p.tot || []).filter(x => x[2] !== "pre");
+      const st = segs.filter((x, i) => x[0] >= from && !(i > 0 && x[0] - segs[i - 1][1] <= 6 * MIN));
+      if (!st.length) continue;
+      l.push({ p, a: st[st.length - 1][0], c: p.cur });
+    }
+    l.sort((x, y) => x.a - y.a);
+    out.push("", `【Time Off Task 直近1時間（${tm(from)}〜${tm(now)}）に新規発生　${l.length}名】`,
+      ...(l.length ? l.map(x => `・${nm(x.p)}　${tm(x.a)}〜${x.c ? "（継続中・TOT " + Math.round(x.c.totMin) + "分" + (x.c.judge === "none" ? "・間接なし" : "") + "）" : ""}`) : ["該当なし"]));
+  }
+  return out;
+}
+async function shot(v) {
+  await loadH2C();
+  const box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:-30000px;top:0;width:560px;background:#fff;padding:10px 12px;box-sizing:border-box;color:#1f2b38;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;font-size:14px;line-height:1.4";
+  const nowT = tm(TL.today ? TL.now : Date.now());
+  box.innerHTML = `<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px"><b style="font-size:16px">間接・TOT</b><span>${esc(TL.date)}　${esc(nowT)} 時点</span><span style="font-size:12px;color:#374151">${esc(viewLabel(v))}・${v.list.length}名</span></div>`;
+  const ax = document.getElementById("axis").cloneNode(true); ax.removeAttribute("id");
+  const rows = document.getElementById("rows").cloneNode(true); rows.removeAttribute("id");
+  rows.querySelectorAll(".row").forEach(r => r.classList.remove("open"));
+  rows.querySelectorAll(".cv").forEach(x => x.remove());
+  rows.querySelectorAll("i.fi").forEach(x => { x.style.background = x.dataset.c; x.style.opacity = ".75"; });   // 画像化の部品が color-mix を読めないため
+  box.append(ax, rows);
+  document.body.appendChild(box);
+  try {
+    const h = box.scrollHeight, scale = Math.max(1, Math.min(2, 14000 / h));
+    const cv = await window.html2canvas(box, { backgroundColor: "#ffffff", scale, logging: false });
+    return { dataUrl: cv.toDataURL("image/png"), nowT };
+  } finally { box.remove(); }
+}
+(function () {
+  const $ = id => document.getElementById(id);
+  let cur = null;
+  $("slBtn").onclick = async () => {
+    if (!gView || !TL) return;
+    const b = $("slBtn"); b.disabled = true; b.textContent = "作成中…";
+    try {
+      const v = gView, s = await shot(v);
+      cur = { ...s, v };
+      $("slImg").src = s.dataUrl;
+      $("slText").value = [`間接・TOT（${TL.date} ${s.nowT} 時点・${viewLabel(v)}・${v.list.length}名）`, ...slackDetail(v)].join("\n");
+      $("slMsg").textContent = `${v.list.length}名分`;
+      $("slSend").disabled = false;
+      $("slDlg").hidden = false;
+    } catch (e) { alert("画像を作れませんでした：" + e.message); }
+    finally { b.disabled = false; b.textContent = "Slackに送る"; }
+  };
+  $("slClose").onclick = () => { $("slDlg").hidden = true; };
+  $("slSend").onclick = async () => {
+    if (!cur) return;
+    $("slSend").disabled = true; $("slMsg").textContent = "送信中…";
+    try {
+      const r = await fetch(API + "/api/slack/send", { method: "POST", headers: { "x-token": slKey, "content-type": "application/json" },
+        body: JSON.stringify({ image: cur.dataUrl, filename: `kansetsu_m_${TL.date}_${cur.nowT.replace(":", "")}.png`, title: `間接・TOT ${TL.date} ${cur.nowT}`, text: $("slText").value }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 401) { try { localStorage.removeItem("ind_slack"); } catch (e) { /* 無視 */ } slKey = ""; $("slBtn").hidden = true; throw new Error("Slack送信の鍵が古くなっています。管理画面の「スマホ用URL（間接・TOT＋Slack送信）」から開き直してください"); }
+      if (!r.ok || j.error) throw new Error(j.error || "HTTP " + r.status);
+      $("slMsg").textContent = "送信しました";
+      setTimeout(() => { $("slDlg").hidden = true; }, 1200);
+    } catch (e) { $("slMsg").textContent = "送れませんでした：" + e.message; $("slSend").disabled = false; }
+  };
 })();
 render(); load();
 </script>
