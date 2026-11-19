@@ -102,6 +102,14 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
 .sldlg .bd{overflow:auto;padding:8px 10px 12px;display:flex;flex-direction:column;gap:8px;}
 .sldlg .bd img{display:block;width:100%;border:1px solid var(--line);border-radius:8px;}
 .sldlg textarea{width:100%;min-height:110px;font-size:16px;font-family:inherit;padding:8px;border:1px solid #cfd6e0;border-radius:8px;}
+.askdlg{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;}
+.askdlg[hidden]{display:none;}
+.askdlg .bx{background:#fff;border-radius:14px;width:100%;max-width:360px;padding:16px;display:flex;flex-direction:column;gap:12px;}
+.askdlg .tx{font-size:14px;line-height:1.6;white-space:pre-wrap;}
+.askdlg input{width:100%;font-size:16px;padding:9px 10px;border:1px solid #cfd6e0;border-radius:9px;font-family:inherit;}
+.askdlg .bt{display:flex;gap:8px;justify-content:flex-end;}
+.askdlg .bt button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer;}
+.askdlg .bt button.ok{background:#334155;color:#fff;border-color:#334155;}
 .ft{text-align:center;font-size:11px;color:var(--sub);padding:10px 0 calc(env(safe-area-inset-bottom) + 6px);} .ft a{color:var(--sub);}
 </style>
 </head>
@@ -115,6 +123,7 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
   </div>
 </header>
 <div class="navmask" id="navMask" hidden></div>
+<div class="askdlg" id="askDlg" hidden><div class="bx"><div class="tx" id="askTx"></div><input id="askIn" autocomplete="off" autocapitalize="off" spellcheck="false" hidden><div class="bt"><button type="button" id="askNo">キャンセル</button><button type="button" class="ok" id="askOk">OK</button></div></div></div>
 <div class="sldlg" id="slDlg" hidden><div class="bx">
   <div class="hd"><b>Slackに送る</b><span class="msg" id="slMsg"></span><button type="button" id="slClose">閉じる</button><button type="button" class="go" id="slSend">この内容で送信</button></div>
   <div class="bd"><img id="slImg" alt="送る画像のプレビュー"><label style="font-size:12px;color:var(--sub)">一緒に送る文章<textarea id="slText"></textarea></label></div>
@@ -165,6 +174,21 @@ const dur = ms => { const m = Math.max(0, Math.round(ms / MIN)); return m >= 60 
 const fold = s => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g, "");
 
 let gView = null, slClick = () => {};
+// 画面内の確認・入力（ホーム画面のアプリで alert/prompt を使うと、上にサイトのURLが出るため使わない）
+function ask(text, opt) {
+  opt = opt || {};
+  const d = document.getElementById("askDlg"), inp = document.getElementById("askIn"), no = document.getElementById("askNo"), ok = document.getElementById("askOk");
+  document.getElementById("askTx").textContent = text;
+  inp.hidden = !opt.input; inp.value = ""; inp.placeholder = opt.placeholder || "";
+  no.hidden = !!opt.alert; ok.textContent = opt.okText || "OK";
+  d.hidden = false;
+  if (opt.input) setTimeout(() => inp.focus(), 50);
+  return new Promise(res => {
+    const done = v => { d.hidden = true; ok.onclick = no.onclick = null; res(v); };
+    ok.onclick = () => done(opt.input ? inp.value : true);
+    no.onclick = () => done(opt.input ? null : false);
+  });
+}
 let key = "", TL = null, loading = false, err = "", keyMsg = "";
 let tab = "tot", area = "", dcat = "", q = "", srt = "std";
 try { srt = localStorage.getItem("ind_srt") || "std"; } catch (e) { /* 無視 */ }
@@ -430,7 +454,7 @@ function render() {
   const sel = document.getElementById("srt");
   sel.value = srt;
   sel.addEventListener("change", () => { srt = sel.value; try { localStorage.setItem("ind_srt", srt); } catch (e) { /* 無視 */ } render(); });
-  document.getElementById("resetKey").onclick = () => { if (!confirm("この端末に保存した閲覧用の鍵を消去しますか？")) return; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } render(); };
+  document.getElementById("resetKey").onclick = async () => { if (!(await ask("この端末に保存した閲覧用の鍵を消去しますか？"))) return; key = ""; TL = null; try { localStorage.removeItem("ind_key"); } catch (e) { /* 無視 */ } render(); };
 })();
 /* ---------- Slackに送る（表示中の一覧を画像にして、管理画面と同じ送り先へ） ---------- */
 function loadH2C() {
@@ -494,9 +518,9 @@ async function shot(v) {
     if (!gView || !TL) return;
     if (!slKey) {
       // ホーム画面に追加したアプリは Safari と保存場所が別なので、URLで開いても鍵が届かない → ここで貼り付けて登録できるようにする
-      const v = (prompt("このスマホは Slack 送信の登録がまだです。\nPCの間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」の s= の後ろ（英数字32文字）を貼り付けてください。\n（URL全体を貼り付けても大丈夫です）") || "").trim();
+      const v = ((await ask("このスマホは Slack 送信の登録がまだです。\nPCの間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」の s= の後ろ（英数字32文字）を貼り付けてください。\n（URL全体を貼り付けても大丈夫です）", { input: true, placeholder: "鍵 または URL", okText: "登録" })) || "").trim();
       const m = v.match(/(?:[?&]s=)?([0-9a-f]{32})\s*$/i);
-      if (!m) { if (v) alert("鍵の形が違います（英数字32文字）。もう一度お試しください。"); return; }
+      if (!m) { if (v) await ask("鍵の形が違います（英数字32文字）。もう一度お試しください。", { alert: true }); return; }
       slKey = m[1].toLowerCase();
       try { localStorage.setItem("ind_slack", slKey); } catch (e) { /* 無視 */ }
     }
@@ -505,11 +529,17 @@ async function shot(v) {
       const v = gView, s = await shot(v);
       cur = { ...s, v };
       $("slImg").src = s.dataUrl;
-      $("slText").value = [`間接・TOT（${TL.date} ${s.nowT} 時点・${viewLabel(v)}・${v.list.length}名）`, ...slackDetail(v)].join("\n");
+      let head = [`間接・TOT（${TL.date} ${s.nowT} 時点・${viewLabel(v)}・${v.list.length}名）`];
+      if (v.dcat) {   // ダイレクト作業で絞り込み中：「Stow 15名」「Stow全体のUPH〇〇　LH〇〇」（全体＝FCLM の当日の数字。PC版と同じ）
+        const nm = DIR_NM[v.dcat] || v.dcat, st = ((TL.fr && TL.fr.stats) || {})[v.dcat];
+        head = [`${nm} ${v.list.length}名`];
+        if (st && st.day) head.push(`${nm}全体のUPH ${st.day.uph ?? "—"}　LH ${st.day.hrs != null ? Math.round(Number(st.day.hrs) * 10) / 10 : "—"}`);
+      }
+      $("slText").value = [...head, ...slackDetail(v)].join("\n");
       $("slMsg").textContent = `${v.list.length}名分`;
       $("slSend").disabled = false;
       $("slDlg").hidden = false;
-    } catch (e) { alert("画像を作れませんでした：" + e.message); }
+    } catch (e) { ask("画像を作れませんでした：" + e.message, { alert: true }); }
     finally { b.disabled = false; b.textContent = "Slackに送る"; }
   };
   $("slClose").onclick = () => { $("slDlg").hidden = true; };
