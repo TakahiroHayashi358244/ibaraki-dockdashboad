@@ -210,12 +210,14 @@ try { tab = localStorage.getItem("ind_tab") || "tot"; } catch (e) { /* 無視 */
   if (k) { try { localStorage.setItem("ind_key", k); } catch (e) { /* 無視 */ } u.searchParams.delete("k"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
   try { key = localStorage.getItem("ind_key") || k || IND_VIEW_KEY; } catch (e) { key = k || IND_VIEW_KEY; }
 })();
-// Slack送信の鍵（間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」の s= の後ろ）。このファイルには埋め込まない（公開されるため）。開いた端末にだけ保存
+// Slack送信の鍵（間接打刻管理 → 設定 →「スマホ用URL（間接・TOT＋Slack送信）」の s= の後ろ）。
+// 埋め込んであるので、どのスマホでも登録なしで送れる。※このファイルは公開されるため、知った人は送り先チャンネルに投稿できる（サーバ側で20秒に1回まで）
+const IND_SLACK_KEY = "17f10c567b8752a1e854e1ff2105065f";
 let slKey = "";
 (function () {
   const u = new URL(location.href), s = u.searchParams.get("s");
   if (s) { try { localStorage.setItem("ind_slack", s); } catch (e) { /* 無視 */ } u.searchParams.delete("s"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
-  try { slKey = localStorage.getItem("ind_slack") || s || ""; } catch (e) { slKey = s || ""; }
+  try { slKey = localStorage.getItem("ind_slack") || s || IND_SLACK_KEY; } catch (e) { slKey = s || IND_SLACK_KEY; }
 })();
 
 /* ---------- 切替メニュー（現場ビューの各画面へ） ---------- */
@@ -550,7 +552,7 @@ async function shot(v) {
       const r = await fetch(API + "/api/slack/send", { method: "POST", headers: { "x-token": slKey, "content-type": "application/json" },
         body: JSON.stringify({ image: cur.dataUrl, filename: `kansetsu_m_${TL.date}_${cur.nowT.replace(":", "")}.png`, title: `間接・TOT ${TL.date} ${cur.nowT}`, text: $("slText").value }) });
       const j = await r.json().catch(() => ({}));
-      if (r.status === 401) { try { localStorage.removeItem("ind_slack"); } catch (e) { /* 無視 */ } slKey = ""; throw new Error("Slack送信の鍵が古くなっています。管理画面の「スマホ用URL（間接・TOT＋Slack送信）」から開き直してください"); }
+      if (r.status === 401) { try { localStorage.removeItem("ind_slack"); } catch (e) { /* 無視 */ } slKey = slKey === IND_SLACK_KEY ? "" : IND_SLACK_KEY; throw new Error("Slack送信の鍵が古くなっています。管理画面の「スマホ用URL（間接・TOT＋Slack送信）」から開き直してください"); }
       if (!r.ok || j.error) throw new Error(j.error || "HTTP " + r.status);
       $("slMsg").textContent = "送信しました";
       setTimeout(() => { $("slDlg").hidden = true; }, 1200);
