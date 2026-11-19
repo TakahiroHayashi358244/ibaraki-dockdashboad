@@ -7,7 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="HFO1 間接">
+<meta name="apple-mobile-web-app-title" content="HFO1">
+<link rel="manifest" href="app.webmanifest">
 <title>HFO1 間接・TOT</title>
 <style>
 :root{--ink:#1f2b38;--sub:#697a8c;--line:#e3e8ee;--bg:#eef2f6;--mw:430px;}
@@ -114,7 +115,14 @@ body.embed{max-width:none;box-shadow:none;} body.embed header,body.embed .navmen
 </style>
 </head>
 <body>
-<script>if (/[?&]embed=1/.test(location.search)) document.body.classList.add("embed");</script>
+<script>
+if (/[?&]embed=1/.test(location.search)) document.body.classList.add("embed");
+// ホーム画面のアプリでこのページを直接開いたとき（このページから「ホーム画面に追加」したアイコンなど）は、
+// 現場ビュー（m.html）の中で開き直す。直接開いたままだと、メニューで他の画面へ移るたびに上にURL欄が出るため
+else if (window.top === window && (navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches))) {
+  location.replace("m.html?v=ind");
+}
+</script>
 <header>
   <div class="h1">
     <button class="navbtn" id="navBtn" aria-haspopup="menu"><span>間接・TOT</span><span class="cr">▼</span></button>
