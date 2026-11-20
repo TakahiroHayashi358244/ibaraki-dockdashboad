@@ -333,7 +333,8 @@ body[data-v="order"] header{background:#0f766e;}
 .o-ch{font-size:10.5px;font-weight:800;color:#0f766e;margin:0 2px 3px;} .o-ch.out{color:#64748b;}
 .o-cpt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:8px;}
 .o-cpt div{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 5px;min-width:0;}
-.o-cpt.out div{background:#f8fafc;}
+.o-cpt .ot{background:#f1f5f9;border-style:dashed;} .o-cpt .ot span{color:#94a3b8;}
+.o-chn{margin-left:8px;font-weight:700;color:#94a3b8;}
 .o-cpt span{display:block;font-size:10px;letter-spacing:-.2px;font-weight:800;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .o-cpt small{display:block;font-size:9.5px;font-weight:800;color:#c2410c;line-height:1.2;min-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.3px;}
 .o-cpt b{display:block;font-size:17px;letter-spacing:-.3px;line-height:1.15;font-variant-numeric:tabular-nums;text-align:right;}
@@ -1118,8 +1119,7 @@ function renderOrder() {
     const cl = (x.passed && v ? "lt" : x.next ? "nx" : "") + (v ? "" : " z") + (idx.includes(x.i) ? "" : " ex");
     return `<div class="${cl}"><span>${esc(x.label)}</span><small>${x.next ? odLeft(x) : "&nbsp;"}</small><b>${odNf(v)}</b><em>Air ${odNf(a)}</em></div>`; };
   const Lin = L.filter(x => x.inShift), Lout = L.filter(x => !x.inShift);
-  h += `<div class="o-ch">シフト内 ${odCutTxt()}</div><div class="o-cpt">${Lin.map(cell).join("")}</div>`;
-  if (Lout.length) h += `<div class="o-ch out">シフト外</div><div class="o-cpt out">${Lout.map(cell).join("")}</div>`;
+  h += `<div class="o-ch">シフト内 ${odCutTxt()}${Lout.length ? `<span class="o-chn">灰色＝シフト外</span>` : ""}</div><div class="o-cpt">${Lin.map(cell).join("")}${Lout.map(x => cell(x).replace('<div class="', '<div class="ot ')).join("")}</div>`;
   const worst = S.fs.filter(x => x.total && x.hrs != null).sort((a, b) => b.hrs - a.hrs)[0];
   h += `<div class="o-kp"><div><span>${odFutOn() ? "全体" : "シフト内"}</span><b>${odNf(S.total)}</b><em>${odFutOn() ? "シフト外も含む" : odCutTxt()}</em></div>
     <div><span>Pick</span><b>${S.hc}名</b><em>LH ${fmt1(S.lh)}</em></div>
