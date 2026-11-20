@@ -318,6 +318,57 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 .pm-err{margin:8px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
 .pm-ft{text-align:center;font-size:11px;color:var(--sub);padding:10px 0;} .pm-ft a{color:var(--sub);}
 .at-err{margin:6px 0;padding:7px 9px;border-radius:8px;background:#fde8e8;color:#991b1b;font-size:12px;}
+
+/* ===== ⑦ オーダー（C4・階層別） ===== */
+body[data-v="order"] header{background:#0f766e;}
+.hf-h .od{font-size:11.5px;font-weight:800;color:#fff;background:#0f766e;border-radius:6px;padding:1px 7px;font-variant-numeric:tabular-nums;cursor:pointer;}
+.hf-h .od.w{background:#dc2626;}
+.o-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--sub);margin:0 2px 8px;}
+.o-top .st{font-weight:800;color:#0f766e;} .o-top .st.ng{color:#dc2626;}
+.o-top label{margin-left:auto;display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-weight:800;color:var(--ink);font-size:12px;}
+.o-top input{width:17px;height:17px;margin:0;accent-color:#0f766e;}
+.o-ch{font-size:10.5px;font-weight:800;color:#0f766e;margin:0 2px 3px;} .o-ch.out{color:#64748b;}
+.o-cpt{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px;}
+.o-cpt div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 7px;}
+.o-cpt.out div{background:#f8fafc;}
+.o-cpt span{display:block;font-size:10.5px;font-weight:800;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.o-cpt b{display:block;font-size:19px;line-height:1.15;font-variant-numeric:tabular-nums;text-align:right;}
+.o-cpt em{display:block;font-style:normal;font-size:10.5px;font-weight:700;color:#0369a1;text-align:right;font-variant-numeric:tabular-nums;}
+.o-cpt .nx{background:#fff7ed;border-color:#fdba74;} .o-cpt .nx span,.o-cpt .nx b{color:#c2410c;}
+.o-cpt .lt{background:#fef2f2;border-color:#fca5a5;} .o-cpt .lt span,.o-cpt .lt b{color:#dc2626;}
+.o-cpt .z b{color:#cbd5e1;} .o-cpt .ex{opacity:.4;}
+.o-kp{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;}
+.o-kp div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 6px;text-align:center;}
+.o-kp span{display:block;font-size:10px;color:var(--sub);font-weight:700;}
+.o-kp b{font-size:16px;font-variant-numeric:tabular-nums;}
+.o-kp em{display:block;font-style:normal;font-size:10px;color:var(--sub);}
+.o-lg{display:flex;flex-wrap:wrap;gap:8px;font-size:10.5px;font-weight:700;color:var(--sub);margin:0 2px 6px;}
+.o-lg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:3px;vertical-align:-1px;}
+.o-fl{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;scroll-margin-top:8px;}
+.o-fh{padding:8px 10px;cursor:pointer;}
+.o-r1{display:flex;align-items:center;gap:8px;}
+.o-r1 .nm{font-weight:800;font-size:15px;}
+.o-r1 .tot{font-size:24px;font-weight:900;color:#0f766e;font-variant-numeric:tabular-nums;}
+.o-r1 .ar{margin-left:auto;font-size:10px;color:var(--sub);transition:transform .15s;}
+.o-fl.op .o-r1 .ar{transform:rotate(180deg);}
+.o-r2{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--sub);margin-top:2px;font-variant-numeric:tabular-nums;}
+.o-r2 b{color:var(--ink);} .o-r2 .mi{color:#dc2626;} .o-r2 .pl{color:#2563eb;}
+.o-bar{display:flex;height:22px;border-radius:6px;overflow:hidden;background:#f1f5f9;margin-top:6px;}
+.o-bar i{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-style:normal;line-height:1;min-width:0;overflow:hidden;border-right:1px solid rgba(255,255,255,.6);font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;}
+.o-bar i:last-child{border-right:0;} .o-bar i small{font-size:8.5px;font-weight:700;opacity:.9;}
+.o-bar.e{display:block;background:none;color:var(--sub);font-size:11px;height:auto;}
+.o-fb{display:none;border-top:1px solid var(--line);padding:7px 8px 9px;}
+.o-fl.op .o-fb{display:block;}
+.o-tw{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.o-t{border-collapse:collapse;font-size:11.5px;min-width:100%;}
+.o-t th{background:#f6f9fb;color:var(--sub);font-weight:800;font-size:10px;padding:4px 6px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line);}
+.o-t th.out{color:#94a3b8;background:#eef2f6;}
+.o-t td{padding:4px 6px;text-align:right;border-bottom:1px solid #f1f5f9;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.o-t th:first-child,.o-t td:first-child{text-align:left;position:sticky;left:0;background:#fff;}
+.o-t th:first-child{background:#f6f9fb;}
+.o-t tr.tt td{font-weight:800;background:#fffbea;}
+.o-t td.nx{color:#c2410c;font-weight:800;} .o-t td.lt{color:#dc2626;font-weight:800;}
+.o-em{color:var(--sub);text-align:center;padding:28px 10px;font-size:12.5px;}
 </style>
 </head>
 <body data-v="dock">
@@ -360,6 +411,14 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
     <div class="kpis4" id="hKpis"></div>
     <div id="hBody"><div class="empty">読み込み中…</div></div>
     <div class="ft">閲覧専用です。配置の変更はPCの配置ダッシュボードから行ってください。</div>
+  </div>
+</div>
+
+<!-- ⑦ オーダー（C4の階層別・CPT別オーダー数・閲覧専用） -->
+<div class="view" id="v-order" hidden>
+  <div class="wrap">
+    <div id="ord"><div class="empty">読み込み中…</div></div>
+    <div class="ft">閲覧専用です。C4の画面（Tampermonkey）から3分ごとに届きます。</div>
   </div>
 </div>
 
@@ -498,6 +557,7 @@ const VIEWS = [
   { id: "dock", name: "ドック状況" },
   { id: "plan", name: "着車プラン" },
   { id: "haichi", name: "配置" },
+  { id: "order", name: "オーダー" },
   { id: "att", name: "出勤者" },
   { id: "punch", name: "打刻監視" },
   { id: "ind", name: "間接・TOT" },   // 中身は別ファイル indirect-m.html を埋め込む（ページを移動しないので、ホーム画面のアプリでもURL欄が出ない）
@@ -508,7 +568,9 @@ function setView(v) {
   document.getElementById("navName").textContent = (VIEWS.find(x => x.id === v) || {}).name || "";
   VIEWS.forEach(x => { document.getElementById("v-" + x.id).hidden = x.id !== v;
     document.getElementById("v-" + x.id).scrollTop = 0; });
-  document.getElementById("sw").hidden = v !== "haichi" && v !== "plan";
+  document.getElementById("sw").hidden = v !== "haichi" && v !== "plan" && v !== "order";
+  // 左上の切替メニューの「いまの画面」の印も合わせる（前回の画面で開いたときにずれないように）
+  document.querySelectorAll("#navMenu button[data-v]").forEach(b => b.classList.toggle("cur", b.dataset.v === v));
   closeMenu();
   try { localStorage.setItem("mView", v); } catch (e) { /* 無視 */ }
   attActivate(v === "att");
@@ -902,7 +964,7 @@ function renderHaichi() {
     });
     h += `<div class="hf${closedFl[fn] ? " cl" : ""}">
       <div class="hf-h" onclick="toggleFloor('${esc(fn)}')"><span class="ar">▼</span>
-        <span class="nm" style="color:${col}">${esc(fn)}</span><span class="m">${mem.length}名 ・ LH ${fmt1(lh)}</span></div>
+        <span class="nm" style="color:${col}">${esc(fn)}</span>${hSel === "today" ? odFloorBadge(fn) : ""}<span class="m">${mem.length}名 ・ LH ${fmt1(lh)}</span></div>
       <div class="hf-b">${groups.length ? groups.map(g => `<div class="gr">
         <div class="gr-h"><b>${esc(g.sub || g.label)}</b>${g.sub ? `<span>${esc(g.label)}</span>` : ""}
           <span class="n">${g.list.length}名 ・ ${fmt1(g.list.reduce((s, p) => s + (p.lh || 0), 0))}</span></div>
@@ -927,6 +989,168 @@ function renderHaichi() {
   document.getElementById("hBody").innerHTML = note + (all.length ? h : `<div class="empty">データがありません</div>`);
 }
 
+
+/* ==========================================================
+   ⑦ オーダー（C4の階層別・CPT別オーダー数）── PC版の配置ダッシュボードと同じデータ（Firebase の orderData）を読むだけ
+   ・シフト内の区切り：日勤＝当日20:00まで、夜勤＝翌朝8:00まで（上の日勤／夜勤に合わせる）。C4の列名ではなくCPT時刻で分ける
+   ・「シフト外も含む」はこの端末だけの切替（PC版と同じキー。外すとシフト内のCPTだけで数える）
+   ・Pick の人数・処理能力は、配置（当日分）の各フロアの OUT「Pick」にいる人と、過去30日の個人UPH から計算
+   ・フロアのカードを押すと Pick Area × CPT の明細（0は出さない。データ更新でも閉じない）
+   ========================================================== */
+const OD = { data: null, open: {}, mu: null, muFb: null, muAt: 0 };
+const OD_COL = "haichi_order_col";
+const OD_CC = ["#0f766e", "#2563eb", "#7c3aed", "#d97706", "#db2777", "#0891b2", "#65a30d"];
+const OD_UPH_API = "https://indirect-relay-hfo1.takahiro884.workers.dev/api/fr/uphall?days=30&k=1540850d9c168e02e13c9c10c06d8bed";
+const odNf = n => Math.round(n).toLocaleString("ja-JP");
+const odNum = v => { if (typeof v === "number") return isFinite(v) ? v : 0; const x = parseFloat(String(v == null ? "" : v).replace(/[,\s，]/g, "")); return isFinite(x) ? x : 0; };
+const odFloors = () => (D.floors && D.floors.length ? D.floors.map(f => f.name) : ["6F", "5F", "4F", "3F", "2F"]);
+function odNorm(v) {
+  if (!v || !v.floors) return null;
+  const rows = x => (Array.isArray(x) ? x : Object.values(x || {})).map(r => Array.isArray(r) ? r : Object.values(r || {}));
+  const o = { at: v.at || null, header: Array.isArray(v.header) ? v.header : Object.values(v.header || {}), floors: {}, sender: v.sender || null };
+  Object.keys(v.floors).forEach(f => { o.floors[f] = rows((v.floors[f] || {}).rows); });
+  return o;
+}
+const odRows = f => (OD.data && OD.data.floors[f]) || [];
+// 個人の過去30日 Pick UPH（PC版と同じ API。オーダー画面を開いたときに読む・30分ごと）
+const OD_IT = {"髙":"高","﨑":"崎","嵜":"崎","德":"徳","濵":"浜","濱":"浜","邊":"辺","邉":"辺","齋":"斎","齊":"斎","槇":"槙","冨":"富","櫻":"桜","澤":"沢","國":"国","廣":"広","眞":"真","實":"実","惠":"恵","瀨":"瀬"};
+const odKey = s => String(s || "").normalize("NFKC").replace(/[髙﨑嵜德濵濱邊邉齋齊槇冨櫻澤國廣眞實惠瀨]/g, c => OD_IT[c] || c).replace(/[\s　・.,，]/g, "").toLowerCase();
+function odLoadUph() {
+  if (Date.now() - OD.muAt < 30 * 60000) return; OD.muAt = Date.now();
+  fetch(OD_UPH_API, { cache: "no-store" }).then(r => r.json()).then(j => {
+    if (!j || !j.ok) return;
+    const m = new Map(); let u = 0, h = 0;
+    for (const q of j.people || []) {
+      const c = q.cats && q.cats.Pick; if (!c || c.uph == null) continue;
+      for (const n of [q.name, q.alias]) { const k = odKey(n); if (k) m.set(k, c.uph); }
+      u += c.uph * (c.hrs || 0); h += c.hrs || 0;
+    }
+    OD.mu = m; OD.muFb = h > 0 ? u / h : null; render();
+  }).catch(e => console.warn("個人UPHの読込に失敗", e));
+}
+const odUph = p => { if (!OD.mu) return null; const v = OD.mu.get(odKey(dispName(p))) ?? OD.mu.get(odKey(p.name)); return v != null ? v : OD.muFb; };
+function odCols() {
+  const h = (OD.data && OD.data.header) || [];
+  let iPP = h.findIndex(x => /process\s*path/i.test(x)), iPA = h.findIndex(x => /pick\s*area/i.test(x));
+  if (iPP < 0) iPP = 0; if (iPA < 0) iPA = 1;
+  return { h, iPP, iPA, nums: h.map((x, i) => i).filter(i => i !== iPP && i !== iPA && String(h[i]).trim()) };
+}
+function odCut() {
+  const now = new Date(), d = new Date(now);
+  if (shift === "夜勤") { d.setHours(8, 0, 0, 0); if (now.getHours() >= 8) d.setDate(d.getDate() + 1); }
+  else d.setHours(20, 0, 0, 0);
+  return d.getTime();
+}
+const odCutTxt = () => shift === "夜勤" ? "夜勤〜翌8:00" : "日勤〜20:00";
+function odCpts() {
+  const c = odCols(), now = Date.now(), cut = odCut();
+  const L = c.nums.map(i => {
+    const h = String(c.h[i] || ""), m = h.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+    const t = m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null;
+    const nm = h.split(/\n/)[0].replace(/\s*CPT\s*/i, "").trim() || h;
+    const passedCol = /passed/i.test(h), future = /future/i.test(h);
+    return { i, h, t, future, passed: passedCol || (t != null && t < now),
+      inShift: !future && (passedCol || t == null || t <= cut),
+      label: passedCol ? "Passed" : future ? "Future" : (t ? `${nm} ${pad(new Date(t).getHours())}:${pad(new Date(t).getMinutes())}` : nm) };
+  });
+  const nx = L.filter(x => x.t && x.t >= now).sort((a, b) => a.t - b.t)[0];
+  L.forEach(x => x.next = x === nx);
+  return L;
+}
+const odFutOn = () => { let w = ""; try { w = localStorage.getItem(OD_COL) || ""; } catch (e) {} return w !== "__today"; };
+function odIdx() {
+  const c = odCols(); let w = ""; try { w = localStorage.getItem(OD_COL) || ""; } catch (e) {}
+  if (w === "__today") return odCpts().filter(x => x.inShift).map(x => x.i);
+  if (w && w !== "__sum") { const i = c.h.indexOf(w); if (i >= 0) return [i]; }
+  return c.nums;
+}
+const odSum = (rows, idx) => rows.reduce((s, r) => s + idx.reduce((a, i) => a + odNum(r[i]), 0), 0);
+const odColSum = (rows, i) => rows.reduce((s, r) => s + odNum(r[i]), 0);
+// Pick 工程の判定（PC版と同じ）：OUT で工程名に pick を含む
+const odIsPick = p => { const l = locOf(p).split("|"); return l[0] === "OUT" && /pick/i.test(l[1] || ""); };
+const odPick = f => people().filter(p => p.shift === shift && !p.admin && floorOfP(p) === f && odIsPick(p));
+function odStats() {
+  const idx = odIdx(), fs = odFloors().map(f => {
+    const rows = odRows(f), ps = odPick(f);
+    let perH = null;
+    if (OD.mu) { perH = 0; ps.forEach(p => { const u = odUph(p); if (u != null) perH += u; }); if (!perH) perH = null; }
+    const total = odSum(rows, idx);
+    return { f, rows, total, hc: ps.length, lh: ps.reduce((s, p) => s + (p.lh || 0), 0), perH, hrs: perH ? total / perH : null };
+  });
+  const total = fs.reduce((s, x) => s + x.total, 0), hc = fs.reduce((s, x) => s + x.hc, 0);
+  fs.forEach(x => { x.target = total ? hc * x.total / total : 0; x.diff = x.hc - x.target; });
+  return { fs, total, hc, lh: fs.reduce((s, x) => s + x.lh, 0), perH: fs.reduce((s, x) => s + (x.perH || 0), 0) || null };
+}
+const odHrs = h => h == null ? "—" : (h < 0.05 ? "0.0" : h.toFixed(1)) + "h";
+const odLeft = x => { if (!x.t) return ""; const m = Math.round((x.t - Date.now()) / 60000); return m < 0 ? "" : "あと" + (m >= 60 ? Math.floor(m / 60) + "時間" + (m % 60 ? m % 60 + "分" : "") : m + "分"); };
+// 配置画面のフロア見出しに出す「注 N」（押すとオーダー画面のそのフロアを開く）
+function odFloorBadge(fn) {
+  if (!OD.data || !OD.data.floors[fn]) return "";
+  const S = odStats(), x = S.fs.find(y => y.f === fn); if (!x) return "";
+  const w = x.total > 0 && (!x.hc || (S.hc && x.diff < -0.6));
+  return `<span class="od${w ? " w" : ""}" onclick="event.stopPropagation();odGo('${esc(fn)}')">注 ${odNf(x.total)}</span>`;
+}
+function odGo(f) {
+  OD.open[f] = true; setView("order");
+  setTimeout(() => { const el = document.getElementById("od-" + f); if (el) el.scrollIntoView({ block: "start" }); }, 80);
+}
+function odSetFut(on) { try { localStorage.setItem(OD_COL, on ? "__sum" : "__today"); } catch (e) {} render(); }
+function odTog(f) { OD.open[f] = !OD.open[f]; render(); }
+function renderOrder() {
+  odLoadUph();
+  const sh = shifts(); if (!sh.includes(shift)) shift = sh[0];
+  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
+  const el = document.getElementById("ord"); if (!el) return;
+  if (!OD.data) { document.getElementById("sub").textContent = "—"; el.innerHTML = `<div class="o-em">まだオーダーのデータがありません。<br>C4の画面（Tampermonkey）からの送信を待っています。</div>`; return; }
+  const S = odStats(), c = odCols(), L = odCpts(), idx = odIdx(), all = odFloors().flatMap(odRows);
+  document.getElementById("sub").textContent = `${odFutOn() ? "全体" : "シフト内"} ${odNf(S.total)}`;
+  const isAir = r => /_air/i.test(String(r[c.iPA] || ""));
+  const age = OD.data.at ? (Date.now() - OD.data.at) / 60000 : null, stale = age == null || age > 10;
+  let h = `<div class="o-top"><span class="st${stale ? " ng" : ""}">${age == null ? "更新時刻不明" : `最終更新 ${hhmm(OD.data.at)}（${Math.round(age)}分前）`}${stale ? "・更新が止まっています" : ""}</span>
+    ${OD.data.sender && OD.data.sender.name ? `<span>送信：${esc(OD.data.sender.name)}</span>` : ""}
+    <label><input type="checkbox" ${odFutOn() ? "checked" : ""} onchange="odSetFut(this.checked)">シフト外も含む</label></div>`;
+  const cell = x => { const v = odColSum(all, x.i), a = odColSum(all.filter(isAir), x.i);
+    const cl = (x.passed && v ? "lt" : x.next ? "nx" : "") + (v ? "" : " z") + (idx.includes(x.i) ? "" : " ex");
+    return `<div class="${cl}"><span>${esc(x.label)}${x.next ? "・" + odLeft(x) : ""}</span><b>${odNf(v)}</b><em>Air ${odNf(a)}</em></div>`; };
+  const Lin = L.filter(x => x.inShift), Lout = L.filter(x => !x.inShift);
+  h += `<div class="o-ch">シフト内 ${odCutTxt()}</div><div class="o-cpt">${Lin.map(cell).join("")}</div>`;
+  if (Lout.length) h += `<div class="o-ch out">シフト外</div><div class="o-cpt out">${Lout.map(cell).join("")}</div>`;
+  const worst = S.fs.filter(x => x.total && x.hrs != null).sort((a, b) => b.hrs - a.hrs)[0];
+  h += `<div class="o-kp"><div><span>${odFutOn() ? "全体" : "シフト内"}</span><b>${odNf(S.total)}</b><em>${odFutOn() ? "シフト外も含む" : odCutTxt()}</em></div>
+    <div><span>Pick</span><b>${S.hc}名</b><em>LH ${fmt1(S.lh)}</em></div>
+    <div><span>処理能力</span><b>${S.perH ? odNf(S.perH) : "—"}</b><em>/h</em></div>
+    <div><span>最遅</span><b>${worst ? worst.f : "—"}</b><em>${worst ? odHrs(worst.hrs) + "・" + hhmm(Date.now() + worst.hrs * 3600000) : ""}</em></div></div>`;
+  const col = (x, k) => /passed/i.test(x.h) ? "#dc2626" : OD_CC[k % OD_CC.length];
+  h += `<div class="o-lg">${Lin.map((x, k) => `<span><i style="background:${col(x, k)}"></i>${esc(x.label)}</span>`).join("")}</div>`;
+  const maxT = Math.max(1, ...S.fs.map(x => Lin.reduce((s, t) => s + odColSum(x.rows, t.i), 0)));
+  S.fs.forEach((x, fi) => {
+    const fc = `var(--f${fi % 5})`;
+    const vals = Lin.map(t => odColSum(x.rows, t.i)), tt = vals.reduce((a, b) => a + b, 0);
+    const bar = tt ? `<div class="o-bar" style="width:${Math.max(tt / maxT * 100, 10).toFixed(1)}%">${Lin.map((t, k) => { const v = vals[k]; if (!v) return ""; const pc = v / tt * 100;
+      return `<i style="width:${pc}%;background:${col(t, k)}">${(tt / maxT) * (pc / 100) * 300 >= 26 ? `${odNf(v)}<small>${Math.round(pc)}%</small>` : ""}</i>`; }).join("")}</div>` : `<div class="o-bar e">シフト内なし</div>`;
+    const pm = Math.round(x.diff * 10) / 10;
+    h += `<div class="o-fl${OD.open[x.f] ? " op" : ""}" id="od-${esc(x.f)}"><div class="o-fh" onclick="odTog('${esc(x.f)}')">
+      <div class="o-r1"><span class="nm" style="color:${fc}">${esc(x.f)}</span><span class="tot">${odNf(x.total)}</span><span class="ar">▼</span></div>
+      <div class="o-r2"><span>Pick <b>${x.hc}</b>名・LH ${fmt1(x.lh)}</span>
+        <span>消化 <b>${x.total ? (x.hc ? odHrs(x.hrs) : "配置なし") : "—"}</b>${x.hrs != null && x.total ? "（" + hhmm(Date.now() + x.hrs * 3600000) + "）" : ""}</span>
+        ${S.hc && S.total ? `<span>目安 <b>${x.target.toFixed(1)}</b>名 <b class="${pm > 0.4 ? "pl" : pm < -0.4 ? "mi" : ""}">${pm > 0 ? "+" : ""}${pm.toFixed(1)}</b></span>` : ""}</div>
+      ${bar}</div><div class="o-fb">`;
+    if (OD.open[x.f]) {
+      const rows = x.rows.filter(r => L.some(t => odNum(r[t.i])));
+      if (!rows.length) h += `<div class="empty">データなし</div>`;
+      else {
+        const cs = L.map(t => odColSum(rows, t.i));
+        h += `<div class="o-tw"><table class="o-t"><thead><tr><th>Pick Area</th>${L.map(t => `<th${t.inShift ? "" : ' class="out"'}>${t.inShift ? "" : "<small>シフト外</small><br>"}${esc(t.label)}</th>`).join("")}</tr></thead><tbody>`
+          + rows.map(r => `<tr><td>${esc(r[c.iPA])}<small style="color:var(--sub)"> ${esc(String(r[c.iPP] || "").replace(/^PP/, ""))}</small></td>${L.map(t => { const v = odNum(r[t.i]); return `<td class="${v && t.passed ? "lt" : v && t.next ? "nx" : ""}">${v ? odNf(v) : ""}</td>`; }).join("")}</tr>`).join("")
+          + `<tr class="tt"><td>合計</td>${cs.map(v => `<td>${v ? odNf(v) : ""}</td>`).join("")}</tr></tbody></table></div>`;
+      }
+    }
+    h += `</div></div>`;
+  });
+  el.innerHTML = h;
+}
+setInterval(() => { if (view === "order") render(); }, 60000);   // 「何分前」「あと何分」を更新
+
 /* ---------- まとめて描画（表示中のものだけ） ---------- */
 let rafId = null;
 function render() {
@@ -939,6 +1163,7 @@ function render() {
     else if (view === "att") renderAtt();
     else if (view === "punch") renderPunch();
     else if (view === "ind") renderInd();
+    else if (view === "order") renderOrder();
     else renderHaichi();
   });
 }
@@ -1391,6 +1616,7 @@ function start() {
   on(db.ref("dayMeta"), v => { D.hDay = v && v.date || ""; });
   on(db.ref("nameOverride"), v => { D.nameOverride = v || {}; });
   on(db.ref("master"), v => { D.pmaster = v || null; });
+  on(db.ref("orderData"), v => { OD.data = odNorm(v); });
   on(db.ref("targetUPH"), v => { const x = v || {}; D.targetUPH = { 日勤: +(x.日勤 && x.日勤.in) || 0, 夜勤: +(x.夜勤 && x.夜勤.in) || 0 }; });
 }
 try {
