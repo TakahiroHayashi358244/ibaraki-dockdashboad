@@ -321,6 +321,9 @@ details.pm-grp summary::-webkit-details-marker{display:none;} details.pm-grp sum
 
 /* ===== ⑦ オーダー（C4・階層別） ===== */
 body[data-v="order"] header{background:#0f766e;}
+.h1 .hsw{display:inline-flex;gap:4px;flex:none;margin-left:6px;} .h1 .hsw[hidden]{display:none;}
+.h1 .hsw button{background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:7px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.h1 .hsw button.on{background:#fff;color:#0f766e;}
 .hf-h .od{font-size:11.5px;font-weight:800;color:#fff;background:#0f766e;border-radius:6px;padding:1px 7px;font-variant-numeric:tabular-nums;cursor:pointer;}
 .hf-h .od.w{background:#dc2626;}
 .o-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--sub);margin:0 2px 8px;}
@@ -328,13 +331,13 @@ body[data-v="order"] header{background:#0f766e;}
 .o-top label{margin-left:auto;display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-weight:800;color:var(--ink);font-size:12px;}
 .o-top input{width:17px;height:17px;margin:0;accent-color:#0f766e;}
 .o-ch{font-size:10.5px;font-weight:800;color:#0f766e;margin:0 2px 3px;} .o-ch.out{color:#64748b;}
-.o-cpt{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px;}
-.o-cpt div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 7px;}
+.o-cpt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:8px;}
+.o-cpt div{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 5px;min-width:0;}
 .o-cpt.out div{background:#f8fafc;}
-.o-cpt span{display:block;font-size:10.5px;font-weight:800;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.o-cpt small{display:block;font-size:10px;font-weight:800;color:#c2410c;line-height:1.2;min-height:12px;white-space:nowrap;}
-.o-cpt b{display:block;font-size:19px;line-height:1.15;font-variant-numeric:tabular-nums;text-align:right;}
-.o-cpt em{display:block;font-style:normal;font-size:10.5px;font-weight:700;color:#0369a1;text-align:right;font-variant-numeric:tabular-nums;}
+.o-cpt span{display:block;font-size:10px;letter-spacing:-.2px;font-weight:800;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.o-cpt small{display:block;font-size:9.5px;font-weight:800;color:#c2410c;line-height:1.2;min-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.3px;}
+.o-cpt b{display:block;font-size:17px;letter-spacing:-.3px;line-height:1.15;font-variant-numeric:tabular-nums;text-align:right;}
+.o-cpt em{display:block;font-style:normal;font-size:10px;font-weight:700;color:#0369a1;text-align:right;font-variant-numeric:tabular-nums;}
 .o-cpt .nx{background:#fff7ed;border-color:#fdba74;} .o-cpt .nx span,.o-cpt .nx b{color:#c2410c;}
 .o-cpt .lt{background:#fef2f2;border-color:#fca5a5;} .o-cpt .lt span,.o-cpt .lt b{color:#dc2626;}
 .o-cpt .z b{color:#cbd5e1;} .o-cpt .ex{opacity:.4;}
@@ -376,7 +379,7 @@ body[data-v="order"] header{background:#0f766e;}
 <header>
   <div class="h1">
     <button class="navbtn" id="navBtn"><span id="navName">ドック状況</span><span class="cr">▼</span></button>
-    <span class="sub" id="sub">—</span><span class="sp"></span>
+    <span class="sub" id="sub">—</span><span class="hsw" id="hsw" hidden></span><span class="sp"></span>
     <span class="dot" id="dot"></span><span class="dot mst" id="dotM"></span>
   </div>
   <div class="sw" id="sw" hidden></div>
@@ -569,7 +572,8 @@ function setView(v) {
   document.getElementById("navName").textContent = (VIEWS.find(x => x.id === v) || {}).name || "";
   VIEWS.forEach(x => { document.getElementById("v-" + x.id).hidden = x.id !== v;
     document.getElementById("v-" + x.id).scrollTop = 0; });
-  document.getElementById("sw").hidden = v !== "haichi" && v !== "plan" && v !== "order";
+  document.getElementById("sw").hidden = v !== "haichi" && v !== "plan";
+  document.getElementById("hsw").hidden = v !== "order";   // オーダーは日勤・夜勤をタイトルの行に置く
   // 左上の切替メニューの「いまの画面」の印も合わせる（前回の画面で開いたときにずれないように）
   document.querySelectorAll("#navMenu button[data-v]").forEach(b => b.classList.toggle("cur", b.dataset.v === v));
   closeMenu();
@@ -1100,7 +1104,7 @@ function odTog(f) { OD.open[f] = !OD.open[f]; render(); }
 function renderOrder() {
   odLoadUph();
   const sh = shifts(); if (!sh.includes(shift)) shift = sh[0];
-  document.getElementById("sw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
+  document.getElementById("hsw").innerHTML = sh.map(x => `<button class="${x === shift ? "on" : ""}" onclick="setShift('${esc(x)}')">${esc(x)}</button>`).join("");
   const el = document.getElementById("ord"); if (!el) return;
   if (!OD.data) { document.getElementById("sub").textContent = "—"; el.innerHTML = `<div class="o-em">まだオーダーのデータがありません。<br>C4の画面（Tampermonkey）からの送信を待っています。</div>`; return; }
   const S = odStats(), c = odCols(), L = odCpts(), idx = odIdx(), all = odFloors().flatMap(odRows);
