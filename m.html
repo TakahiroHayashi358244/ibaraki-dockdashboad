@@ -332,6 +332,7 @@ body[data-v="order"] header{background:#0f766e;}
 .o-cpt div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 7px;}
 .o-cpt.out div{background:#f8fafc;}
 .o-cpt span{display:block;font-size:10.5px;font-weight:800;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.o-cpt small{display:block;font-size:10px;font-weight:800;color:#c2410c;line-height:1.2;min-height:12px;white-space:nowrap;}
 .o-cpt b{display:block;font-size:19px;line-height:1.15;font-variant-numeric:tabular-nums;text-align:right;}
 .o-cpt em{display:block;font-style:normal;font-size:10.5px;font-weight:700;color:#0369a1;text-align:right;font-variant-numeric:tabular-nums;}
 .o-cpt .nx{background:#fff7ed;border-color:#fdba74;} .o-cpt .nx span,.o-cpt .nx b{color:#c2410c;}
@@ -1088,7 +1089,7 @@ function odFloorBadge(fn) {
   if (!OD.data || !OD.data.floors[fn]) return "";
   const S = odStats(), x = S.fs.find(y => y.f === fn); if (!x) return "";
   const w = x.total > 0 && (!x.hc || (S.hc && x.diff < -0.6));
-  return `<span class="od${w ? " w" : ""}" onclick="event.stopPropagation();odGo('${esc(fn)}')">注 ${odNf(x.total)}</span>`;
+  return `<span class="od${w ? " w" : ""}" onclick="event.stopPropagation();odGo('${esc(fn)}')">オーダー ${odNf(x.total)}</span>`;
 }
 function odGo(f) {
   OD.open[f] = true; setView("order");
@@ -1111,7 +1112,7 @@ function renderOrder() {
     <label><input type="checkbox" ${odFutOn() ? "checked" : ""} onchange="odSetFut(this.checked)">シフト外も含む</label></div>`;
   const cell = x => { const v = odColSum(all, x.i), a = odColSum(all.filter(isAir), x.i);
     const cl = (x.passed && v ? "lt" : x.next ? "nx" : "") + (v ? "" : " z") + (idx.includes(x.i) ? "" : " ex");
-    return `<div class="${cl}"><span>${esc(x.label)}${x.next ? "・" + odLeft(x) : ""}</span><b>${odNf(v)}</b><em>Air ${odNf(a)}</em></div>`; };
+    return `<div class="${cl}"><span>${esc(x.label)}</span><small>${x.next ? odLeft(x) : "&nbsp;"}</small><b>${odNf(v)}</b><em>Air ${odNf(a)}</em></div>`; };
   const Lin = L.filter(x => x.inShift), Lout = L.filter(x => !x.inShift);
   h += `<div class="o-ch">シフト内 ${odCutTxt()}</div><div class="o-cpt">${Lin.map(cell).join("")}</div>`;
   if (Lout.length) h += `<div class="o-ch out">シフト外</div><div class="o-cpt out">${Lout.map(cell).join("")}</div>`;
@@ -1127,7 +1128,8 @@ function renderOrder() {
     const fc = `var(--f${fi % 5})`;
     const vals = Lin.map(t => odColSum(x.rows, t.i)), tt = vals.reduce((a, b) => a + b, 0);
     const bar = tt ? `<div class="o-bar" style="width:${Math.max(tt / maxT * 100, 10).toFixed(1)}%">${Lin.map((t, k) => { const v = vals[k]; if (!v) return ""; const pc = v / tt * 100;
-      return `<i style="width:${pc}%;background:${col(t, k)}">${(tt / maxT) * (pc / 100) * 300 >= 26 ? `${odNf(v)}<small>${Math.round(pc)}%</small>` : ""}</i>`; }).join("")}</div>` : `<div class="o-bar e">シフト内なし</div>`;
+      const cl = t.label.replace(/^\S+\s+(?=\d)/, "");   // 「1st 11:30」→「11:30」、Passed はそのまま
+      return `<i style="width:${pc}%;background:${col(t, k)}" title="${esc(t.label)}：${odNf(v)}（${Math.round(pc)}%）">${(tt / maxT) * (pc / 100) * 300 >= 30 ? `${odNf(v)}<small>${esc(cl)}</small>` : ""}</i>`; }).join("")}</div>` : `<div class="o-bar e">シフト内なし</div>`;
     const pm = Math.round(x.diff * 10) / 10;
     h += `<div class="o-fl${OD.open[x.f] ? " op" : ""}" id="od-${esc(x.f)}"><div class="o-fh" onclick="odTog('${esc(x.f)}')">
       <div class="o-r1"><span class="nm" style="color:${fc}">${esc(x.f)}</span><span class="tot">${odNf(x.total)}</span><span class="ar">▼</span></div>
