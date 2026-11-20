@@ -354,6 +354,7 @@ body[data-v="order"] header{background:#0f766e;}
 .o-r1{display:flex;align-items:center;gap:8px;}
 .o-r1 .nm{font-weight:800;font-size:15px;}
 .o-r1 .tot{font-size:24px;font-weight:900;color:#0f766e;font-variant-numeric:tabular-nums;}
+.o-r1 .air{font-size:14px;font-weight:800;color:#0369a1;font-variant-numeric:tabular-nums;align-self:flex-end;margin-bottom:3px;}
 .o-r1 .ar{margin-left:auto;font-size:10px;color:var(--sub);transition:transform .15s;}
 .o-fl.op .o-r1 .ar{transform:rotate(180deg);}
 .o-r2{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--sub);margin-top:2px;font-variant-numeric:tabular-nums;}
@@ -1170,7 +1171,7 @@ function renderOrder() {
       return `<i style="width:${pc}%;background:${col(t, k)}" title="${esc(t.label)}：${odNf(v)}（${Math.round(pc)}%）">${(tt / maxT) * (pc / 100) * 300 >= 30 ? `${odNf(v)}<small>${esc(cl)}</small>` : ""}</i>`; }).join("")}</div>` : `<div class="o-bar e">シフト内なし</div>`;
     const pm = Math.round(x.diff * 10) / 10;
     h += `<div class="o-fl${OD.open[x.f] ? " op" : ""}" id="od-${esc(x.f)}"><div class="o-fh" onclick="odTog('${esc(x.f)}')">
-      <div class="o-r1"><span class="nm" style="color:${fc}">${esc(x.f)}</span><span class="tot">${odNf(x.total)}</span><span class="ar">▼</span></div>
+      <div class="o-r1"><span class="nm" style="color:${fc}">${esc(x.f)}</span><span class="tot">${odNf(x.total)}</span><span class="air">Air ${odNf(idx.reduce((s, i) => s + odColSum(x.rows.filter(isAir), i), 0))}</span><span class="ar">▼</span></div>
       <div class="o-r2"><span>Pick <b>${x.hc}</b>名・LH ${fmt1(x.lh)}</span>
         <span>消化 <b>${x.total ? (x.hc ? odHrs(x.hrs) : "配置なし") : "—"}</b>${x.hrs != null && x.total ? "（" + hhmm(Date.now() + x.hrs * 3600000) + "）" : ""}</span>
         ${S.hc && S.total ? `<span>目安 <b>${x.target.toFixed(1)}</b>名 <b class="${pm > 0.4 ? "pl" : pm < -0.4 ? "mi" : ""}">${pm > 0 ? "+" : ""}${pm.toFixed(1)}</b></span>` : ""}</div>
