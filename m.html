@@ -480,6 +480,16 @@ body[data-v="prog"] header{background:#0f766e;}
 .pg-hero .sub{font-size:11.5px;color:var(--sub);font-weight:700;white-space:nowrap;} .pg-hero .sub b{color:var(--ink);}
 .pg-hero .ld{font-size:11px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .pg-hero .ld b{font-size:14px;color:var(--ink);} .pg-hero .ld span{display:block;}
 .pg-ban b{font-weight:900;}
+/* 上の切り替え：左右いっぱいに均等に並べる（2列のグリッド） */
+.pg-ctl{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.pg-ctl .seg{display:flex;height:36px;}
+.pg-ctl .seg button{flex:1;padding:0 4px;}
+.pg-ctl .dt{display:grid;grid-template-columns:36px 1fr 36px;gap:4px;}
+.pg-ctl .dt button{width:auto;height:36px;color:var(--accent);}
+.pg-ctl input[type=date],.pg-ctl select{width:100%;height:36px;min-width:0;text-align:center;text-align-last:center;font-size:14px;padding:0 4px;-webkit-appearance:none;appearance:none;}
+.pg-ctl select{background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23697a8c'/%3E%3C/svg%3E") no-repeat right 10px center;padding-right:22px;}
+.pg-ctl .bk{height:34px;}
+@media (min-width:700px) and (min-height:600px){ .pg-ctl{grid-template-columns:repeat(4,1fr);} }
 </style>
 </head>
 <body data-v="dock">
