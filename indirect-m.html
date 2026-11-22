@@ -198,7 +198,7 @@ function ask(text, opt) {
   });
 }
 let key = "", TL = null, loading = false, err = "", keyMsg = "";
-let tab = "tot", area = "", dcat = "", q = "", srt = "std";
+let tab = "tot", area = "", dcat = "", q = "", srt = "std", totF = false;   // totF：今日 Time Off Task があった人に絞り込み（PC版の凡例の Time Off Task と同じ）
 try { srt = localStorage.getItem("ind_srt") || "std"; } catch (e) { /* 無視 */ }
 // 全て・日勤・夜勤（PC版と同じ）。夜勤は出勤した日の勤務なので、朝5時〜15時（今夜の夜勤がまだ始まっていない時間）は前日（昨夜〜今朝の夜勤）を表示する
 let shift = "all";
@@ -414,10 +414,13 @@ function render() {
   document.getElementById("tabs").innerHTML = T.map(t => `<button type="button" data-t="${t[0]}" class="${t[3]}${tab === t[0] ? " on" : ""}"><b>${t[2]}</b><span>${t[1]}</span></button>`).join("");
   document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; try { localStorage.setItem("ind_tab", tab); } catch (e) { /* 無視 */ } render(); });
   // 間接（エリア）とダイレクト（直近の作業・全体UPH）の絞り込み
-  const stats = (TL.fr && TL.fr.stats) || {};
-  document.getElementById("areas").innerHTML = '<span class="lb">間接</span>' + Object.keys(AREA).map(g => `<button type="button" data-a="${g}" class="${area === g ? "on" : ""}"><i style="background:${areaColor(g)}"></i>${g}</button>`).join("")
-    + '<span class="lb" style="margin-left:4px">ダイレクト</span>' + DIR.map(c => { const v = c === "Other" ? null : stats[c]; const u = v && (v.hour.uph ?? v.day.uph);
-      return `<button type="button" data-d="${c}" class="d${dcat === c ? " on" : ""}"><span style="display:flex;align-items:center;gap:5px"><i style="background:${DIR_COL[c]}"></i>${DIR_NM[c]}</span>${v ? `<small>UPH 当日${v.day.uph ?? "—"}・1h ${v.hour.uph ?? "—"}</small>` : ""}</button>`; }).join("");
+  const stats = (TL.fr && TL.fr.stats) || TL.dirStats || {};
+  // 並び：ダイレクト（Stow・Pick・Pack・Receive）→ Time Off Task → 間接（エリア）。「その他」のダイレクトは Time Off Task に置き換え（PC版と同じ）
+  document.getElementById("areas").innerHTML = '<span class="lb">ダイレクト</span>' + DIR.filter(c => c !== "Other").map(c => { const v = stats[c];
+      return `<button type="button" data-d="${c}" class="d${dcat === c ? " on" : ""}"><span style="display:flex;align-items:center;gap:5px"><i style="background:${DIR_COL[c]}"></i>${DIR_NM[c]}</span>${v ? (TL.today ? `<small>UPH 当日${v.day.uph ?? "—"}・1h ${v.hour.uph ?? "—"}</small>` : v.day.uph != null ? `<small>UPH ${v.day.uph}・LH ${Math.round(v.day.hrs * 10) / 10}</small>` : "") : ""}</button>`; }).join("")
+    + `<button type="button" data-tf="1" class="${totF ? "on" : ""}"><i style="background:${BLACK}"></i>Time Off Task</button>`
+    + '<span class="lb" style="margin-left:4px">間接</span>' + Object.keys(AREA).map(g => `<button type="button" data-a="${g}" class="${area === g ? "on" : ""}"><i style="background:${areaColor(g)}"></i>${g}</button>`).join("");
+  document.querySelectorAll("#areas button[data-tf]").forEach(b => b.onclick = () => { totF = !totF; render(); });
   document.querySelectorAll("#areas button[data-a]").forEach(b => b.onclick = () => { area = area === b.dataset.a ? "" : b.dataset.a; render(); });
   document.querySelectorAll("#areas button[data-d]").forEach(b => b.onclick = () => { dcat = dcat === b.dataset.d ? "" : b.dataset.d; render(); });
 
@@ -425,6 +428,7 @@ function render() {
   let list = people.filter(p => tab === "all" || (tab === "tot" ? isTot(p) : tab === "none" ? isNone(p) : tab === "np" ? hasNp(p) : hasInd(p)))
     .filter(p => !area || live(p).some(s => (TL.groups[s.code] || "Other") === area) || (p.find || []).some(x => x.g === area))
     .filter(p => !dcat || (lastDir(p) || {}).cat === dcat)
+    .filter(p => !totF || !!p.cur || (p.tot || []).length > 0)
     .filter(p => !fq || fold([p.name, p.badge, p.alias, ...p.ind.map(s => s.name + " " + s.code), ...(p.direct || []).map(d => d.cat + " " + (d.fn || ""))].join(" ")).includes(fq));
   // TOT（間接なし→失敗→入力待ち→反映待ち）→ 今日TOTがあった人 → 間接あり → それ以外。同じ組は出勤順
   const firstIn = p => { const b = build(p); return b.periods.length ? b.periods[0][0] : Infinity; };
@@ -434,7 +438,7 @@ function render() {
     : srt === "in" ? firstIn(a) - firstIn(b)
     : srt === "name" ? String(a.name).localeCompare(String(b.name), "ja")
     : rank(a) - rank(b) || firstIn(a) - firstIn(b));
-  gView = { list, uphMap, tab, tabLabel: (T.find(t => t[0] === tab) || [])[1] || "", area, dcat, q, shift, working };
+  gView = { list, uphMap, tab, tabLabel: (T.find(t => t[0] === tab) || [])[1] || "", area, dcat, totF, q, shift, working };
   R = span(list.length ? list : people);
   document.getElementById("axis").innerHTML = ticksHtml();
 
@@ -478,7 +482,7 @@ function loadH2C() {
 }
 function viewLabel(v) {
   const sh = v.shift === "night" ? "夜勤" : v.shift === "day" ? "日勤" : "全て";
-  return [sh, v.tabLabel, v.area ? "間接 " + v.area : "", v.dcat ? "直近のダイレクトが " + (DIR_NM[v.dcat] || v.dcat) : "", v.q ? "検索「" + v.q + "」" : ""].filter(Boolean).join("・");
+  return [sh, v.tabLabel, v.area ? "間接 " + v.area : "", v.dcat ? "直近のダイレクトが " + (DIR_NM[v.dcat] || v.dcat) : "", v.totF ? "今日 Time Off Task があった人" : "", v.q ? "検索「" + v.q + "」" : ""].filter(Boolean).join("・");
 }
 // 文章の明細：ダイレクト作業で絞り込み中は UPH 高い順に名前と UPH、TOT のタブでは直近1時間に新しく TOT が始まった人
 function slackDetail(v) {
@@ -487,7 +491,7 @@ function slackDetail(v) {
     const l = v.list.map(p => ({ p, u: v.uphMap.get(p.badge) })).sort((a, b) => (b.u ?? -1) - (a.u ?? -1));
     out.push("", `【${DIR_NM[v.dcat] || v.dcat} UPH 高い順】`, ...l.map((x, i) => `${i + 1}. ${nm(x.p)}　UPH ${x.u != null ? x.u : "—"}`));
   }
-  if (v.tab === "tot" || v.tab === "none") {
+  if (v.tab === "tot" || v.tab === "none" || v.totF) {
     if (!TL.today) return out.concat("", "（Time Off Task の新規発生は当日の表示のときだけ載せます）");
     const now = TL.now || Date.now(), from = now - 60 * MIN, l = [];
     for (const p of v.list) {
@@ -541,7 +545,7 @@ async function shot(v) {
       $("slImg").src = s.dataUrl;
       let head = [`間接・TOT（${TL.date} ${s.nowT} 時点・${viewLabel(v)}・${v.list.length}名）`];
       if (v.dcat) {   // ダイレクト作業で絞り込み中：「Stow 15名」「Stow全体のUPH〇〇　LH〇〇」（全体＝FCLM の当日の数字。PC版と同じ）
-        const nm = DIR_NM[v.dcat] || v.dcat, st = ((TL.fr && TL.fr.stats) || {})[v.dcat];
+        const nm = DIR_NM[v.dcat] || v.dcat, st = ((TL.fr && TL.fr.stats) || TL.dirStats || {})[v.dcat];
         head = [`${nm} ${v.list.length}名`];
         if (st && st.day) head.push(`${nm}全体のUPH ${st.day.uph ?? "—"}　LH ${st.day.hrs != null ? Math.round(Number(st.day.hrs) * 10) / 10 : "—"}`);
       }
