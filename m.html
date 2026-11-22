@@ -465,6 +465,21 @@ body[data-v="prog"] header{background:#0f766e;}
 .pg-sub{color:#94a3b8;font-size:11px;}
 .pg-sh{font-size:10.5px;font-weight:800;padding:0 6px;border-radius:4px;} .pg-sh.day{background:#dbeafe;color:#1d4ed8;} .pg-sh.night{background:#1f2937;color:#fff;}
 @media (min-width:700px) and (min-height:600px){ .pg-two{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;} .pg-two .pg-pn{margin-bottom:0;} }
+.pg-hero{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;}
+.pg-hero .hc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0;}
+.pg-hero .hc.ok{border-color:#bbf7d0;background:#f0fdf4;} .pg-hero .hc.wn{border-color:#fde68a;background:#fffbeb;} .pg-hero .hc.ng{border-color:#fecaca;background:#fef2f2;}
+.pg-hero .t{display:flex;align-items:center;justify-content:space-between;gap:4px;}
+.pg-hero .stt{font-size:12px;font-weight:900;} .hc.ok .stt{color:#15803d;} .hc.wn .stt{color:#b45309;} .hc.ng .stt{color:#b91c1c;}
+.pg-hero .big{font-size:38px;font-weight:900;line-height:1.1;margin:3px 0 4px;font-variant-numeric:tabular-nums;}
+.pg-hero .big small{font-size:18px;margin-left:1px;}
+.hc.ok .big{color:#15803d;} .hc.wn .big{color:#b45309;} .hc.ng .big{color:#b91c1c;}
+.pg-hero .bar{position:relative;height:9px;border-radius:5px;background:#e5e7eb;margin-bottom:5px;}
+.pg-hero .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:currentColor;}
+.hc.ok .bar i{background:#16a34a;} .hc.wn .bar i{background:#f59e0b;} .hc.ng .bar i{background:#dc2626;} .hc .bar i{background:#94a3b8;}
+.pg-hero .bar u{position:absolute;top:-3px;bottom:-3px;width:2px;background:#111827;margin-left:-1px;}
+.pg-hero .sub{font-size:11.5px;color:var(--sub);font-weight:700;white-space:nowrap;} .pg-hero .sub b{color:var(--ink);}
+.pg-hero .ld{font-size:11px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .pg-hero .ld b{font-size:14px;color:var(--ink);} .pg-hero .ld span{display:block;}
+.pg-ban b{font-weight:900;}
 </style>
 </head>
 <body data-v="dock">
@@ -1327,13 +1342,30 @@ function pgChart(D, g, fc, land, done, upto) {
   if (D.live) s += `<line x1="${x(upto)}" x2="${x(upto)}" y1="${T}" y2="${H - B}" stroke="#111827"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" class="pg-svg">${s}</svg>`;
 }
-function pgPanel(D, g) {
+// OUT・IN それぞれの集計（少ない方＝ボトルネックで判定）
+function pgSum(D, g) {
   const G = PG_GRP[g], fc = D.plan[g + "Sum"], arr = D.plan[g] || [], upto = pgUpto(D), planNow = pgPlanTo(arr, upto);
   const done = {}, land = {};
   G.cats.forEach(c => { done[c] = D.hours.reduce((s, h) => s + h[c].u, 0); land[c] = D.live ? done[c] + (D.recent[c].u / Math.max(0.25, (D.recentTo - D.recentFrom) / pgHR)) * pgLeft(D, upto) : done[c]; });
   const bn = G.cats.reduce((a, b) => (done[b] < done[a] ? b : a)), lbn = G.cats.reduce((a, b) => (land[b] < land[a] ? b : a));
   const val = done[bn], res = D.live ? land[lbn] : val;
   const col = !fc ? "#111827" : res >= fc ? "#15803d" : res >= fc * 0.95 ? "#b45309" : "#b91c1c";
+  // 状態：進行中は計画との比較、終わった日は FCST との比較
+  const st = !fc ? ["", "FCSTなし"] : D.live ? (val >= planNow ? ["ok", "計画どおり"] : val >= planNow * 0.94 ? ["wn", "やや遅れ"] : ["ng", "遅れ"]) : (val >= fc ? ["ok", "達成"] : val >= fc * 0.95 ? ["wn", "あと少し"] : ["ng", "未達"]);
+  return { G, fc, arr, upto, planNow, done, land, bn, lbn, val, res, col, st };
+}
+// いちばん上の大きなカード（OUT・IN を並べて、ぱっと見て分かるように）
+function pgHero(D) {
+  return `<div class="pg-hero">${["out", "in"].map(g => { const S = pgSum(D, g);
+    const pct = S.fc ? Math.round(S.val / S.fc * 100) : null, ppct = S.fc ? Math.round(Math.min(1, S.planNow / S.fc) * 100) : null;
+    return `<div class="hc ${S.st[0]}"><div class="t"><span class="pg-tag" style="background:${S.G.tc}">${S.G.tag}</span><span class="stt">${S.st[1]}</span></div>
+      <div class="big">${pct == null ? "—" : pct + "<small>%</small>"}</div>
+      <div class="bar"><i style="width:${Math.min(100, pct || 0)}%"></i>${D.live && ppct != null ? `<u style="left:${ppct}%"></u>` : ""}</div>
+      <div class="sub">${S.fc ? (D.live ? `計画 ${ppct}%・<b>${pgSg(S.val - S.planNow)}</b>` : `${pgNf(S.val)} / ${pgNf(S.fc)}<br><b>差 ${pgSg(S.val - S.fc)}</b>`) : "FCSTがありません"}</div>
+      ${S.fc && D.live ? `<div class="ld">着地 <b>${pgNf(S.res)}</b> <span>FCST ${pgNf(S.fc)}（${pgSg(S.res - S.fc)}）</span></div>` : ""}</div>`; }).join("")}</div>`;
+}
+function pgPanel(D, g) {
+  const { G, fc, arr, upto, planNow, done, land, bn, lbn, val, res, col } = pgSum(D, g);
   const k3 = D.live ? `<div><span>${pgHm(D.dataTo || D.start)} の計画</span><b>${fc ? pgNf(planNow) : "—"}</b><small style="color:${val >= planNow ? "#15803d" : "#b91c1c"}">${fc ? pgSg(val - planNow) : ""}</small></div>`
     : `<div><span>達成率</span><b style="color:${col}">${fc ? Math.round(val / fc * 100) + "%" : "—"}</b><small>${fc ? (val >= fc ? "達成" : "未達") : ""}</small></div>`;
   const bars = fc ? G.cats.map(c => { const r = done[c] / fc, pr = Math.min(1, planNow / fc), cl = !D.live ? (r >= 1 ? "#15803d" : r >= 0.95 ? "#b45309" : "#b91c1c") : (done[c] >= planNow ? "#15803d" : done[c] >= planNow * 0.94 ? "#b45309" : "#b91c1c");
@@ -1349,9 +1381,6 @@ function pgPanel(D, g) {
   const tot = `<tr class="tot"><td>合計</td><td>${fc ? pgNf(totPl) : "—"}</td>${G.cats.map(c => `<td>${pgNf(done[c])}</td><td class="${!fc ? "" : done[c] - totPl < 0 ? "m" : "p"}">${fc ? pgSg(done[c] - totPl) : ""}</td>`).join("")}</tr>`;
   const op = !!PG.open[g];
   return `<div class="pg-pn"><div class="pg-ph"><span class="pg-tag" style="background:${G.tc}">${G.tag}</span><b>${G.name}</b></div>
-    <div class="pg-kp"><div><span>FCST</span><b>${fc ? pgNf(fc) : "—"}</b></div>
-      <div class="k2"><span>実績</span>${G.cats.map(c => `<p><em style="color:${PG_COL[c]}">${c}</em><b>${pgNf(done[c])}</b></p>`).join("")}</div>${k3}
-      <div><span>${D.live ? "着地見込み" : "結果"}</span><b style="color:${col}">${pgNf(res)}</b><small style="color:${col}">${fc ? "差 " + pgSg(res - fc) : ""}</small></div></div>
     <div class="pg-bars">${bars}${fc && D.live ? `<div class="pg-bn">縦線＝${pgHm(D.dataTo || D.start)} 時点の計画 ${Math.round(Math.min(1, planNow / fc) * 100)}%</div>` : ""}</div>
     ${pgChart(D, g, fc, land, done, upto)}
     <button class="pg-tb" data-pgt="${g}">${op ? "▲ 時間帯の表を閉じる" : "▼ 時間帯の表"}</button>
@@ -1363,10 +1392,10 @@ function pgDayHtml() {
   const sj = D.shift === "all" ? "日勤＋夜勤" : D.shift === "night" ? "夜勤" : "日勤";
   const win = D.shift === "all" ? (D.cut === "20" ? "前日20:00〜19:59" : "0:00〜23:59") : `${pgHm(D.start)}〜${D.shift === "night" ? "翌" : ""}${pgHm(D.end)}`;
   const st = D.future ? `<div class="pg-ban fut">${pgMd(D.date)} ${sj} ${win}　まだ始まっていません</div>`
-    : D.live ? `<div class="pg-ban live">${pgMd(D.date)} ${sj} ${win}　進行中・${D.dataTo ? pgHm(D.dataTo) + " までの実績" : "実績はまだありません"}</div>`
-    : `<div class="pg-ban past">${pgMd(D.date)} ${sj} ${win}　終わった${D.shift === "all" ? "日" : "シフト"}の結果</div>`;
+    : D.live ? `<div class="pg-ban live">${pgMd(D.date)} ${sj}　<b>${D.dataTo ? pgHm(D.dataTo) + " 時点" : "実績まだなし"}</b></div>`
+    : `<div class="pg-ban past">${pgMd(D.date)} ${sj}　結果</div>`;
   if (D.future) return st;
-  return st + `<div class="pg-two">${pgPanel(D, "out")}${pgPanel(D, "in")}</div>`;
+  return st + pgHero(D) + `<div class="pg-two">${pgPanel(D, "out")}${pgPanel(D, "in")}</div>`;
 }
 function pgLs(list) {
   if (!list || !list.length) return `<span class="pg-sub">記録なし</span>`;
@@ -1407,9 +1436,9 @@ function renderProg() {
   let h = `<div class="pg-ctl">
     <div class="seg">${[["all", "全て"], ["day", "日勤"], ["night", "夜勤"]].map(([k, t]) => `<button data-pgs="${k}" class="${PG.shift === k ? "on" : ""}">${t}</button>`).join("")}</div>
     <div class="seg">${[["day", "その日"], ["hist", "振り返り"]].map(([k, t]) => `<button data-pgm="${k}" class="${PG.mode === k ? "on" : ""}">${t}</button>`).join("")}</div>
-    ${PG.shift === "all" ? `<div class="seg sm">${["0", "20"].map(k => `<button data-pgc="${k}" class="${PG.cut === k ? "on" : ""}">${PG_CUT[k]}</button>`).join("")}</div>` : ""}
     ${PG.mode === "day" ? `<div class="dt"><button data-pgd="-1">◀</button><input type="date" id="pgDate" value="${PG.date}" max="${today}"><button data-pgd="1" ${PG.date >= today ? "disabled" : ""}>▶</button></div>`
       : `<select id="pgMonth"><option value="">直近31日</option>${pgMonths().map(m => `<option value="${m}" ${PG.month === m ? "selected" : ""}>${m.slice(0, 4)}年${Number(m.slice(5))}月度</option>`).join("")}</select>`}
+    ${PG.shift === "all" ? `<select id="pgCut" title="1日の区切り">${["0", "20"].map(k => `<option value="${k}" ${PG.cut === k ? "selected" : ""}>${PG_CUT[k]}</option>`).join("")}</select>` : ""}
     ${PG.mode === "day" && PG.back ? `<button class="bk" data-pgb="hist">← 振り返りに戻る</button>` : ""}${away ? `<button class="bk" data-pgb="today">今日に戻る</button>` : ""}
   </div>`;
   h += PG.mode === "hist" ? pgHistHtml() : pgDayHtml();
@@ -1417,7 +1446,7 @@ function renderProg() {
   const re = () => { PG.data = null; PG.hist = null; renderProg(); pgLoad(); };
   el.querySelectorAll("[data-pgs]").forEach(b => b.onclick = () => { PG.shift = b.dataset.pgs; try { localStorage.setItem("pgShift", PG.shift); } catch (e) { /* 無視 */ } re(); });
   el.querySelectorAll("[data-pgm]").forEach(b => b.onclick = () => { PG.mode = b.dataset.pgm; PG.back = null; re(); });
-  el.querySelectorAll("[data-pgc]").forEach(b => b.onclick = () => { PG.cut = b.dataset.pgc; try { localStorage.setItem("pgCut", PG.cut); } catch (e) { /* 無視 */ } re(); });
+  const cu = document.getElementById("pgCut"); if (cu) cu.onchange = () => { PG.cut = cu.value; try { localStorage.setItem("pgCut", PG.cut); } catch (e) { /* 無視 */ } re(); };
   el.querySelectorAll("[data-pgd]").forEach(b => b.onclick = () => { const d = pgAdd(PG.date, Number(b.dataset.pgd)); if (d <= today) { PG.date = d; re(); } });
   const di = document.getElementById("pgDate"); if (di) di.onchange = () => { if (di.value && di.value <= today) { PG.date = di.value; re(); } };
   const mo = document.getElementById("pgMonth"); if (mo) mo.onchange = () => { PG.month = mo.value; re(); };
