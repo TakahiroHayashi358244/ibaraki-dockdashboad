@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>進捗モニター</title>
+<style>
+  :root{--ink:#020617;--sub:#334155;--ok:#15803d;--wn:#c2410c;--ng:#dc2626}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:#cbd5e1;color:var(--ink);font-family:"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  header{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:2vw;padding:1vh 2.4vw;background:#0f172a;color:#fff}
+  header .l{display:flex;align-items:center;gap:1.6vw}header .r{text-align:right}
+  header h1{margin:0;font-size:3vh;font-weight:800;letter-spacing:.05em}
+  header .sh{font-size:2.8vh;font-weight:900;padding:.3vh 1.2vw;border-radius:99px;background:#fff;color:#0f172a}
+  header .sp{flex:1}
+  header .clk{font-size:7vh;line-height:1.1;letter-spacing:.04em;font-weight:800;font-variant-numeric:tabular-nums}
+  header .at{font-size:2.6vh;font-weight:800;color:#e2e8f0}
+  main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:.6vw;padding:.6vw}
+  .card{background:#fff;border-radius:1.2vh;box-shadow:0 2px 8px rgba(15,23,42,.18);display:flex;flex-direction:column;align-items:center;padding:2vh 2vw;min-height:0}
+  .ttl{display:flex;align-items:center;gap:1vw;font-size:4vh;font-weight:900;flex:none}
+  .ttl .tag{font-size:2.4vh;color:#fff;background:var(--c);padding:.2vh 1vw;border-radius:.8vh}
+  .st{font-size:3.4vh;margin-left:.6vw;font-weight:900;padding:.3vh 2.4vw;border-radius:99px;color:#fff}
+  .st.ok{background:var(--ok)}.st.wn{background:#ea580c}.st.ng{background:var(--ng)}.st.na{background:#475569}
+  .ring{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+  .ring{margin:.6vh 0}.ring svg{height:100%;width:auto}
+  .rows{display:grid;grid-template-columns:repeat(2,1fr);gap:1.4vw;width:100%}
+  .pr{border-radius:1.4vh;background:#f1f5f9;border:2px solid #cbd5e1;padding:1.2vh 1.2vw;display:grid;grid-template-columns:auto 1fr;align-items:baseline;gap:.2vh 1vw}
+  .pr .n{font-size:3vh;font-weight:900;color:var(--pc)}
+  .pr .p{font-size:5.2vh;font-weight:900;text-align:right;font-variant-numeric:tabular-nums}
+  .pr .d{grid-column:1/3;display:flex;justify-content:space-between;font-size:2.3vh;font-weight:700;color:var(--sub);font-variant-numeric:tabular-nums}
+  .pr .d b{color:var(--ink)}
+  .ft{margin-top:1.4vh;display:grid;grid-template-columns:repeat(3,1fr);gap:1.4vw;width:100%}
+  .ft > div{text-align:center;white-space:nowrap}
+  .ft span{display:block;font-size:2.2vh;color:var(--sub);font-weight:800}
+  .ft b{font-size:4vh;font-weight:900;color:var(--ink);font-variant-numeric:tabular-nums}.ft small{font-size:2vh;font-weight:800;margin-left:.4vw}
+</style>
+</head>
+<body>
+<header><div class="l"><h1>進捗モニター</h1><span class="sh" id="sh">—</span></div><span class="clk" id="clk">--:--</span><div class="r"><span class="at" id="at"></span></div></header>
+<main id="main"></main>
+<script>
+(() => {
+  const API = 'https://indirect-relay-hfo1.takahiro884.workers.dev', KEY = '1540850d9c168e02e13c9c10c06d8bed';
+  const COL = { Pick: '#0e7490', Pack: '#be185d', Receive: '#b45309', Stow: '#15803d' };
+  const GRP = { out: { cats: ['Pick', 'Pack'], tag: 'OUT', name: 'アウトバウンド', c: '#0f766e' }, in: { cats: ['Receive', 'Stow'], tag: 'IN', name: 'インバウンド', c: '#ca8a04' } };
+  const H = 3600000, nf = (v) => Math.round(v || 0).toLocaleString('ja-JP'), sg = (v) => (v >= 0 ? '+' : '−') + nf(Math.abs(v));
+  const hm = (t) => new Date(t + 9 * H).toISOString().slice(11, 16);
+  // 今のシフトと出勤日（日勤 8〜20時。それ以外は夜勤で、0〜8時は前日に出勤した夜勤）
+  function cur() {
+    const j = new Date(Date.now() + 9 * H), h = j.getUTCHours(), d = j.toISOString().slice(0, 10);
+    if (h >= 8 && h < 20) return { sh: 'day', d };
+    if (h >= 20) return { sh: 'night', d };
+    return { sh: 'night', d: new Date(Date.now() + 9 * H - 24 * H).toISOString().slice(0, 10) };
+  }
+  const T = (D, i) => (D.starts ? D.starts[i] : D.start + i * H);
+  const upto = (D) => (!D.dataTo ? 0 : D.hours.reduce((s, _, i) => s + Math.max(0, Math.min(1, (D.dataTo - T(D, i)) / H)), 0));
+  const planTo = (a, h) => (a || []).reduce((s, v, i) => s + v * Math.max(0, Math.min(1, h - i)), 0);
+  const left = (D, u) => (D.plan.work || D.hours.map(() => 1)).reduce((s, w, i) => s + w * Math.max(0, Math.min(1, i + 1 - u)), 0);
+  const arc = (cx, cy, r, a0, a1) => { const p = (a) => [cx + r * Math.sin(a * 2 * Math.PI), cy - r * Math.cos(a * 2 * Math.PI)]; const [x0, y0] = p(a0), [x1, y1] = p(Math.min(a1, 0.9999)); return `M${x0},${y0} A${r},${r} 0 ${a1 - a0 > 0.5 ? 1 : 0} 1 ${x1},${y1}`; };
+  function ring(G, done, fc, pr, stc) {
+    // 外側の輪＝1つ目の工程、内側の輪＝2つ目の工程。黒い目盛り＝今の時点の計画
+    const R = [158, 116], W = 38;
+    let s = '';
+    G.cats.forEach((c, k) => {
+      const r = fc ? Math.min(1, done[c] / fc) : 0;
+      s += `<circle cx="180" cy="180" r="${R[k]}" fill="none" stroke="#cbd5e1" stroke-width="${W}"/>`;
+      if (r > 0) s += `<path d="${arc(180, 180, R[k], 0, r)}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="round"/>`;
+    });
+    if (fc && pr != null) { const a = pr * 2 * Math.PI, x = (r) => 180 + r * Math.sin(a), y = (r) => 180 - r * Math.cos(a); s += `<line x1="${x(R[1] - W / 2 - 4)}" y1="${y(R[1] - W / 2 - 4)}" x2="${x(R[0] + W / 2 + 4)}" y2="${y(R[0] + W / 2 + 4)}" stroke="#020617" stroke-width="7" stroke-linecap="round"/>`; }
+    const bn = G.cats.reduce((a, b) => (done[b] < done[a] ? b : a)), p = fc ? Math.round(done[bn] / fc * 100) : null;
+    s += `<text x="180" y="190" text-anchor="middle" font-size="72" font-weight="900" fill="${stc}">${p == null ? '—' : p + '%'}</text>`;
+    s += `<text x="180" y="226" text-anchor="middle" font-size="22" font-weight="800" fill="#1e293b">${fc ? `計画 ${Math.round(pr * 100)}%` : 'FCST なし'}</text>`;
+    return `<svg viewBox="-6 -6 372 372">${s}</svg>`;
+  }
+  function card(D, g) {
+    const G = GRP[g], fc = D.plan[g + 'Sum'], u = upto(D), pn = planTo(D.plan[g], u), pr = fc ? Math.min(1, pn / fc) : null;
+    const done = {}, land = {};
+    G.cats.forEach((c) => { done[c] = D.hours.reduce((s, h) => s + h[c].u, 0); land[c] = D.live ? done[c] + (D.recent[c].u / Math.max(0.25, (D.recentTo - D.recentFrom) / H)) * left(D, u) : done[c]; });
+    const bn = G.cats.reduce((a, b) => (done[b] < done[a] ? b : a)), diff = done[bn] - pn;
+    const st = !fc ? ['na', 'FCST なし'] : diff >= 0 ? ['ok', '計画どおり'] : diff > -pn * 0.06 ? ['wn', 'やや遅れ'] : ['ng', '遅れ'];
+    const stc = { ok: '#15803d', wn: '#ea580c', ng: '#dc2626', na: '#020617' }[st[0]];
+    const lb = Math.min(...G.cats.map((c) => land[c]));
+    const uph = (c) => { const o = D.recent[c]; return o && o.h > 0.05 ? Math.round(o.u / o.h) : '—'; };
+    return `<div class="card" style="--c:${G.c}"><div class="ttl"><span class="tag">${G.tag}</span>${G.name}<span class="st ${st[0]}">${st[1]}${fc ? `　${sg(diff)}` : ''}</span></div>
+      <div class="ring">${ring(G, done, fc, pr, stc)}</div>
+      <div class="rows">${G.cats.map((c) => `<div class="pr" style="--pc:${COL[c]}"><span class="n">● ${c}</span><span class="p">${fc ? Math.round(done[c] / fc * 100) + '%' : '—'}</span><span class="d"><span><b>${nf(done[c])}</b> / ${fc ? nf(fc) : '—'}</span><span>UPH <b>${uph(c)}</b>・${D.recent[c].n}名</span></span></div>`).join('')}</div>
+      <div class="ft"><div><span>FCST</span><b>${fc ? nf(fc) : '—'}</b></div><div><span>${hm(D.dataTo || D.start)} 時点の計画</span><b>${fc ? nf(pn) : '—'}</b></div><div><span>着地見込み</span><b style="color:${fc ? (lb >= fc ? '#15803d' : '#dc2626') : ''}">${nf(lb)}</b>${fc ? `<small style="color:${lb >= fc ? '#16a34a' : '#dc2626'}">${sg(lb - fc)}</small>` : ''}</div></div></div>`;
+  }
+  async function load() {
+    const { sh, d } = cur();
+    try {
+      const r = await fetch(`${API}/api/progress?date=${d}&shift=${sh}&cut=0&k=${KEY}`, { cache: 'no-store' });
+      const D = await r.json(); if (!D.ok) throw new Error(D.error || 'error');
+      document.getElementById('sh').textContent = `${Number(d.slice(5, 7))}/${Number(d.slice(8))} ${sh === 'day' ? '日勤 8:00〜20:00' : '夜勤 20:00〜5:00'}`;
+      document.getElementById('at').textContent = D.dataTo ? `${hm(D.dataTo)} までの実績` : '実績はまだありません';
+      document.getElementById('main').innerHTML = card(D, 'out') + card(D, 'in');
+    } catch (e) { document.getElementById('at').textContent = '読み込めませんでした（' + e.message + '）'; }
+  }
+  const tick = () => { document.getElementById('clk').textContent = new Date(Date.now() + 9 * H).toISOString().slice(11, 16); };
+  tick(); setInterval(tick, 10000); load(); setInterval(load, 2 * 60000);
+})();
+</script>
+<script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="monitor"></script>
+</body>
+</html>
