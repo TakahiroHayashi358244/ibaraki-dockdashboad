@@ -2214,7 +2214,16 @@ function setupDB() {
     if (nextStale() && (S.masters.saved || {})[planToday()]) { S.src = "saved"; document.getElementById("srcSel").value = "saved"; }   // 翌日分が未取込なら当日を開く
     else if (!S.masters.next && S.masters.current) { S.src = "current"; document.getElementById("srcSel").value = "current"; }
     rebuildAppts(true); } };
-  listen(dock.child("nextMaster"), "dock/nextMaster", s => { S.masters.next = normalizeMaster(s.val()); gotNext = true; archiveMaster(S.masters.next); if (S.date && S.src === "next") rebuildAppts(false); else first(); });
+  let dockCsvAt = null;   // ドックダッシュボードで読み込んだCSV（from:"dock"）の savedAt
+  listen(dock.child("nextMaster"), "dock/nextMaster", s => {
+    const raw = s.val() || {}; const wasGot = gotNext;
+    S.masters.next = normalizeMaster(raw); gotNext = true; archiveMaster(S.masters.next);
+    // ドックダッシュボードでCSVを読み込んだ → 開いている画面も翌日分に切り替える（割当のリセットはダッシュボード側で済み）
+    const fromDock = raw.from === "dock" && raw.savedAt && wasGot && dockCsvAt !== null && raw.savedAt > dockCsvAt;
+    dockCsvAt = raw.from === "dock" ? (raw.savedAt || 0) : (dockCsvAt || 0);
+    if (fromDock && S.date) { undoStack = []; S.src = "next"; document.getElementById("srcSel").value = "next"; S.planLoadedFor = null; rebuildAppts(true); toast("ドックダッシュボードで読み込んだCSV（" + ((S.masters.next && S.masters.next.rows.length) || 0) + "件）を翌日分として反映しました"); return; }
+    if (S.date && S.src === "next") rebuildAppts(false); else first();
+  });
   listen(dock.child("planMasters"), "dock/planMasters", s => {
     S.masters.saved = s.val() || {}; gotSaved = true;
     archiveMaster(S.masters.next);   // いま入っている翌日分CSV（＝当日になった分）も保存しておく

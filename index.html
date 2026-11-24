@@ -1108,6 +1108,16 @@ function applyIdxDaily(opts){
       upd[DOCK_ROOT+'/idxAdded/ids']=ids;
       upd[DOCK_ROOT+'/idxAdded/count']=Object.keys(ids).length;
       upd[DOCK_ROOT+'/idxAdded/at']=Date.now();
+      // 追加した便にも Dock のバース表記をメモに書く（例：3031 → ドック 303A）
+      add.forEach(r=>{
+        const id=String(r[ID_FIELD]); if(!addIds[id]) return;
+        const code=dockCode(r['Dock']); if(!code) return;
+        const p=fbPlacement[id];
+        const tmp={fields:{Dock:r['Dock']}, memo:p&&p.memo||null};
+        if(!applyDockMemo(tmp)) return;
+        upd[DOCK_ROOT+'/placement/'+id+'/memo']=tmp.memo;
+        if(!p) upd[DOCK_ROOT+'/placement/'+id+'/status']='plan';
+      });
       fbDB.ref().update(upd).then(()=>{
         const nAdd=Object.keys(addIds).length;
         toast('ドックマスターに追加の便が'+nAdd+'台ありました。予定に追加しました');
@@ -1375,8 +1385,19 @@ function loadCSV(ev){
       upd[DOCK_ROOT+'/master']=payload;
       upd[DOCK_ROOT+'/placement']=carried;
       upd[DOCK_ROOT+'/idxAdded']=null;   // 新しいCSV → IDXからの追加分の目印・台数はリセット
+      // 着車プランの「翌日分CSV」にも同じCSVを入れる（着車プランでCSVを読み込んだのと同じ扱い）
+      const now=Date.now();
+      upd[DOCK_ROOT+'/nextMaster']={headers, rows:valueRows, name:file.name||'', savedAt:now, from:'dock'};
+      // 計画の割当もリセットする。ただし当日以前の日付のCSVなら、使用中の当日の計画を消さないようにそのまま残す
+      const pDate=planDateOf(data);
+      if(pDate && pDate>dayKey(now)){
+        upd[DOCK_ROOT+'/plans/'+pDate+'/assign']=null;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/bays']=null;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/updatedAt']=now;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/by']='dock';
+      }
       fbDB.ref().update(upd)
-        .then(()=>{ toast(data.length+'件 読み込み・全PCへ共有しました（約'+approxKB+'KB）'); })
+        .then(()=>{ toast(data.length+'件 読み込み・全PCと着車プラン（翌日）へ共有しました（約'+approxKB+'KB）'); })
         .catch(err=>{
           console.error('CSV共有エラー:', err);
           warn('CSV共有に失敗: '+(err&&err.message?err.message:'不明なエラー')+'（他PCに反映されていません）');
@@ -1387,6 +1408,12 @@ function loadCSV(ev){
   };
   rd.readAsArrayBuffer(file);
   ev.target.value='';
+}
+// CSVの日付（着車プランと同じく Schedule Date／Expected Arrival Date で一番多い日）を YYYY-MM-DD で
+function planDateOf(data){
+  const cnt={};
+  data.forEach(o=>{ const d=schedDay(o['Schedule Date'])||schedDay(o['Expected Arrival Date']); if(d){ const k=d.replace(/\//g,'-'); cnt[k]=(cnt[k]||0)+1; } });
+  return Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'';
 }
 function decodeSmart(buf){
   const bytes=new Uint8Array(buf);
