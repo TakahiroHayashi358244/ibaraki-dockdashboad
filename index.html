@@ -1118,6 +1118,52 @@ function applyIdxDaily(opts){
 }
 // 朝8:00の確認でキャンセル（ドックマスターから消えていた）とみなした予定の便
 function isIdxCanceled(c){ return !!(c && c.status==='plan' && idxAdded && idxAdded.cancel && idxAdded.cancel[c.id]); }
+/* ============ Dock → バース表記（メモに記録） ============
+   CSVの Dock（例：3031／2012）を、4桁目 1→A・2→B に変えたバース表記（303A／201B）にする。
+   CSV取込時にメモの1行目へ「ドック 303A」と書き、最初の予定と違うバースへ入れたときは
+   「303A→302B に変更（08:30）」をメモに書き足して履歴を残す。 */
+const DOCK_MEMO_PREFIX = 'ドック ';
+function dockCode(raw){
+  const s=String(raw||'').split('[')[0].trim();
+  const m=s.match(/(^|\D)(\d{3})([12])(?!\d)/);
+  return m ? m[2]+(m[3]==='1'?'A':'B') : '';
+}
+// CSVの Dock をメモに書く（すでに「ドック ◯◯」の行があれば書き直さない）。メモが変わったら true
+function applyDockMemo(c){
+  const code=dockCode(c.fields && c.fields['Dock']);
+  if(!code) return false;
+  const memo=String(c.memo||'');
+  if(memo.split('\n').some(l=>l.startsWith(DOCK_MEMO_PREFIX))) return false;
+  c.memo=DOCK_MEMO_PREFIX+code+(memo.trim()?'\n'+memo:'');
+  return true;
+}
+// バース名を比べやすい形に（空白・補足（…）を除いて大文字）
+function bayKey(b){ return String(b||'').replace(/[（(].*$/,'').replace(/\s+/g,'').toUpperCase(); }
+// 予定（または直前）のバースと同じか。バース名が数字だけ（例：303）のときは数字部分で比べる
+function sameBay(a, b){
+  const x=bayKey(a), y=bayKey(b);
+  if(!x || !y) return true;
+  if(x===y) return true;
+  const dx=x.replace(/\D/g,''), dy=y.replace(/\D/g,'');
+  return (!/[A-Z]/.test(x) || !/[A-Z]/.test(y)) && dx===dy;
+}
+// いま「決まっている」バース：着車中ならそのバース、それ以外はメモの最後の変更先、なければCSVのDock
+function plannedBayOf(c){
+  if(c.status==='arrive' && c.bay) return c.bay;
+  const lines=String(c.memo||'').split('\n');
+  for(let i=lines.length-1;i>=0;i--){ const m=lines[i].match(/→\s*(\S+?)\s*に変更/); if(m) return m[1]; }
+  const l=lines.find(x=>x.startsWith(DOCK_MEMO_PREFIX));
+  if(l) return l.slice(DOCK_MEMO_PREFIX.length).trim();
+  return dockCode(c.fields && c.fields['Dock']);
+}
+// 着車させたバースが決まっていたバースと違うとき、メモに変更履歴を書き足す
+function noteBayChange(c, toBay){
+  const from=plannedBayOf(c);
+  if(!from || !toBay || sameBay(from, toBay)) return;
+  const line=from+'→'+toBay+' に変更（'+hhmm(Date.now())+'）';
+  c.memo=(String(c.memo||'').replace(/\s+$/,'')+(c.memo&&String(c.memo).trim()?'\n':'')+line);
+}
+
 // ドックマスターで Dock 9999 に入っている便（追加の対象外）
 function isDock9999(r){ return /(^|\D)9999(\D|$)/.test(String((r&&r['Dock'])||'').trim()); }
 
@@ -1303,6 +1349,9 @@ function loadCSV(ev){
         c.arriveBay=p.arriveBay; c.arriveOp=p.arriveOp; c.doneAt=p.doneAt; c.doneOp=p.doneOp; c.memo=p.memo;
         c.idxClosedAt=p.idxClosedAt||null; c.doneBay=p.doneBay||null; }
     });
+    // Dock をバース表記にしてメモへ（例：3031 → ドック 303A）
+    const dockMemoIds={};
+    state.cards.forEach(c=>{ if(applyDockMemo(c)) dockMemoIds[c.id]=true; });
     render();
     recordCsvLoad(data.length);
     if(fbReady && fbDB){
@@ -1312,7 +1361,7 @@ function loadCSV(ev){
       // 引き継ぎ後の配置を構築（新CSVに存在するIDのみ）
       const carried={};
       state.cards.forEach(c=>{
-        if(prevById[c.id]){
+        if(prevById[c.id] || dockMemoIds[c.id]){
           carried[c.id]={status:c.status, bay:c.bay||null, arriveAt:c.arriveAt||null,
             arriveBay:c.arriveBay||null, arriveOp:c.arriveOp||null,
             doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
@@ -1446,6 +1495,15 @@ function doSwitchNextMaster(m, dLabel){
           doneAt:c.doneAt||null, doneOp:c.doneOp||null, memo:c.memo||null,
           idxClosedAt:c.idxClosedAt||null, doneBay:c.doneBay||null};
       }
+    });
+    // Dock をバース表記にしてメモへ（例：3031 → ドック 303A）。引き継いだカードは既存のメモに足す
+    const di=m.headers.indexOf('Dock');
+    if(di>=0) m.rows.forEach(r=>{
+      const id=String((r&&r[idx])||''); if(!id) return;
+      const tmp={fields:{Dock:r[di]}, memo:carried[id]?carried[id].memo:null};
+      if(!applyDockMemo(tmp)) return;
+      if(carried[id]) carried[id].memo=tmp.memo;
+      else carried[id]={status:'plan', memo:tmp.memo};
     });
     const upd={};
     upd[DOCK_ROOT+'/master']={headers:m.headers, rows:m.rows};
@@ -1853,6 +1911,7 @@ function moveCardTo(c, zone, bay){
   if(zone==='arrive'){
     const occupant=state.cards.find(x=>x.status==='arrive'&&x.bay===bay&&x.id!==c.id);
     if(occupant){ warn('バース '+bay+' は使用中です（1バース1台）'); return false; }
+    if(!(c.status==='arrive' && c.bay===bay)) noteBayChange(c, bay);   // 決まっていたバースと違えばメモに履歴
     if(c.status!=='arrive' || !c.arriveAt){
       c.arriveAt=Date.now(); c.arriveBay=bay; c.arriveOp=operator.trim();
     }
