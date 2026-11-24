@@ -54,10 +54,15 @@
   header .sh{font-size:min(2.8vh,1.4vw)}
   header .clk{font-size:min(7vh,4.2vw)}
   header .at{font-size:min(2.6vh,1.4vw);white-space:nowrap}
+
+  /* 画面スリープ防止の状態（右上の小さな表示） */
+  header .r{display:flex;flex-direction:column;align-items:flex-end;gap:.3vh}
+  header .wl{font-size:min(1.7vh,.95vw);font-weight:800;padding:.1vh .7vw;border-radius:99px;white-space:nowrap;cursor:pointer}
+  header .wl.on{background:#14532d;color:#bbf7d0}header .wl.off{background:#7f1d1d;color:#fecaca}
 </style>
 </head>
 <body>
-<header><div class="l"><h1>進捗モニター</h1><span class="sh" id="sh">—</span></div><span class="clk" id="clk">--:--</span><div class="r"><span class="at" id="at"></span></div></header>
+<header><div class="l"><h1>進捗モニター</h1><span class="sh" id="sh">—</span></div><span class="clk" id="clk">--:--</span><div class="r"><span class="at" id="at"></span><span class="wl off" id="wl" title="画面スリープ防止の状態。OFFのときは画面を一度クリックするとONになります">スリープ防止 OFF</span></div></header>
 <main id="main"></main>
 <script>
 (() => {
@@ -118,6 +123,35 @@
     } catch (e) { document.getElementById('at').textContent = '読み込めませんでした（' + e.message + '）'; }
   }
   const tick = () => { document.getElementById('clk').textContent = new Date(Date.now() + 9 * H).toISOString().slice(11, 16); };
+
+  // ===== 画面スリープ防止 =====
+  // 1) Screen Wake Lock API（Chrome・Edge・Safari 16.4 以降）。タブが隠れると外れるので、戻ったら取り直す
+  // 2) 使えないブラウザでは、見えない無音の動画を流し続けて画面が消えないようにする（最初に一度クリックが必要）
+  let wl = null, vid = null;
+  const wlShow = (on) => { const e = document.getElementById('wl'); e.className = 'wl ' + (on ? 'on' : 'off'); e.textContent = on ? 'スリープ防止 ON' : 'スリープ防止 OFF（画面をクリック）'; };
+  async function wakeOn() {
+    if ('wakeLock' in navigator) {
+      try {
+        if (!wl || wl.released) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { if (document.visibilityState !== 'visible') wlShow(false); }); }
+        wlShow(true); return;
+      } catch (e) { /* 使えない・許可されないときは動画で代わりにする */ }
+    }
+    try {
+      if (!vid) {
+        const c = document.createElement('canvas'); c.width = c.height = 2; const x = c.getContext('2d');
+        setInterval(() => { x.fillStyle = Date.now() % 2000 < 1000 ? '#000' : '#010101'; x.fillRect(0, 0, 2, 2); }, 1000);
+        vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.loop = true; vid.setAttribute('playsinline', '');
+        vid.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0';
+        vid.srcObject = c.captureStream(1); document.body.appendChild(vid);
+      }
+      await vid.play(); wlShow(true);
+    } catch (e) { wlShow(false); }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wakeOn(); });
+  document.addEventListener('click', () => wakeOn());
+  document.addEventListener('keydown', () => wakeOn());
+  setInterval(() => { if (document.visibilityState === 'visible' && (!wl || wl.released) && !(vid && !vid.paused)) wakeOn(); }, 60000);
+  wakeOn();
   tick(); setInterval(tick, 10000); load(); setInterval(load, 2 * 60000);
 })();
 </script>
