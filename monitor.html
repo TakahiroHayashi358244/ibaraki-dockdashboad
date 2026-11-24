@@ -94,13 +94,23 @@
     s += `<circle cx="180" cy="180" r="${ri}" fill="none" stroke="${gc}" stroke-width="1.2" opacity=".5"/>`;
     [0, 90, 180, 270].forEach((d) => { s += ln(d, ro - 6, ro + 16, 3) + ln(d, ri + 4, ri - 8, 3); });
     G.cats.forEach((c, k) => {
-      const r = fc ? Math.min(1, done[c] / fc) : 0;
+      const r = fc ? done[c] / fc : 0;
       s += `<circle cx="180" cy="180" r="${R[k]}" fill="none" stroke="#cbd5e1" stroke-width="${W}"/>`;
-      if (r > 0) s += `<path d="${arc(180, 180, R[k], 0, r)}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="round"/>`;
+      if (r >= 1) {
+        // 100% を超えたら：1周目は輪いっぱい、2周目も同じ色で上に重ねて伸ばす。白い境界線で重なりを見せる（最大200%まで）
+        const r2 = Math.min(r - 1, 0.9999);
+        s += `<circle cx="180" cy="180" r="${R[k]}" fill="none" stroke="${COL[c]}" stroke-width="${W}"/>`;
+        if (r2 > 0.01) {
+          // 境界線は伸びている先端（と両脇）だけ。2周目の始まり（0の位置）には線を出さない
+          const d = arc(180, 180, R[k], 0.006, r2), d0 = arc(180, 180, R[k], -0.004, r2), ea = r2 * 2 * Math.PI, ex = 180 + R[k] * Math.sin(ea), ey = 180 - R[k] * Math.cos(ea);
+          s += `<path d="${d}" fill="none" stroke="#fff" stroke-width="${W + 6}" stroke-linecap="butt"/><circle cx="${ex}" cy="${ey}" r="${W / 2 + 3}" fill="#fff"/>`;
+          s += `<path d="${d0}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="butt"/><circle cx="${ex}" cy="${ey}" r="${W / 2}" fill="${COL[c]}"/>`;
+        }
+      } else if (r > 0) s += `<path d="${arc(180, 180, R[k], 0, r)}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="round"/>`;
     });
     if (fc && pr != null) { const a = pr * 2 * Math.PI, x = (r) => 180 + r * Math.sin(a), y = (r) => 180 - r * Math.cos(a); s += `<line x1="${x(R[1] - W / 2 - 4)}" y1="${y(R[1] - W / 2 - 4)}" x2="${x(R[0] + W / 2 + 4)}" y2="${y(R[0] + W / 2 + 4)}" stroke="#020617" stroke-width="7" stroke-linecap="round"/>`; }
     const bn = G.cats.reduce((a, b) => (done[b] < done[a] ? b : a)), p = fc ? Math.round(done[bn] / fc * 100) : null;
-    s += `<text x="180" y="190" text-anchor="middle" font-size="72" font-weight="900" fill="${stc}">${p == null ? '—' : p + '%'}</text>`;
+    s += `<text x="180" y="190" text-anchor="middle" font-size="${p != null && p >= 100 ? 58 : 72}" font-weight="900" fill="${stc}">${p == null ? '—' : p + '%'}</text>`;
     s += `<text x="180" y="226" text-anchor="middle" font-size="22" font-weight="800" fill="#1e293b">${fc ? `計画 ${Math.round(pr * 100)}%` : 'FCST なし'}</text>`;
     return `<svg viewBox="-20 -20 400 400">${s}</svg>`;
   }
