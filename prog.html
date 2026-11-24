@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>進捗管理</title>
+<style>
+  :root{--bg:#f3f4f6;--card:#fff;--ink:#111827;--sub:#6b7280;--line:#e5e7eb}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI","Hiragino Sans",Meiryo,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  header{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line)}
+  header h1{font-size:18px;margin:0 6px 0 0;white-space:nowrap;display:flex;align-items:center;gap:8px}
+  header h1 .dot{width:10px;height:10px;border-radius:50%;background:#9ca3af}
+  header h1 .dot.ok{background:#22c55e;box-shadow:0 0 6px #22c55e}header h1 .dot.ng{background:#ef4444}
+  .sp{flex:1}
+  main{flex:1;min-height:0;overflow:auto;padding:10px 16px}
+  section{background:var(--card);border-radius:10px;padding:12px 16px;box-shadow:0 1px 2px rgba(0,0,0,.06);max-width:1600px;margin:0 auto}
+  input,select{font:inherit;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff}
+  button{font:inherit;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;background:#e5e7eb}
+  button.sm{padding:2px 8px;font-size:12px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
+  th{position:sticky;top:0;background:#f9fafb;font-weight:600;color:var(--sub)}
+  .hint{color:var(--sub);font-size:12px}
+  .tabs{display:flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden}
+  .tabs button{border-radius:0;background:#fff;padding:4px 14px}
+  .tabs button.on{background:#111827;color:#fff}
+  .dt{display:inline-flex;align-items:center;gap:4px}
+  .dt button{padding:4px 9px;background:#fff;border:1px solid #d1d5db}
+  .dt.off{display:none}
+  .upd{font-size:12px;color:var(--sub);white-space:nowrap}
+  #viewProg{overflow:visible}
+  /* 進捗（OUT・IN の積み上げ） */
+  #viewProg{flex:1;min-height:0;overflow:auto}
+  .pg-mode{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .pg-mode > button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:3px 12px;font-weight:700;color:#475569}
+  .pg-mode > button.on{background:#0f766e;border-color:#0f766e;color:#fff}
+  .pg-days{display:flex;gap:4px}.pg-days button{padding:3px 10px;font-size:12px;font-weight:700;border:1px solid #e5e7eb;background:#fff}.pg-days button.on{background:#111827;color:#fff;border-color:#111827}
+  .pg-ban{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:6px}
+  .pg-ban.live{background:#ecfdf5;color:#047857}.pg-ban.past{background:#eef2ff;color:#3730a3}.pg-ban.fut{background:#f3f4f6;color:#6b7280}
+  .pg-fc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#374151;margin-bottom:8px}
+  .pg-fc input{width:90px;padding:3px 6px}
+  .pg-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:12px}
+  .pg-pn{border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:0}
+  .pg-ph{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}.pg-ph h3{margin:0;font-size:15px}
+  .pg-tag{font-size:11px;font-weight:800;color:#fff;padding:1px 8px;border-radius:5px}
+  .pg-kp,.pg-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+  .pg-sum{grid-template-columns:repeat(6,1fr)}
+  .pg-k{border:1px solid #eef2f7;border-radius:8px;padding:6px 10px;background:#f9fafb;min-width:0}
+  .pg-k span{font-size:11px;color:var(--sub);font-weight:600}.pg-k b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.pg-k small{font-size:11px;color:var(--sub);font-weight:700}
+  .pg-src{font-weight:500 !important}
+  .pg-pr{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
+  .pg-p{border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:0}
+  .pg-p .n{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px}.pg-p .n i{width:10px;height:10px;border-radius:3px}
+  .pg-p .v{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}.pg-p .v > b{font-size:19px;font-variant-numeric:tabular-nums}.pg-p .v span{font-size:11.5px;color:var(--sub)}.pg-p .v span b{color:var(--ink)}
+  .pg-j{margin-left:auto;font-size:11px;font-weight:800;padding:0 8px;border-radius:999px;white-space:nowrap}
+  .pg-j.ok{background:#dcfce7;color:#15803d}.pg-j.wn{background:#fef3c7;color:#b45309}.pg-j.ng{background:#fee2e2;color:#b91c1c}
+  .pg-svg{display:block;width:100%;height:auto}
+  .pg-lg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:#4b5563}.pg-lg i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}.pg-lg i.bx{width:9px;height:9px;border-radius:2px}
+  .pg-tw{overflow:auto;margin-top:6px}
+  .pg-t{font-size:12px}.pg-t th,.pg-t td{padding:3px 6px;text-align:right}.pg-t th:first-child,.pg-t td:first-child{text-align:left}
+  .pg-t td{font-variant-numeric:tabular-nums}.pg-t td small{color:#9ca3af}
+  .pg-t td.m{color:#b91c1c;font-weight:700}.pg-t td.pl{color:#15803d;font-weight:700}
+  .pg-t tr.now td{background:#fefce8;font-weight:700}.pg-t tr.tot td{font-weight:800;border-bottom:2px solid #d1d5db;background:#f9fafb}
+  .pg-ht th.g{text-align:center;border-bottom:2px solid}
+  .pg-ht tr.r{cursor:pointer}.pg-ht tr.r:hover td{background:#f0fdfa}
+  .pg-rate{display:inline-flex;align-items:center;gap:6px}.pg-bar{width:64px;height:7px;border-radius:4px;background:#e5e7eb;position:relative;overflow:hidden}.pg-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+  .pg-sh{font-size:11px;font-weight:800;padding:0 6px;border-radius:4px}.pg-sh.day{background:#dbeafe;color:#1d4ed8}.pg-sh.night{background:#1f2937;color:#fff}
+  .pg-lsc{text-align:right}
+  .pg-ls{display:flex;justify-content:flex-end;gap:8px;line-height:1.35;color:#b91c1c}.pg-ls span{color:#6b7280;font-size:11.5px}
+  .pg-sh.all{background:#ecfdf5;color:#047857}
+  .pg-ht td{vertical-align:middle}
+  .pg-cut{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-size:12px}.pg-cut b{color:#4b5563;font-weight:700;margin-right:2px}
+  .pg-cut button{padding:3px 10px;font-size:12px;font-weight:700;border:1px solid #e5e7eb;background:#fff}.pg-cut button.on{background:#0f766e;color:#fff;border-color:#0f766e}
+  .pg-pb{border:1px solid #eef2f7;border-radius:8px;padding:6px 10px 4px;margin-bottom:8px;background:#fcfcfd}
+  .pg-pbr{display:grid;grid-template-columns:62px 1fr 52px 120px;align-items:center;gap:8px;margin:2px 0}
+  .pg-pbr .nm{font-weight:800;font-size:12.5px}.pg-pbr b{font-size:17px;text-align:right;font-variant-numeric:tabular-nums}.pg-pbr small{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums}
+  .pg-pbr .tr{position:relative;height:12px;border-radius:6px;background:#e5e7eb}.pg-pbr .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+  .pg-pbr .tr em{position:absolute;top:-3px;bottom:-3px;width:2px;background:#111827;margin-left:-1px}
+  .pg-pbn{font-size:10.5px;color:var(--sub);text-align:right}
+  .pg-t tr.off td{color:#9ca3af}
+  #pgBar button.pg-back{background:#fef3c7;border:1px solid #f59e0b;color:#92400e;border-radius:999px;padding:3px 12px;font-weight:800}
+  #pgBar button.pg-imp{font-size:12px;padding:3px 10px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font-weight:700}
+  .pg-k2 .r{display:flex;align-items:baseline;gap:6px;line-height:1.25}.pg-k2 .r em{font-style:normal;font-size:11.5px;font-weight:800;width:54px}.pg-k2 .r b{font-size:17px;display:inline}.pg-k2 .r small{margin-left:auto}
+  /* OUT と IN の高さをそろえる（文字の長さで行数が変わらないように） */
+  .pg-kp .pg-k{height:82px;overflow:hidden}
+  .pg-k > span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pg-k small{white-space:nowrap}
+  .pg-k2 .r em{width:64px;flex:none}.pg-k2 .r b{min-width:52px;text-align:right}
+  .pg-pbr .nm{white-space:nowrap}
+  .pg-p .n,.pg-p .v{flex-wrap:nowrap;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pg-p .v span{overflow:hidden;text-overflow:ellipsis}
+  .pg-k2 .r{display:grid;grid-template-columns:auto 1fr auto;gap:0 6px;align-items:baseline}.pg-k2 .r em{width:auto}.pg-k2 .r b{min-width:0;font-size:16px}.pg-k2 .r small{margin-left:0}
+  .pg-pbr{grid-template-columns:62px 1fr 52px 112px 150px}.pg-pbr .uph{font-size:11.5px;color:var(--sub);white-space:nowrap}.pg-pbr .uph b{font-size:14px;color:var(--ink)}.pg-pbr .uph small{font-size:10.5px}
+  .pg-lg{min-height:36px;align-content:flex-start}
+
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="dot" id="dot"></span>進捗管理</h1>
+  <div class="tabs" id="shiftTabs" title="夜勤＝出勤した日の勤務（例：11/20の夜勤＝11/20 20:00〜翌8:00）"><button data-shift="all">全て</button><button data-shift="day">日勤</button><button data-shift="night">夜勤</button></div>
+  <span class="dt" id="dtBox"><button id="dPrev" title="前の日">◀</button><input type="date" id="from"><button id="dNext" title="次の日">▶</button></span>
+  <input type="hidden" id="to">
+  <span id="pgBar" class="pg-mode"></span>
+  <span class="sp"></span>
+  <span class="upd" id="upd"></span><button class="sm" id="reload" title="今すぐ読み直す">更新</button>
+</header>
+<main><section><div id="viewProg"></div></section></main>
+<script>
+(() => {
+  'use strict';
+  // 間接打刻管理（indirect-relay-hfo1）の /api/progress を閲覧用の鍵で読む（閲覧専用）
+  const PG_API = 'https://indirect-relay-hfo1.takahiro884.workers.dev', PG_KEY = '1540850d9c168e02e13c9c10c06d8bed';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // 営業日（5時切替）。夜勤の 0〜5時は前日の夜勤
+  const ymd = (d) => new Date(d.getTime() - 5 * 3600000 + 9 * 3600000).toISOString().slice(0, 10);
+  const addDay = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  async function api(method, path) {
+    const r = await fetch(PG_API + path + (path.includes('?') ? '&' : '?') + 'k=' + PG_KEY, { cache: 'no-store' });
+    let j = null; try { j = await r.json(); } catch (e) { /* ignore */ }
+    if (!r.ok || !j || j.ok === false) { $('dot').className = 'dot ng'; throw new Error((j && j.error) || ('HTTP ' + r.status)); }
+    $('dot').className = 'dot ok';
+    $('upd').textContent = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) + ' 更新';
+    return j;
+  }
+  let shift = 'all', nightAuto = false;
+  const tab = 'prog', token = true;
+  try { const s = localStorage.getItem('pg_shift'); if (s === 'day' || s === 'night' || s === 'all') shift = s; } catch (e) { /* ignore */ }
+  function setShift(v) {
+    shift = v; try { localStorage.setItem('pg_shift', v); } catch (e) { /* ignore */ }
+    document.querySelectorAll('#shiftTabs button').forEach((b) => b.classList.toggle('on', b.dataset.shift === v));
+  }
+  // 進捗だけのページなので、画面の切り替え＝描き直して読み込み
+  function setTab() { $('dtBox').classList.toggle('off', pgMode === 'hist'); renderProg(); loadProg(); }
+  const load = () => Promise.resolve(), loadTimeline = () => Promise.resolve();
+
+  // ================= 進捗（OUT・IN の積み上げ） =================
+  //  実績＝FCLM（作業変化モニター）のダイレクト作業の Unit、計画＝配置ダッシュボードの FCST を作業時間（日勤 8〜20時・夜勤 20〜5時）に均等割り
+  //  日勤・夜勤の切り替えと日付は受付履歴のものを使う。「全て」は日勤＋夜勤の24時間を夜勤から累計（区切りは 0:00〜23:59 か 20:00〜19:59 を選ぶ）
+  const PG_COL = { Pick: '#0891b2', Pack: '#db2777', Receive: '#ca8a04', Stow: '#16a34a' };
+  const PG_GRP = { out: { cats: ['Pick', 'Pack'], name: 'アウトバウンド', tag: 'OUT', tc: '#0f766e', sub: 'Pick・Pack（少ない方＝ボトルネックで判定）' },
+                   in: { cats: ['Receive', 'Stow'], name: 'インバウンド', tag: 'IN', tc: '#ca8a04', sub: 'Receive・Stow はそれぞれ FCST と比べる' } };
+  let pgMode = 'day', pgData = null, pgHist = null, pgMonth = '', pgBack = null, pgImp = '', pgEdit = false, pgErr = '', pgCut = '0';
+  try { pgMode = localStorage.getItem('pg_mode') === 'hist' ? 'hist' : 'day'; pgCut = localStorage.getItem('pg_cut') === '20' ? '20' : '0'; } catch (e) { /* ignore */ }
+  const PG_CUT = { '0': '0:00〜23:59', '20': '20:00〜19:59' };
+  // i 番目の時間帯の始まり
+  const pgT = (D, i) => (D.starts ? D.starts[i] : D.start + i * 3600000);
+  // 実績がある時刻まで、何時間分（表の行の数で）進んだか
+  const pgUpto = (D) => (!D.dataTo ? 0 : D.hours.reduce((s, _, i) => s + Math.max(0, Math.min(1, (D.dataTo - pgT(D, i)) / 3600000)), 0));
+  const pgNf = (v) => Math.round(v || 0).toLocaleString();
+  const pgSg = (v) => (v >= 0 ? '+' : '−') + pgNf(Math.abs(v));
+  const pgHm = (t) => { const d = new Date(t + 9 * 3600000); return d.toISOString().slice(11, 16); };
+  const pgMd = (d) => { const t = new Date(d + 'T00:00:00'); return `${t.getMonth() + 1}/${t.getDate()}（${'日月火水木金土'[t.getDay()]}）`; };
+  // 今のシフト（出勤日で数える：夜勤の 0:00〜8:00 は前日の夜勤）
+  function pgShift() { return shift === 'day' || shift === 'night' ? shift : 'all'; }
+  async function loadProg() {
+    pgErr = '';
+    try {
+      if (pgMode === 'hist') pgHist = await api('GET', `/api/progress/hist?days=31&cut=${pgCut}${pgMonth ? '&month=' + pgMonth : ''}`);
+      else pgData = await api('GET', `/api/progress?date=${$('from').value}&shift=${pgShift()}&cut=${pgCut}`);
+    } catch (e) { pgErr = e.message; }
+    renderProg();
+  }
+  // 計画：サーバーが返す1時間ごとの計画（その時間のシフトの FCST ÷ 作業時間。全ては日勤・夜勤をつないだ24時間分）を、hrs 時間目まで足す
+  // 残りの作業時間（作業しない時間＝夜勤の5〜8時などは数えない）
+  const pgLeft = (D, upto) => (D.plan.work || D.hours.map(() => 1)).reduce((s, w, i) => s + w * Math.max(0, Math.min(1, i + 1 - upto)), 0);
+  // UPH（ダイレクト作業の Unit ÷ 時間）：進行中は直近1時間と累計、終わった日は累計
+  const pgU = (o) => (o && o.h > 0.05 ? Math.round(o.u / o.h) : null);
+  const pgUph = (D, c) => { const t = pgU(D.total[c]), r = pgU(D.recent[c]);
+    return `<span class="uph" title="UPH＝ダイレクト作業の Unit ÷ 作業時間（FCLM）">UPH ${D.live ? `<b>${r ?? '—'}</b><small> 直近1h</small>・` : ''}<b>${t ?? '—'}</b><small> ${D.live ? '累計' : ''}</small></span>`; };
+  const pgPlanTo = (arr, hrs) => { let s = 0; (arr || []).forEach((v, i) => { s += v * Math.max(0, Math.min(1, hrs - i)); }); return s; };
+  function pgChart(D, g, fc) {
+    const cats = PG_GRP[g].cats, nh = D.hours.length, arr = D.plan[g] || [], W = 640, H = 240, L = 42, R = 96, T = 14, B = 24, bw = (W - L - R) / nh, x = (i) => L + i * bw;
+    const upto = pgUpto(D);
+    const done = {}, land = {};
+    cats.forEach((c) => { done[c] = D.hours.reduce((s, h) => s + h[c].u, 0); land[c] = D.live ? done[c] + (D.recent[c].u / Math.max(0.25, (D.recentTo - D.recentFrom) / 3600000)) * pgLeft(D, upto) : done[c]; });
+    const top = Math.max(fc || 0, ...cats.map((c) => land[c]), 100) * 1.08;
+    const step = [100, 200, 500, 1000, 1500, 2000, 2500, 5000, 10000].find((s) => top / s <= 5) || 20000, ym = Math.ceil(top / step) * step, y = (v) => T + (1 - v / ym) * (H - T - B);
+    let s = '';
+    for (let v = 0; v <= ym; v += step) s += `<line x1="${L}" x2="${x(nh)}" y1="${y(v)}" y2="${y(v)}" stroke="#eef2f7"/><text x="${L - 6}" y="${y(v) + 4}" font-size="10" fill="#94a3b8" text-anchor="end">${v >= 1000 ? (v / 1000) + 'k' : v}</text>`;
+    for (let i = 0; i < nh; i += nh > 12 ? 2 : 1) s += `<text x="${x(i) + bw / 2}" y="${H - 7}" font-size="10" fill="#94a3b8" text-anchor="middle">${pgHm(pgT(D, i)).slice(0, 2)}</text>`;
+    if (D.live) s += `<rect x="${x(upto)}" y="${T}" width="${x(nh) - x(upto)}" height="${H - T - B}" fill="#f8fafc"/>`;
+    // 1時間ごとの実績（薄い棒）
+    const hmax = Math.max(1, ...D.hours.flatMap((h) => cats.map((c) => h[c].u))), hy = (v) => y(0) - (v / hmax) * (H - T - B) * 0.28;
+    cats.forEach((c, k) => D.hours.forEach((h, i) => { if (!h[c].u) return; s += `<rect x="${x(i) + bw * 0.16 + k * bw * 0.34}" y="${hy(h[c].u)}" width="${bw * 0.32}" height="${y(0) - hy(h[c].u)}" fill="${PG_COL[c]}" opacity=".25" rx="2"><title>${pgHm(pgT(D, i))}台 ${c} ${pgNf(h[c].u)}（${h[c].n}名）</title></rect>`; }));
+    const labs = [];
+    if (fc > 0) { let cp = 0; const pp = [[x(0), y(0)]]; arr.forEach((v, i) => { cp += v; pp.push([x(i + 1), y(cp)]); }); s += `<polyline points="${pp.map((q) => q.join(',')).join(' ')}" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 4"/>`; labs.push([y(fc), '#475569', `FCST ${pgNf(fc)}`]); }
+    cats.forEach((c) => {
+      let cc = 0; const pts = [[x(0), y(0)]];
+      D.hours.forEach((h, i) => { if (i >= Math.ceil(upto)) return; cc += h[c].u; pts.push([x(Math.min(i + 1, upto)), y(cc)]); });
+      if (pts.length < 2) return;
+      s += `<polyline points="${pts.map((q) => q.join(',')).join(' ')}" fill="none" stroke="${PG_COL[c]}" stroke-width="2.6" stroke-linejoin="round"/>`;
+      const l = pts[pts.length - 1]; s += `<circle cx="${l[0]}" cy="${l[1]}" r="3.5" fill="${PG_COL[c]}"/>`;
+      if (D.live) s += `<line x1="${l[0]}" y1="${l[1]}" x2="${x(nh)}" y2="${y(land[c])}" stroke="${PG_COL[c]}" stroke-width="2" stroke-dasharray="2 4"/>`;
+      labs.push([D.live ? y(land[c]) : l[1], PG_COL[c], `${c} ${pgNf(land[c])}`]);
+    });
+    labs.sort((a, b) => a[0] - b[0]); for (let i = 1; i < labs.length; i++) if (labs[i][0] - labs[i - 1][0] < 13) labs[i][0] = labs[i - 1][0] + 13;
+    labs.forEach((l) => s += `<text x="${x(nh) + 5}" y="${l[0] + 4}" font-size="10.5" font-weight="700" fill="${l[1]}">${l[2]}</text>`);
+    if (D.live) s += `<line x1="${x(upto)}" x2="${x(upto)}" y1="${T}" y2="${H - B}" stroke="#111827"/><text x="${x(upto) + 4}" y="${T + 10}" font-size="10.5" font-weight="700">${pgHm(D.dataTo)} までの実績</text>`;
+    return { svg: `<svg viewBox="0 0 ${W} ${H}" class="pg-svg">${s}</svg>`, done, land, upto };
+  }
+  function pgPanel(D, g) {
+    const G = PG_GRP[g], fc = D.plan[g + 'Sum'], src = D.fcst ? D.fcst[g + 'Src'] : (D.plan.parts.some((x) => x[g + 'Src'] === 'manual') ? 'manual' : 'mix');
+    const arr = D.plan[g] || [], ch = pgChart(D, g, fc), upto = ch.upto, planNow = pgPlanTo(arr, upto);
+    const bn = G.cats.reduce((a, b) => (ch.done[b] < ch.done[a] ? b : a)), lbn = G.cats.reduce((a, b) => (ch.land[b] < ch.land[a] ? b : a));
+    const val = ch.done[bn], res = D.live ? ch.land[lbn] : val;
+    const col = !fc ? '#111827' : res >= fc ? '#15803d' : res >= fc * 0.95 ? '#b45309' : '#b91c1c';
+    const fcTxt = fc ? pgNf(fc) : '—';
+    const miss = D.plan.parts.filter((x) => !x[g]).map((x) => `${pgMd(x.date)} ${x.shift === 'night' ? '夜勤' : '日勤'}`);
+    const srcTxt = !fc ? (miss && miss.length ? `FCST がありません（${miss.join('・')}）` : 'FCST がありません') : src === 'manual' ? '手入力' : src === 'mix' ? '日勤・夜勤の FCST をつないだ24時間分' : '配置ダッシュボード';
+    const k3 = D.live
+      ? `<div class="pg-k"><span>${pgHm(D.dataTo || D.start)} 時点の計画</span><b>${fc ? pgNf(planNow) : '—'}</b><small style="color:${val >= planNow ? '#15803d' : '#b91c1c'}">${fc ? pgSg(val - planNow) : ''}</small></div>`
+      : `<div class="pg-k"><span>達成率</span><b style="color:${col}">${fc ? Math.round(val / fc * 100) + '%' : '—'}</b><small>${fc ? (val >= fc ? '達成' : '未達') : ''}</small></div>`;
+    const cards = G.cats.map((c) => {
+      const d = ch.done[c], r = D.recent[c], t = D.total[c], diff = D.live ? d - planNow : d - fc;
+      const j = !fc ? ['', ''] : D.live ? (diff >= 0 ? ['ok', '計画どおり'] : diff > -planNow * 0.06 ? ['wn', 'やや遅れ'] : ['ng', '遅れ']) : (d >= fc ? ['ok', '達成'] : d >= fc * 0.95 ? ['wn', '未達 ' + pgSg(diff)] : ['ng', '未達 ' + pgSg(diff)]);
+      const uph = D.live ? (r.h > 0.05 ? Math.round(r.u / r.h) : null) : (t.h > 0.05 ? Math.round(t.u / t.h) : null);
+      return `<div class="pg-p" style="border-color:${PG_COL[c]}66"><div class="n"><i style="background:${PG_COL[c]}"></i>${c}${j[0] ? `<span class="pg-j ${j[0]}">${j[1]}</span>` : ''}</div>
+        <div class="v"><b>${pgNf(d)}</b><span>${fc ? (D.live ? `／計画 ${pgNf(planNow)}（${pgSg(diff)}）` : `／FCST ${fcTxt}（${Math.round(d / fc * 100)}%）`) : ''}</span></div>
+        <div class="v"><span>${D.live ? '直近1h ' : ''}UPH <b>${uph ?? '—'}</b>・${D.live ? `人数 ${r.n}名` : `作業した人 ${t.n}名・${t.h.toFixed(1)}h`}${D.live ? `・着地見込み ${pgNf(ch.land[c])}` : ''}</span></div></div>`;
+    }).join('');
+    const now = D.live ? Math.ceil(upto) : D.hours.length;
+    const rows = D.hours.slice(0, now).map((h, i) => {
+      const part = D.live && i + 1 > upto, off = D.plan.work && !D.plan.work[i], pl = fc && !off ? arr[i] * (part ? upto - i : 1) : null;
+      return `<tr class="${part ? 'now' : ''}${off ? ' off' : ''}"><td>${pgHm(pgT(D, i))}${part ? '（途中）' : off ? '<small>（作業時間外）</small>' : ''}</td><td>${pl == null ? '—' : pgNf(pl)}</td>${G.cats.map((c) => { const v = h[c].u; return `<td>${pgNf(v)}<small> ${h[c].n}名</small></td><td class="${pl == null ? '' : v - pl < 0 ? 'm' : 'pl'}">${pl == null ? '' : pgSg(v - pl)}</td>`; }).join('')}</tr>`;
+    }).reverse().join('');   // 今の時間帯を上に
+    const totPl = D.live ? planNow : fc;
+    const tot = `<tr class="tot"><td>合計</td><td>${fc ? pgNf(totPl) : '—'}</td>${G.cats.map((c) => `<td>${pgNf(ch.done[c])}</td><td class="${!fc ? '' : ch.done[c] - totPl < 0 ? 'm' : 'pl'}">${fc ? pgSg(ch.done[c] - totPl) : ''}</td>`).join('')}</tr>`;
+    return `<div class="pg-pn"><div class="pg-ph"><span class="pg-tag" style="background:${G.tc}">${G.tag}</span><h3>${G.name}</h3><span class="hint">${G.sub}</span></div>
+      <div class="pg-kp"><div class="pg-k" title="${srcTxt}"><span>FCST${src === 'manual' ? '（手入力）' : ''}</span><b>${fcTxt}</b></div>
+        ${true ? `<div class="pg-k pg-k2"><span>実績</span>${G.cats.map((c) => `<div class="r"><em style="color:${PG_COL[c]}">${c}</em><b>${pgNf(ch.done[c])}</b><small>${fc ? Math.round(ch.done[c] / fc * 100) + '%' : ''}</small></div>`).join('')}</div>` : `<div class="pg-k"><span>実績（${bn}＝少ない方）</span><b>${pgNf(val)}</b><small>${fc ? '進捗 ' + Math.round(val / fc * 100) + '%' : ''}</small></div>`}${k3}
+        <div class="pg-k"><span>${D.live ? '着地見込み' : '結果'}</span><b style="color:${col}">${pgNf(res)}</b><small style="color:${col}" title="FCST との差（少ない方の工程：${D.live ? lbn : bn}）">${fc ? `差 ${pgSg(res - fc)}` : ''}</small></div></div>
+      <div class="pg-pb">${G.cats.map((c) => { const r = fc ? ch.done[c] / fc : 0, pr = fc ? Math.min(1, planNow / fc) : 0, cl = !fc ? '#9ca3af' : !D.live ? (r >= 1 ? '#15803d' : r >= 0.95 ? '#b45309' : '#b91c1c') : (ch.done[c] >= planNow ? '#15803d' : ch.done[c] >= planNow * 0.94 ? '#b45309' : '#b91c1c');
+          return `<div class="pg-pbr"><span class="nm" style="color:${PG_COL[c]}">${c}</span><span class="tr"><i style="width:${Math.min(100, r * 100)}%;background:${PG_COL[c]}"></i>${D.live && fc ? `<em style="left:${pr * 100}%" title="${pgHm(D.dataTo || D.start)} 時点の計画 ${Math.round(pr * 100)}%"></em>` : ''}</span><b style="color:${cl}">${fc ? Math.round(r * 100) + '%' : '—'}</b><small>${pgNf(ch.done[c])} / ${fc ? pgNf(fc) : '—'}</small>${pgUph(D, c)}</div>`; }).join('')}
+        <div class="pg-pbn">${fc ? `FCSTに対する進捗率${D.live ? `（縦線＝${pgHm(D.dataTo || D.start)} 時点の計画 ${Math.round(Math.min(1, planNow / fc) * 100)}%）` : ''}` : 'FCST がないため進捗率は出せません'}</div></div>
+      <div class="pg-pr">${cards}</div>${ch.svg}
+      <div class="pg-lg">${G.cats.map((c) => `<span><i style="background:${PG_COL[c]}"></i>${c} 実績（積み上げ）</span>`).join('')}<span><i style="background:repeating-linear-gradient(90deg,#475569 0 5px,transparent 5px 8px)"></i>計画（FCST を作業時間に均等割り：日勤 8:00〜20:00・夜勤 20:00〜5:00）</span><span><i class="bx" style="background:#94a3b8;opacity:.5"></i>1時間ごとの実績</span>${D.live ? '<span><i style="background:repeating-linear-gradient(90deg,#64748b 0 2px,transparent 2px 5px)"></i>直近1時間のペースのままの見込み</span>' : ''}</div>
+      <div class="pg-tw"><table class="pg-t"><thead><tr><th>時間帯</th><th>計画</th>${G.cats.map((c) => `<th>${c}</th><th>差</th>`).join('')}</tr></thead><tbody>${rows ? tot : ''}${rows || `<tr><td colspan="${2 + G.cats.length * 2}" class="hint">まだ実績がありません</td></tr>`}</tbody></table></div></div>`;
+  }
+  function pgDayHtml() {
+    const D = pgData;
+    if (!D) return '<p class="hint">読み込み中…</p>';
+    const sj = D.shift === 'all' ? '日勤＋夜勤' : D.shift === 'night' ? '夜勤' : '日勤', win = D.shift === 'all' ? (D.cut === '20' ? '前日20:00〜19:59（夜勤から累計）' : '0:00〜23:59（0時の夜勤から累計）') : `${pgHm(D.start)}〜${D.shift === 'night' ? '翌' : ''}${pgHm(D.end)}`;
+    const fr = D.frAt ? `FCLM 最終受信 ${new Date(D.frAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}` : 'FCLM の受信なし';
+    const st = D.future ? `<div class="pg-ban fut">${pgMd(D.date)} ${sj} ${win}　まだ始まっていません</div>`
+      : D.live ? `<div class="pg-ban live">${pgMd(D.date)} ${sj} ${win}　進行中（${fr}・${D.dataTo ? pgHm(D.dataTo) + ' までの実績' : '実績はまだありません'}）</div>`
+      : `<div class="pg-ban past">${pgMd(D.date)} ${sj} ${win}　終わった${D.shift === 'all' ? '日' : 'シフト'}の結果です</div>`;
+    const f = D.fcst;
+    const P = D.plan.parts, pv = (x, g) => (x[g] ? pgNf(x[g]) : '—');
+    const edit = D.shift === 'all' ? `<div class="pg-fc">FCST（${PG_CUT[D.cut]} の24時間分）：OUT <b>${D.plan.outSum ? pgNf(D.plan.outSum) : '—'}</b>　IN <b>${D.plan.inSum ? pgNf(D.plan.inSum) : '—'}</b>
+      <span class="hint">＝ ${P.map((x) => `${pgMd(x.date)} ${x.shift === 'night' ? '夜勤' : '日勤'}（OUT ${pv(x, 'out')}・IN ${pv(x, 'in')}）${x.hours === x.of ? '' : ` の ${x.hours}/${x.of}`}`).join(' ＋ ')}。手入力・取り込みは「間接打刻 管理」の進捗タブで</span></div>` : `<div class="pg-fc">FCST（配置ダッシュボード ${pgMd(f.planDate)} ${sj}）：OUT <b>${f.out ? pgNf(f.out) : '—'}</b>${f.outSrc === 'manual' ? '<small>（手入力）</small>' : ''}　IN <b>${f.in ? pgNf(f.in) : '—'}</b>${f.inSrc === 'manual' ? '<small>（手入力）</small>' : ''}
+      ${pgEdit ? `<span class="pg-fe">OUT <input id="pgFo" type="number" min="0" value="${f.manual && f.manual.out != null ? f.manual.out : ''}" placeholder="${f.auto ? f.auto.out || '' : ''}"> IN <input id="pgFi" type="number" min="0" value="${f.manual && f.manual.in != null ? f.manual.in : ''}" placeholder="${f.auto ? f.auto.in || '' : ''}"> <button class="sm dark" id="pgFs">保存</button> <button class="sm" id="pgFc">やめる</button> <span class="hint">空欄＝配置ダッシュボードの値を使う</span></span>`
+        : '<span class="hint">手入力・取り込みは「間接打刻 管理」の進捗タブで</span>'}${D.fcstSync && !D.fcstSync.ok && D.fcstSync.error ? `<span class="hint" style="color:#b91c1c">配置ダッシュボードを読めませんでした（${esc(D.fcstSync.error)}）</span>` : ''}</div>`;
+    if (D.future) return st + edit;
+    return st + edit + `<div class="pg-wrap">${pgPanel(D, 'out')}${pgPanel(D, 'in')}</div>`;
+  }
+  // Late Slam：CPT の時刻を過ぎても C4 に残っていたユニット数（残った CPT だけ1行ずつ）
+  function pgLsCell(list) {
+    if (!list || !list.length) return '<span class="hint">記録なし</span>';
+    const miss = list.filter((x) => x.u == null || x.u > 0);
+    if (!miss.length) return '-';
+    return miss.map((x) => `<div class="pg-ls"><span>${pgHm(x.t)}</span><b>${x.u == null ? `<span class="hint" title="${esc(x.why || 'C4 のデータが届いていない')}ため、CPT の時刻のあとに残っていたかが分かりません">不明</span>` : pgNf(x.u)}</b></div>`).join('');
+  }
+  function pgHistHtml() {
+    const Hh = pgHist;
+    if (!Hh) return '<p class="hint">読み込み中…</p>';
+    const sh = shift === 'day' || shift === 'night' ? shift : 'all';
+    // 「全て」は日勤＋夜勤の24時間（区切りは選んだもの。FCST は日勤・夜勤の FCST をつないだ値）
+    const L = sh === 'all' ? (Hh.daily || []) : Hh.list.filter((x) => x.shift === sh);
+    const R = L.map((x) => {
+      const f = (g) => { const cats = PG_GRP[g].cats, fc = x.fcst[g], bn = cats.reduce((a, b) => (x.cats[b].u < x.cats[a].u ? b : a)); return { fc, bn, v: x.cats[bn].u, r: fc ? x.cats[bn].u / fc : null }; };
+      return { x, out: f('out'), in: f('in') };
+    }).filter((r) => r.out.fc || r.in.fc || (r.x.lateSlam || []).length || Object.keys(PG_COL).some((c) => r.x.cats[c].u > 0));
+    const avg = (g) => { const a = R.filter((r) => r[g].r != null); return a.length ? a.reduce((s, r) => s + r[g].r, 0) / a.length : null; };
+    const hit = (g) => R.filter((r) => r[g].r != null && r[g].r >= 1).length, cnt = (g) => R.filter((r) => r[g].r != null).length;
+    const bnCnt = (g) => { const c = {}; R.forEach((r) => { if (r[g].r != null) c[r[g].bn] = (c[r[g].bn] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}回`).join('・') || '—'; };
+    const allLs = R.flatMap((r) => r.x.lateSlam || []), lsMiss = allLs.filter((x) => x.u > 0), lsSum = lsMiss.reduce((a, x) => a + x.u, 0);
+    const uc = (r) => (r == null ? '#111827' : r >= 1 ? '#15803d' : r >= 0.95 ? '#b45309' : '#b91c1c');
+    const rate = (r) => r == null ? '<span class="hint">FCSTなし</span>' : `<span class="pg-rate"><b style="color:${uc(r)}">${Math.round(r * 100)}%</b><span class="pg-bar"><i style="width:${Math.min(100, r * 100)}%;background:${uc(r)}"></i></span></span>`;
+    const shTag = (s) => s === 'all' ? `<span class="pg-sh all">${PG_CUT[Hh.cut || pgCut]}</span>` : `<span class="pg-sh ${s}">${s === 'night' ? '夜勤' : '日勤'}</span>`;
+    return `<div class="pg-sum">
+        <div class="pg-k"><span>OUT 平均達成率</span><b style="color:${uc(avg('out'))}">${avg('out') == null ? '—' : Math.round(avg('out') * 100) + '%'}</b></div>
+        <div class="pg-k"><span>OUT 達成した回数</span><b>${hit('out')}<small> / ${cnt('out')}</small></b></div>
+        <div class="pg-k"><span>Late Slam（CPT後に残ったユニット）</span><b style="color:${lsSum ? '#b91c1c' : '#111827'}">${allLs.length ? pgNf(lsSum) : '—'}<small>${allLs.length ? `・${lsMiss.length}回 / CPT ${allLs.length}回` : ' 記録なし'}</small></b></div>
+        <div class="pg-k"><span>IN 平均達成率</span><b style="color:${uc(avg('in'))}">${avg('in') == null ? '—' : Math.round(avg('in') * 100) + '%'}</b></div>
+        <div class="pg-k"><span>IN 達成した回数</span><b>${hit('in')}<small> / ${cnt('in')}</small></b></div>
+        <div class="pg-k"><span>IN 多かったボトルネック</span><b style="font-size:15px">${bnCnt('in')}</b></div></div>
+      <div class="pg-tw"><table class="pg-t pg-ht"><thead><tr><th rowspan="2">日付</th><th rowspan="2">シフト</th><th colspan="5" class="g" style="border-color:#0f766e;color:#0f766e">OUT</th><th colspan="5" class="g" style="border-color:#ca8a04;color:#a16207">IN</th></tr>
+        <tr><th>FCST</th><th>Pick</th><th>Pack</th><th>達成率</th><th title="CPT の時刻を過ぎても C4 に残っていたユニット数。残った CPT だけを1行ずつ">Late Slam</th><th>FCST</th><th>Receive</th><th>Stow</th><th>達成率</th><th>ボトルネック</th></tr></thead><tbody>
+        ${R.map((r) => `<tr class="r" data-d="${r.x.date}" data-s="${r.x.shift}" title="押すとこの日の進捗を開きます"><td><b>${pgMd(r.x.date)}</b></td><td>${shTag(r.x.shift)}</td>
+          <td>${r.out.fc ? pgNf(r.out.fc) : '—'}${(r.x.fcst.parts || []).some((x) => x.outSrc === 'manual') ? '<small>手</small>' : ''}</td>${PG_GRP.out.cats.map((c) => `<td style="${c === r.out.bn ? 'font-weight:800' : ''}">${pgNf(r.x.cats[c].u)}</td>`).join('')}<td>${rate(r.out.r)}</td><td class="pg-lsc">${pgLsCell(r.x.lateSlam)}</td>
+          <td>${r.in.fc ? pgNf(r.in.fc) : '—'}${(r.x.fcst.parts || []).some((x) => x.inSrc === 'manual') ? '<small>手</small>' : ''}</td>${PG_GRP.in.cats.map((c) => `<td style="${c === r.in.bn ? 'font-weight:800' : ''}">${pgNf(r.x.cats[c].u)}</td>`).join('')}<td>${rate(r.in.r)}</td><td class="hint">${r.in.r != null ? r.in.bn : ''}</td></tr>`).join('') || '<tr><td colspan="12" class="hint">データがありません</td></tr>'}
+      </tbody></table></div>
+      <p class="hint" style="margin:6px 0 0">達成率＝少ない方の工程の実績 ÷ FCST（OUTは Pick・Pack、INは Receive・Stow のうち少ない方）。「全て」は日勤＋夜勤の24時間（区切り 0:00〜23:59＝暦日、20:00〜19:59＝前日20時の夜勤から。FCST は入る作業時間の分だけ日勤・夜勤の FCST を足す。空欄のシフトは0として足す）。<br>Late Slam＝CPT の時刻を過ぎても C4 に残っていたユニット数（CPT の列が C4 から消えたときに Passed CPT へ残った数を記録）。残った CPT だけ時刻と数を出し、残らなかった日は「-」。不明＝C4 の画面が閉じていた等でデータが届かず、CPT のあとの状態が分からないもの。夜勤は出勤した日の勤務（例：11/20の夜勤＝11/20 20:00〜11/21 8:00）。</p>`;
+  }
+  // 月度の候補：今月から12か月前まで（1日〜末日）
+  function pgMonths() { const d = new Date(), a = []; for (let i = 0; i < 12; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); a.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); } return a; }
+  function renderProg() {
+    const v = $('viewProg'); if (!v) return;
+    // 切り替え（その日の進捗／振り返り・日数・区切り）は受付履歴の見出しの行に置く
+    const bar = $('pgBar');
+    const today = ymd(new Date()), away = pgMode === 'day' && $('from').value !== today;
+    if (bar) bar.innerHTML = `${pgMode === 'day' && pgBack ? '<button class="pg-back" data-back="hist">← 振り返りに戻る</button>' : ''}${away ? '<button class="pg-back" data-back="today">今日に戻る</button>' : ''}<button data-pm="day" class="${pgMode === 'day' ? 'on' : ''}">その日の進捗</button><button data-pm="hist" class="${pgMode === 'hist' ? 'on' : ''}">振り返り</button>
+      ${pgMode === 'hist' ? `<select id="pgMonth" title="振り返る期間"><option value="">直近31日</option>${pgMonths().map((m) => `<option value="${m}" ${pgMonth === m ? 'selected' : ''}>${m.slice(0, 4)}年${Number(m.slice(5))}月度</option>`).join('')}</select>` : ''}
+      ${shift === 'all' ? `<span class="pg-cut" title="「全て」（日勤＋夜勤）の1日の区切り。夜勤から累計します"><b>区切り</b>${['0', '20'].map((k) => [k, PG_CUT[k]]).map(([k, t]) => `<button data-pc="${k}" class="${pgCut === k ? 'on' : ''}">${t}</button>`).join('')}</span>` : ''}`;
+    const head = pgErr ? `<p class="hint" style="color:#b91c1c;margin:0 0 6px">読み込めませんでした：${esc(pgErr)}</p>` : '';
+    v.innerHTML = head + `<div class="pg-body">${pgMode === 'hist' ? pgHistHtml() : pgDayHtml()}</div>`;
+    const sc = bar || v;
+    sc.querySelectorAll('[data-pm]').forEach((b) => b.onclick = () => { pgBack = null; pgMode = b.dataset.pm; try { localStorage.setItem('pg_mode', pgMode); } catch (e) { /* ignore */ } setTab('prog'); });
+    sc.querySelectorAll('[data-pc]').forEach((b) => b.onclick = () => { pgCut = b.dataset.pc; try { localStorage.setItem('pg_cut', pgCut); } catch (e) { /* ignore */ } pgHist = null; pgData = null; renderProg(); loadProg(); });
+    sc.querySelectorAll('[data-back]').forEach((b) => b.onclick = () => {
+      if (b.dataset.back === 'hist' && pgBack) { const k = pgBack; pgBack = null; pgMode = 'hist'; nightAuto = false; $('from').value = $('to').value = k.date; setShift(k.shift); setTab('prog'); load().catch(() => {}); loadTimeline().catch(() => {}); return; }
+      const k = pgBack; pgBack = null; nightAuto = false; $('from').value = $('to').value = ymd(new Date()); setShift(k ? k.shift : shift); setTab('prog'); load().catch(() => {}); loadTimeline().catch(() => {});
+    });
+    if ($('pgImp')) $('pgImp').onclick = async () => {
+      const L = (pgHist && pgHist.daily) || [], ds = L.map((x) => x.date).sort();
+      const to = ymd(new Date()), from = ds[0] || to;
+      if (!confirm(`${from} 〜 ${to} の FCST をシフト表から取り込みます。すでに FCST がある日はそのままです。よろしいですか？`)) return;
+      pgImp = '取込中…'; renderProg();
+      try { const r = await api('POST', '/api/progress/fcstimport', { from, to }); pgImp = ''; alert(`取り込みました：${r.imported}日（すでにあった日 ${r.skipped}・シフト表に値がない日 ${r.none}・失敗 ${r.errors}）`); pgHist = null; await loadProg(); }
+      catch (e) { pgImp = ''; renderProg(); alert('取り込めませんでした：' + e.message); }
+    };
+    if ($('pgMonth')) $('pgMonth').onchange = (e) => { pgMonth = e.target.value; pgHist = null; renderProg(); loadProg(); };
+    v.querySelectorAll('tr.r[data-d]').forEach((r) => r.onclick = () => { pgBack = { date: $('from').value, shift }; pgMode = 'day'; nightAuto = false; $('from').value = $('to').value = r.dataset.d; setShift(r.dataset.s || 'all'); setTab('prog'); load().catch(() => {}); loadTimeline().catch(() => {}); });
+    if ($('pgFe')) $('pgFe').onclick = () => { pgEdit = true; renderProg(); };
+    if ($('pgFc')) $('pgFc').onclick = () => { pgEdit = false; renderProg(); };
+    if ($('pgFs')) $('pgFs').onclick = async () => {
+      try { await api('POST', '/api/progress/fcst', { date: pgData.date, shift: pgData.shift, out: $('pgFo').value, in: $('pgFi').value }); pgEdit = false; await loadProg(); }
+      catch (e) { alert('保存できませんでした：' + e.message); }
+    };
+  }
+  // 進行中は2分ごとに読み直す
+  setInterval(() => { if ( !pgEdit && document.visibilityState === 'visible' && (pgMode === 'hist' || (pgData && (pgData.live || pgData.future)))) loadProg(); }, 2 * 60000);
+
+
+  document.querySelectorAll('#shiftTabs button').forEach((b) => b.onclick = () => { setShift(b.dataset.shift); pgData = null; pgHist = null; setTab(); });
+  $('from').value = $('to').value = ymd(new Date());
+  $('from').addEventListener('change', () => { $('to').value = $('from').value; pgBack = null; pgData = null; setTab(); });
+  $('dPrev').onclick = () => { $('from').value = $('to').value = addDay($('from').value, -1); pgData = null; setTab(); };
+  $('dNext').onclick = () => { $('from').value = $('to').value = addDay($('from').value, 1); pgData = null; setTab(); };
+  $('reload').onclick = () => loadProg();
+  // 日付が変わったら（5時）今日に合わせる
+  let lastToday = ymd(new Date());
+  setInterval(() => { const t = ymd(new Date()); if (t !== lastToday) { if ($('from').value === lastToday) { $('from').value = $('to').value = t; pgData = null; setTab(); } lastToday = t; } }, 60000);
+  setShift(shift);
+  setTab();
+})();
+</script>
+<script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="prog"></script>
+</body>
+</html>

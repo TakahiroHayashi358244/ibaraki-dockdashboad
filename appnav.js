@@ -1,8 +1,8 @@
 /* =====================================================================
-   appnav.js — ドックダッシュボード / 着車プラン / 配置ダッシュボード / 打刻漏れ監視 / 貸出管理 / 間接打刻 管理 の画面切替
+   appnav.js — ドックダッシュボード / 着車プラン / 進捗管理 / 配置ダッシュボード / 打刻漏れ監視 / 貸出管理 / 間接打刻 管理 の画面切替
    使い方（各ページの </body> の直前に1行）:
      <script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="dock"></script>
-   data-app : このページのID（dock / plan / haichi / punch / radio / indirect）
+   data-app : このページのID（dock / plan / prog / haichi / punch / radio / indirect）
    data-title（任意）: 名称が入っている要素のセレクタ（既定: "header h1"）
    ページ名の部分がボタンになり、押すと切替メニューが出ます。同じタブで画面が切り替わります。
    ===================================================================== */
@@ -12,6 +12,7 @@
   var APPS = [
     { id: "dock",   name: "ドックダッシュボード", url: "https://takahirohayashi358244.github.io/ibaraki-dockdashboad/" },
     { id: "plan",   name: "着車プラン",           url: "https://takahirohayashi358244.github.io/ibaraki-dockdashboad/plan.html" },
+    { id: "prog",   name: "進捗管理",             url: "https://takahirohayashi358244.github.io/ibaraki-dockdashboad/prog.html" },
     { id: "haichi", name: "配置ダッシュボード",   url: "https://takahirohayashi358244.github.io/ibaraki-haichi-dashboard/" },
     { id: "punch",  name: "打刻漏れ監視",         url: "https://punch-relay-hfo1.takahiro884.workers.dev/" },
     { id: "radio",  name: "貸出管理",             url: "https://radio-lending.takahiro884.workers.dev/pc.html" },
