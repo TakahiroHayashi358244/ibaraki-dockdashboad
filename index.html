@@ -205,6 +205,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
 }
 .bay-slot .card .c-row{display:none;}          /* 数量などはカードでは出さない */
 .bay-slot .card .c-late{position:static;align-self:flex-start;font-size:9.5px;padding:1px 6px;}
+.bay-slot .card .c-topleft{position:static;}
 .bay-slot .c-id,.bay-slot .c-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ===== Card ===== */
@@ -255,6 +256,9 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
   background:#fff3f3;box-shadow:0 2px 8px rgba(224,80,80,.25);
 }
 .card.overdue .c-id{color:#c0392b;}
+.card .c-topleft{position:absolute;top:7px;left:9px;display:flex;align-items:center;gap:5px;}
+.card .c-topleft .c-late{position:static;}
+.card .c-topleft .c-dock{margin:0;font-size:11px;line-height:1.4;padding:1px 8px;border-radius:6px;}
 .card .c-late{
   position:absolute;top:7px;left:9px;background:#e05050;color:#fff;
   font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.03em;
@@ -1386,8 +1390,25 @@ function loadCSV(ev){
       upd[DOCK_ROOT+'/master']=payload;
       upd[DOCK_ROOT+'/placement']=carried;
       upd[DOCK_ROOT+'/idxAdded']=null;   // 新しいCSV → IDXからの追加分の目印・台数はリセット
+      // 着車プランにも反映する。どちらに入れるかはCSVの日付で決める
+      //  ・翌日以降の日付 → 着車プランの「翌日」（翌日分CSVを置き換え、その日の割当をリセット＝着車プランで読み込んだのと同じ）
+      //  ・当日以前の日付 → 着車プランの「当日」（その日の保存分を置き換える。使用中の計画は消さない）
+      const now=Date.now(), pDate=planDateOf(data), today=dayKey(now);
+      const pm={headers, rows:valueRows, name:file.name||'', savedAt:now, from:'dock'};
+      let planMsg='';
+      if(pDate && pDate>today){
+        upd[DOCK_ROOT+'/nextMaster']=pm;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/assign']=null;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/bays']=null;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/updatedAt']=now;
+        upd[DOCK_ROOT+'/plans/'+pDate+'/by']='dock';
+        planMsg='・着車プランの翌日（'+pDate.slice(5).replace('-','/')+'）';
+      } else if(pDate){
+        upd[DOCK_ROOT+'/planMasters/'+pDate]=Object.assign({date:pDate}, pm);
+        planMsg='・着車プランの当日（'+pDate.slice(5).replace('-','/')+'）';
+      }
       fbDB.ref().update(upd)
-        .then(()=>{ toast(data.length+'件 読み込み・全PCへ共有しました（約'+approxKB+'KB）'); })
+        .then(()=>{ toast(data.length+'件 読み込み・全PCへ共有しました'+planMsg+'（約'+approxKB+'KB）'); })
         .catch(err=>{
           console.error('CSV共有エラー:', err);
           warn('CSV共有に失敗: '+(err&&err.message?err.message:'不明なエラー')+'（他PCに反映されていません）');
@@ -1398,6 +1419,12 @@ function loadCSV(ev){
   };
   rd.readAsArrayBuffer(file);
   ev.target.value='';
+}
+// CSVの日付（着車プランと同じく Schedule Date／Expected Arrival Date で一番多い日）を YYYY-MM-DD で
+function planDateOf(data){
+  const cnt={};
+  data.forEach(o=>{ const d=schedDay(o['Schedule Date'])||schedDay(o['Expected Arrival Date']); if(d){ const k=d.replace(/\//g,'-'); cnt[k]=(cnt[k]||0)+1; } });
+  return Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'';
 }
 function decodeSmart(buf){
   const bytes=new Uint8Array(buf);
@@ -1575,14 +1602,15 @@ function cardHTML(c){
   const absBtn = c.status==='plan'
     ? `<span class="c-abs${c.noshow?' on':''}" onclick="toggleNoshow(event,'${cssEsc(c.id)}')" title="欠車（この便は来ません）。チェック中はカードを動かせません">${c.noshow?'✓ 欠車':'欠車'}</span>` : '';
   const movable = !(c.status==='plan' && c.noshow);
+  const dockB = dockBadgeOf(c);   // 取込時のドック（カードの一番上・左）
   const added = !!(idxAdded && idxAdded.ids && idxAdded.ids[c.id]);
   const canceled = isIdxCanceled(c);   // ドックマスターの画面から消えた便（予定のままのときだけ）
   return `<div class="card ${cls} ${od}${c.noshow?' noshow':''}${added?' idx-added':''}${canceled?' idx-cancel':''}" draggable="${movable}" data-id="${c.id}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)">
     <div class="c-topright">${absBtn}${doneBay}${doneRow}${dur}${detailBtn}</div>
-    ${showLate?'<span class="c-late">時間超過</span>':''}
+    ${(showLate||dockB)?`<div class="c-topleft">${showLate?'<span class="c-late">時間超過</span>':''}${dockB}</div>`:''}
     ${memoRow}
-    ${added?'<span class="c-added" title="朝8:00にドックマスター（IDX）で見つかり、自動で追加した便">追加</span>':''}${canceled?'<span class="c-cancel" title="朝8:00の時点でドックマスターの画面から消えていた便">キャンセル</span>':''}${dockBadgeOf(c)}${planBadgeOf(c)}${idxRow}
+    ${added?'<span class="c-added" title="朝8:00にドックマスター（IDX）で見つかり、自動で追加した便">追加</span>':''}${canceled?'<span class="c-cancel" title="朝8:00の時点でドックマスターの画面から消えていた便">キャンセル</span>':''}${planBadgeOf(c)}${idxRow}
     ${idHtml}
     ${state.displayFields.includes("Carrier")&&main?`<div class="c-main">${esc(main)}</div>`:''}
     ${rows}
