@@ -95,6 +95,13 @@
   .pg-k2 .r{display:grid;grid-template-columns:auto 1fr auto;gap:0 6px;align-items:baseline}.pg-k2 .r em{width:auto}.pg-k2 .r b{min-width:0;font-size:16px}.pg-k2 .r small{margin-left:0}
   .pg-pbr{grid-template-columns:62px 1fr 52px 112px 150px}.pg-pbr .uph{font-size:11.5px;color:var(--sub);white-space:nowrap}.pg-pbr .uph b{font-size:14px;color:var(--ink)}.pg-pbr .uph small{font-size:10.5px}
   .pg-lg{min-height:36px;align-content:flex-start}
+  .pg-uts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 4px}
+  .pg-ut{border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;background:#fff}
+  .pg-ut-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;margin-bottom:4px}
+  .pg-ut-l{margin-top:6px;display:flex;align-items:center;gap:4px;font-size:12px;color:#4b5563}.pg-ut-l i{width:12px;height:3px;border-radius:2px;display:inline-block}.pg-ut-l b{color:#111827}
+  @media (max-width:900px){.pg-uts{grid-template-columns:1fr}}
+  .pg-ut-s{margin-top:0;font-size:11.5px;color:#6b7280}
+  .pg-ht .ub{width:auto;min-width:56px}.pg-ht td.uph{padding-left:10px}
 
 </style>
 </head>
@@ -144,7 +151,7 @@
   const PG_COL = { Pick: '#0891b2', Pack: '#db2777', Receive: '#ca8a04', Stow: '#16a34a' };
   const PG_GRP = { out: { cats: ['Pick', 'Pack'], name: 'アウトバウンド', tag: 'OUT', tc: '#0f766e', sub: 'Pick・Pack（少ない方＝ボトルネックで判定）' },
                    in: { cats: ['Receive', 'Stow'], name: 'インバウンド', tag: 'IN', tc: '#ca8a04', sub: 'Receive・Stow はそれぞれ FCST と比べる' } };
-  let pgMode = 'day', pgData = null, pgHist = null, pgMonth = '', pgBack = null, pgImp = '', pgEdit = false, pgErr = '', pgCut = '0';
+  let pgMode = 'day', pgData = null, pgHist = null, pgMonth = '7', pgBack = null, pgImp = '', pgEdit = false, pgErr = '', pgCut = '0';
   try { pgMode = localStorage.getItem('pg_mode') === 'hist' ? 'hist' : 'day'; pgCut = localStorage.getItem('pg_cut') === '20' ? '20' : '0'; } catch (e) { /* ignore */ }
   const PG_CUT = { '0': '0:00〜23:59', '20': '20:00〜19:59' };
   // i 番目の時間帯の始まり
@@ -160,7 +167,7 @@
   async function loadProg() {
     pgErr = '';
     try {
-      if (pgMode === 'hist') pgHist = await api('GET', `/api/progress/hist?days=31&cut=${pgCut}${pgMonth ? '&month=' + pgMonth : ''}`);
+      if (pgMode === 'hist') pgHist = await api('GET', `/api/progress/hist?days=${/^\d+$/.test(pgMonth) ? pgMonth : 31}&cut=${pgCut}${/^\d{4}-\d{2}$/.test(pgMonth) ? '&month=' + pgMonth : ''}`);
       else pgData = await api('GET', `/api/progress?date=${$('from').value}&shift=${pgShift()}&cut=${pgCut}`);
     } catch (e) { pgErr = e.message; }
     renderProg();
@@ -268,6 +275,74 @@
     if (!miss.length) return '-';
     return miss.map((x) => `<div class="pg-ls"><span>${pgHm(x.t)}</span><b>${x.u == null ? `<span class="hint" title="${esc(x.why || 'C4 のデータが届いていない')}ため、CPT の時刻のあとに残っていたかが分かりません">不明</span>` : pgNf(x.u)}</b></div>`).join('');
   }
+  // 振り返り：日ごとの UPH の推移（OUT・IN それぞれ工程ごとの折れ線。点線＝期間の平均 UPH）
+  // 折れ線（日ごとの UPH）。ser＝[{ name, col, pts: { date: { u, h } }, sw }]。縦軸は値のある範囲いっぱい
+  const pgMdS = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const pgWd = (d) => '日月火水木金土'[new Date(d + 'T00:00:00Z').getUTCDay()];
+  // bars＝処理数の棒（下から積み上げ。右の目盛り・0から）。[{ name, col, pts }]
+  function pgUphSvg(dates, ser, label, bars) {
+    const up = (p) => (p && p.h > 0.05 ? p.u / p.h : null), n = dates.length;
+    const vals = ser.flatMap((o) => dates.map((d) => up(o.pts[d])).filter((v) => v != null));
+    if (!vals.length) return '<p class="hint">UPH を出せるデータがありません</p>';
+    const W = 640, H = 210, Lm = 34, Rm = bars ? 44 : 14, T = 8, B = 34;
+    const vmin = Math.min(...vals), vmax = Math.max(...vals), pad = Math.max((vmax - vmin) * 0.06, 0.5);
+    const bot = Math.max(0, vmin - pad), top = vmax + pad;
+    const st = [0.5, 1, 2, 5, 10, 20, 25, 50, 100].find((k) => (top - bot) / k <= 5) || 200;
+    const x = (i) => Lm + (n <= 1 ? (W - Lm - Rm) / 2 : (i * (W - Lm - Rm)) / (n - 1)), y = (v) => T + (H - T - B) * (1 - (v - bot) / (top - bot));
+    let s = '';
+    // 処理数の棒（UPH の線の後ろ）
+    if (bars && bars.length) {
+      const tot = (d) => bars.reduce((a, b) => a + ((b.pts[d] && b.pts[d].u) || 0), 0);
+      const bmax = Math.max(1, ...dates.map(tot)), bst = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000].find((k) => bmax / k <= 4) || 20000, btop = Math.ceil(bmax / bst) * bst;
+      const yb = (v) => T + (H - T - B) * (1 - v / btop), bw = Math.min(36, ((W - Lm - Rm) / Math.max(1, n)) * 0.55);
+      for (let v = bst; v <= btop; v += bst) s += `<text x="${W - Rm + 5}" y="${yb(v) + 3.5}" font-size="9.5" fill="#b0b7c3">${v >= 1000 ? v / 1000 + 'k' : v}</text>`;
+      dates.forEach((d, i) => {
+        let acc = 0;
+        bars.forEach((b) => { const v = (b.pts[d] && b.pts[d].u) || 0; if (!v) return;
+          s += `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${yb(acc + v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(yb(acc) - yb(acc + v)).toFixed(1)}" fill="${b.col}" opacity=".18"><title>${pgMdS(d)}（${pgWd(d)}）${b.name} ${label} 処理数 ${pgNf(v)}</title></rect>`; acc += v; });
+      });
+    }
+    for (let v = Math.ceil(bot / st) * st; v <= top; v += st) s += `<line x1="${Lm}" x2="${W - Rm}" y1="${y(v)}" y2="${y(v)}" stroke="#eef0f3"/><text x="${Lm - 5}" y="${y(v) + 3.5}" font-size="10" fill="#9ca3af" text-anchor="end">${v}</text>`;
+    const every = Math.max(1, Math.ceil(n / 16));
+    dates.forEach((d, i) => { if ((i % every === 0 && n - 1 - i >= every) || i === n - 1) { const w = pgWd(d); s += `<text x="${x(i)}" y="${H - 19}" font-size="10" fill="#9ca3af" text-anchor="middle">${pgMdS(d)}</text><text x="${x(i)}" y="${H - 6}" font-size="10" font-weight="700" fill="${w === '日' ? '#dc2626' : w === '土' ? '#2563eb' : '#6b7280'}" text-anchor="middle">${w}</text>`; } });
+    ser.forEach((o) => {
+      const u = dates.reduce((a, d) => a + ((o.pts[d] && o.pts[d].u) || 0), 0), h = dates.reduce((a, d) => a + ((o.pts[d] && o.pts[d].h) || 0), 0), avg = h > 0.05 ? u / h : null;
+      if (avg != null) s += `<line x1="${Lm}" x2="${W - Rm}" y1="${y(avg)}" y2="${y(avg)}" stroke="${o.col}" stroke-dasharray="4 4" opacity=".6"/>`;
+      let d = '', pen = false;
+      dates.forEach((dt, i) => { const v = up(o.pts[dt]); if (v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`; pen = true; });
+      s += `<path d="${d}" fill="none" stroke="${o.col}" stroke-width="${o.thin ? 1.6 : 2.8}" stroke-linejoin="round" ${o.thin ? 'opacity=".85"' : ''}/>`;
+      dates.forEach((dt, i) => { const p = o.pts[dt], v = up(p); if (v == null) return; const lo = avg != null && v < avg;
+        s += `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${lo ? '#fff' : o.col}" stroke="${o.col}" stroke-width="1.6"><title>${pgMdS(dt)} ${o.name} ${label} UPH ${Math.round(v)}（${pgNf(p.u)} / ${p.h.toFixed(1)}h）</title></circle>`; });
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" class="pg-svg">${s}</svg>`;
+  }
+  const pgUphStat = (dates, pts) => {
+    const v = dates.map((d) => pts[d]).filter((p) => p && p.h > 0.05).map((p) => p.u / p.h);
+    const u = dates.reduce((a, d) => a + ((pts[d] && pts[d].u) || 0), 0), h = dates.reduce((a, d) => a + ((pts[d] && pts[d].h) || 0), 0);
+    return `平均 <b>${h > 0.05 ? Math.round(u / h) : '—'}</b>${v.length ? `　最高 <b>${Math.round(Math.max(...v))}</b>　最低 <b>${Math.round(Math.min(...v))}</b>` : ''}`;
+  };
+  // 振り返り：日ごとの UPH の推移（工程ごとに1つのグラフ。点線＝期間の平均、白抜き＝平均より低い日）
+  function pgUphTrend(R, g) {
+    const G = PG_GRP[g], L = R.slice().sort((a, b) => (a.x.date < b.x.date ? -1 : 1)), dates = L.map((r) => r.x.date);
+    const head = `<div class="pg-ut-h"><span class="pg-tag" style="background:${G.tc}">${G.tag}</span><b>UPH の推移</b><span class="pg-ut-l" style="margin:0"><i style="background:#94a3b8;opacity:.35;width:10px;height:10px"></i>棒＝処理数（右の目盛り）</span></div>`;
+    return `<div class="pg-ut">${head}${G.cats.map((c) => {
+      const pts = {}; L.forEach((r) => { pts[r.x.date] = r.x.cats[c]; });
+      return `<div class="pg-ut-l"><i style="background:${PG_COL[c]}"></i><b style="color:${PG_COL[c]}">${c}</b>　${pgUphStat(dates, pts)}</div>${pgUphSvg(dates, [{ name: '', col: PG_COL[c], pts }], c, [{ name: '', col: PG_COL[c], pts }])}`;
+    }).join('')}</div>`;
+  }
+  // 「全て」のとき：全て（24時間）・日勤・夜勤を同じグラフに重ねる（全て＝工程の色、日勤＝青、夜勤＝濃いグレー）
+  const PG_SHC = { day: '#2563eb', night: '#1f2937' };
+  function pgUphShift(R, list, g) {
+    const G = PG_GRP[g], dates = [...new Set(R.map((r) => r.x.date))].sort();
+    const head = `<div class="pg-ut-h"><span class="pg-tag" style="background:${G.tc}">${G.tag}</span><b>UPH の推移</b>
+      <span class="pg-ut-l" style="margin:0"><i style="background:#9ca3af"></i>全て（工程の色）</span><span class="pg-ut-l" style="margin:0"><i style="background:${PG_SHC.day}"></i>日勤</span><span class="pg-ut-l" style="margin:0"><i style="background:${PG_SHC.night}"></i>夜勤</span><span class="pg-ut-l" style="margin:0"><i class="bx" style="background:#94a3b8;opacity:.35;width:10px;height:10px"></i>棒＝処理数（日勤＋夜勤・右の目盛り）</span></div>`;
+    return `<div class="pg-ut">${head}${G.cats.map((c) => {
+      const all = {}; R.forEach((r) => { all[r.x.date] = r.x.cats[c]; });
+      const ser = [{ name: '全て', col: PG_COL[c], pts: all }].concat(['day', 'night'].map((sh) => { const pts = {}; list.filter((x) => x.shift === sh).forEach((x) => { pts[x.date] = x.cats[c]; }); return { name: sh === 'day' ? '日勤' : '夜勤', col: PG_SHC[sh], pts, thin: true }; }));
+      return `<div class="pg-ut-l"><i style="background:${PG_COL[c]}"></i><b style="color:${PG_COL[c]}">${c}</b>　全て ${pgUphStat(dates, all)}</div>
+        <div class="pg-ut-l pg-ut-s"><span style="color:${PG_SHC.day}">日勤</span> ${pgUphStat(dates, ser[1].pts)}　／　<span style="color:${PG_SHC.night}">夜勤</span> ${pgUphStat(dates, ser[2].pts)}</div>${pgUphSvg(dates, ser, c, [{ name: '日勤', col: PG_SHC.day, pts: ser[1].pts }, { name: '夜勤', col: PG_SHC.night, pts: ser[2].pts }])}`;
+    }).join('')}</div>`;
+  }
   function pgHistHtml() {
     const Hh = pgHist;
     if (!Hh) return '<p class="hint">読み込み中…</p>';
@@ -284,6 +359,10 @@
     const allLs = R.flatMap((r) => r.x.lateSlam || []), lsMiss = allLs.filter((x) => x.u > 0), lsSum = lsMiss.reduce((a, x) => a + x.u, 0);
     const uc = (r) => (r == null ? '#111827' : r >= 1 ? '#15803d' : r >= 0.95 ? '#b45309' : '#b91c1c');
     const rate = (r) => r == null ? '<span class="hint">FCSTなし</span>' : `<span class="pg-rate"><b style="color:${uc(r)}">${Math.round(r * 100)}%</b><span class="pg-bar"><i style="width:${Math.min(100, r * 100)}%;background:${uc(r)}"></i></span></span>`;
+    // UPH と横棒（工程ごとに、表示している期間の一番高い UPH を棒いっぱいに）
+    const huv = (x, c) => (x.cats[c].h > 0.05 ? x.cats[c].u / x.cats[c].h : null), humax = {};
+    Object.keys(PG_COL).forEach((c) => { humax[c] = Math.max(1, ...R.map((r) => huv(r.x, c) || 0)); });
+    const hu = (x, c) => { const v = huv(x, c); return `<td class="uph">${v == null ? '—' : pgNf(v)}</td><td class="ub">${v == null ? '' : `<i style="width:${Math.min(100, v / humax[c] * 100).toFixed(1)}%;background:${PG_COL[c]}"></i>`}</td>`; };
     const shTag = (s) => s === 'all' ? `<span class="pg-sh all">${PG_CUT[Hh.cut || pgCut]}</span>` : `<span class="pg-sh ${s}">${s === 'night' ? '夜勤' : '日勤'}</span>`;
     return `<div class="pg-sum">
         <div class="pg-k"><span>OUT 平均達成率</span><b style="color:${uc(avg('out'))}">${avg('out') == null ? '—' : Math.round(avg('out') * 100) + '%'}</b></div>
@@ -292,11 +371,13 @@
         <div class="pg-k"><span>IN 平均達成率</span><b style="color:${uc(avg('in'))}">${avg('in') == null ? '—' : Math.round(avg('in') * 100) + '%'}</b></div>
         <div class="pg-k"><span>IN 達成した回数</span><b>${hit('in')}<small> / ${cnt('in')}</small></b></div>
         <div class="pg-k"><span>IN 多かったボトルネック</span><b style="font-size:15px">${bnCnt('in')}</b></div></div>
-      <div class="pg-tw"><table class="pg-t pg-ht"><thead><tr><th rowspan="2">日付</th><th rowspan="2">シフト</th><th colspan="5" class="g" style="border-color:#0f766e;color:#0f766e">OUT</th><th colspan="5" class="g" style="border-color:#ca8a04;color:#a16207">IN</th></tr>
-        <tr><th>FCST</th><th>Pick</th><th>Pack</th><th>達成率</th><th title="CPT の時刻を過ぎても C4 に残っていたユニット数。残った CPT だけを1行ずつ">Late Slam</th><th>FCST</th><th>Receive</th><th>Stow</th><th>達成率</th><th>ボトルネック</th></tr></thead><tbody>
+      ${sh === 'all' ? (() => { const ds = new Set(R.map((r) => r.x.date)), sl = (Hh.list || []).filter((x) => ds.has(x.date)); return `<div class="pg-uts">${pgUphShift(R, sl, 'out')}${pgUphShift(R, sl, 'in')}</div>`; })() : `<div class="pg-uts">${pgUphTrend(R, 'out')}${pgUphTrend(R, 'in')}</div>`}
+      <p class="hint" style="margin:2px 0 10px">UPH＝その日（シフト）の実績 ÷ 作業時間。工程ごとに縦軸を値の範囲に合わせています（0からではありません）。点線は表示している期間の平均（合計の個数 ÷ 合計の時間）、白抜きの点は平均より低い日。棒は処理数（右の目盛り・0から）。点・棒にマウスを合わせると個数と時間が出ます。</p>
+      <div class="pg-tw"><table class="pg-t pg-ht"><thead><tr><th rowspan="2">日付</th><th rowspan="2">シフト</th><th colspan="9" class="g" style="border-color:#0f766e;color:#0f766e">OUT</th><th colspan="9" class="g" style="border-color:#ca8a04;color:#a16207">IN</th></tr>
+        <tr><th>FCST</th>${PG_GRP.out.cats.map((c) => `<th>${c}</th><th>UPH</th><th class="ub"></th>`).join('')}<th>達成率</th><th title="CPT の時刻を過ぎても C4 に残っていたユニット数。残った CPT だけを1行ずつ">Late Slam</th><th>FCST</th>${PG_GRP.in.cats.map((c) => `<th>${c}</th><th>UPH</th><th class="ub"></th>`).join('')}<th>達成率</th><th>ボトルネック</th></tr></thead><tbody>
         ${R.map((r) => `<tr class="r" data-d="${r.x.date}" data-s="${r.x.shift}" title="押すとこの日の進捗を開きます"><td><b>${pgMd(r.x.date)}</b></td><td>${shTag(r.x.shift)}</td>
-          <td>${r.out.fc ? pgNf(r.out.fc) : '—'}${(r.x.fcst.parts || []).some((x) => x.outSrc === 'manual') ? '<small>手</small>' : ''}</td>${PG_GRP.out.cats.map((c) => `<td style="${c === r.out.bn ? 'font-weight:800' : ''}">${pgNf(r.x.cats[c].u)}</td>`).join('')}<td>${rate(r.out.r)}</td><td class="pg-lsc">${pgLsCell(r.x.lateSlam)}</td>
-          <td>${r.in.fc ? pgNf(r.in.fc) : '—'}${(r.x.fcst.parts || []).some((x) => x.inSrc === 'manual') ? '<small>手</small>' : ''}</td>${PG_GRP.in.cats.map((c) => `<td style="${c === r.in.bn ? 'font-weight:800' : ''}">${pgNf(r.x.cats[c].u)}</td>`).join('')}<td>${rate(r.in.r)}</td><td class="hint">${r.in.r != null ? r.in.bn : ''}</td></tr>`).join('') || '<tr><td colspan="12" class="hint">データがありません</td></tr>'}
+          <td>${r.out.fc ? pgNf(r.out.fc) : '—'}${(r.x.fcst.parts || []).some((x) => x.outSrc === 'manual') ? '<small>手</small>' : ''}</td>${PG_GRP.out.cats.map((c) => `<td style="${c === r.out.bn ? 'font-weight:800' : ''}">${pgNf(r.x.cats[c].u)}</td>${hu(r.x, c)}`).join('')}<td>${rate(r.out.r)}</td><td class="pg-lsc">${pgLsCell(r.x.lateSlam)}</td>
+          <td>${r.in.fc ? pgNf(r.in.fc) : '—'}${(r.x.fcst.parts || []).some((x) => x.inSrc === 'manual') ? '<small>手</small>' : ''}</td>${PG_GRP.in.cats.map((c) => `<td style="${c === r.in.bn ? 'font-weight:800' : ''}">${pgNf(r.x.cats[c].u)}</td>${hu(r.x, c)}`).join('')}<td>${rate(r.in.r)}</td><td class="hint">${r.in.r != null ? r.in.bn : ''}</td></tr>`).join('') || '<tr><td colspan="20" class="hint">データがありません</td></tr>'}
       </tbody></table></div>
       <p class="hint" style="margin:6px 0 0">達成率＝少ない方の工程の実績 ÷ FCST（OUTは Pick・Pack、INは Receive・Stow のうち少ない方）。「全て」は日勤＋夜勤の24時間（区切り 0:00〜23:59＝暦日、20:00〜19:59＝前日20時の夜勤から。FCST は入る作業時間の分だけ日勤・夜勤の FCST を足す。空欄のシフトは0として足す）。<br>Late Slam＝CPT の時刻を過ぎても C4 に残っていたユニット数（CPT の列が C4 から消えたときに Passed CPT へ残った数を記録）。残った CPT だけ時刻と数を出し、残らなかった日は「-」。不明＝C4 の画面が閉じていた等でデータが届かず、CPT のあとの状態が分からないもの。夜勤は出勤した日の勤務（例：11/20の夜勤＝11/20 20:00〜11/21 8:00）。</p>`;
   }
@@ -308,7 +389,7 @@
     const bar = $('pgBar');
     const today = ymd(new Date()), away = pgMode === 'day' && $('from').value !== today;
     if (bar) bar.innerHTML = `${pgMode === 'day' && pgBack ? '<button class="pg-back" data-back="hist">← 振り返りに戻る</button>' : ''}${away ? '<button class="pg-back" data-back="today">今日に戻る</button>' : ''}<button data-pm="day" class="${pgMode === 'day' ? 'on' : ''}">その日の進捗</button><button data-pm="hist" class="${pgMode === 'hist' ? 'on' : ''}">振り返り</button>
-      ${pgMode === 'hist' ? `<select id="pgMonth" title="振り返る期間"><option value="">直近31日</option>${pgMonths().map((m) => `<option value="${m}" ${pgMonth === m ? 'selected' : ''}>${m.slice(0, 4)}年${Number(m.slice(5))}月度</option>`).join('')}</select>` : ''}
+      ${pgMode === 'hist' ? `<select id="pgMonth" title="振り返る期間"><option value="7" ${pgMonth === '7' ? 'selected' : ''}>直近1週間</option><option value="31" ${pgMonth === '31' ? 'selected' : ''}>直近31日</option>${pgMonths().map((m) => `<option value="${m}" ${pgMonth === m ? 'selected' : ''}>${m.slice(0, 4)}年${Number(m.slice(5))}月度</option>`).join('')}</select>` : ''}
       ${shift === 'all' ? `<span class="pg-cut" title="「全て」（日勤＋夜勤）の1日の区切り。夜勤から累計します"><b>区切り</b>${['0', '20'].map((k) => [k, PG_CUT[k]]).map(([k, t]) => `<button data-pc="${k}" class="${pgCut === k ? 'on' : ''}">${t}</button>`).join('')}</span>` : ''}`;
     const head = pgErr ? `<p class="hint" style="color:#b91c1c;margin:0 0 6px">読み込めませんでした：${esc(pgErr)}</p>` : '';
     v.innerHTML = head + `<div class="pg-body">${pgMode === 'hist' ? pgHistHtml() : pgDayHtml()}</div>`;
