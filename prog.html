@@ -61,6 +61,7 @@
   .pg-tw{overflow:auto;margin-top:6px}
   .pg-t{font-size:12px}.pg-t th,.pg-t td{padding:3px 6px;text-align:right}.pg-t th:first-child,.pg-t td:first-child{text-align:left}
   .pg-t td{font-variant-numeric:tabular-nums}.pg-t td small{color:#9ca3af}
+  .pg-t td.uph{color:#334155;font-weight:600}.pg-t tr.tot td.uph{font-weight:800}
   .pg-t td.m{color:#b91c1c;font-weight:700}.pg-t td.pl{color:#15803d;font-weight:700}
   .pg-t tr.now td{background:#fefce8;font-weight:700}.pg-t tr.tot td{font-weight:800;border-bottom:2px solid #d1d5db;background:#f9fafb}
   .pg-ht th.g{text-align:center;border-bottom:2px solid}
@@ -225,10 +226,10 @@
     const now = D.live ? Math.ceil(upto) : D.hours.length;
     const rows = D.hours.slice(0, now).map((h, i) => {
       const part = D.live && i + 1 > upto, off = D.plan.work && !D.plan.work[i], pl = fc && !off ? arr[i] * (part ? upto - i : 1) : null;
-      return `<tr class="${part ? 'now' : ''}${off ? ' off' : ''}"><td>${pgHm(pgT(D, i))}${part ? '（途中）' : off ? '<small>（作業時間外）</small>' : ''}</td><td>${pl == null ? '—' : pgNf(pl)}</td>${G.cats.map((c) => { const v = h[c].u; return `<td>${pgNf(v)}<small> ${h[c].n}名</small></td><td class="${pl == null ? '' : v - pl < 0 ? 'm' : 'pl'}">${pl == null ? '' : pgSg(v - pl)}</td>`; }).join('')}</tr>`;
+      return `<tr class="${part ? 'now' : ''}${off ? ' off' : ''}"><td>${pgHm(pgT(D, i))}${part ? '（途中）' : off ? '<small>（作業時間外）</small>' : ''}</td><td>${pl == null ? '—' : pgNf(pl)}</td>${G.cats.map((c) => { const v = h[c].u, hr = h[c].h; return `<td>${pgNf(v)}<small> ${h[c].n}名</small></td><td class="uph">${hr > 0.05 ? pgNf(v / hr) : '—'}</td>`; }).join('')}</tr>`;
     }).reverse().join('');   // 今の時間帯を上に
     const totPl = D.live ? planNow : fc;
-    const tot = `<tr class="tot"><td>合計</td><td>${fc ? pgNf(totPl) : '—'}</td>${G.cats.map((c) => `<td>${pgNf(ch.done[c])}</td><td class="${!fc ? '' : ch.done[c] - totPl < 0 ? 'm' : 'pl'}">${fc ? pgSg(ch.done[c] - totPl) : ''}</td>`).join('')}</tr>`;
+    const tot = `<tr class="tot"><td>合計</td><td>${fc ? pgNf(totPl) : '—'}</td>${G.cats.map((c) => { const t = D.total[c]; return `<td>${pgNf(ch.done[c])}</td><td class="uph">${t.h > 0.05 ? pgNf(t.u / t.h) : '—'}</td>`; }).join('')}</tr>`;
     return `<div class="pg-pn"><div class="pg-ph"><span class="pg-tag" style="background:${G.tc}">${G.tag}</span><h3>${G.name}</h3><span class="hint">${G.sub}</span></div>
       <div class="pg-kp"><div class="pg-k" title="${srcTxt}"><span>FCST${src === 'manual' ? '（手入力）' : ''}</span><b>${fcTxt}</b></div>
         ${true ? `<div class="pg-k pg-k2"><span>実績</span>${G.cats.map((c) => `<div class="r"><em style="color:${PG_COL[c]}">${c}</em><b>${pgNf(ch.done[c])}</b><small>${fc ? Math.round(ch.done[c] / fc * 100) + '%' : ''}</small></div>`).join('')}</div>` : `<div class="pg-k"><span>実績（${bn}＝少ない方）</span><b>${pgNf(val)}</b><small>${fc ? '進捗 ' + Math.round(val / fc * 100) + '%' : ''}</small></div>`}${k3}
@@ -238,7 +239,7 @@
         <div class="pg-pbn">${fc ? `FCSTに対する進捗率${D.live ? `（縦線＝${pgHm(D.dataTo || D.start)} 時点の計画 ${Math.round(Math.min(1, planNow / fc) * 100)}%）` : ''}` : 'FCST がないため進捗率は出せません'}</div></div>
       <div class="pg-pr">${cards}</div>${ch.svg}
       <div class="pg-lg">${G.cats.map((c) => `<span><i style="background:${PG_COL[c]}"></i>${c} 実績（積み上げ）</span>`).join('')}<span><i style="background:repeating-linear-gradient(90deg,#475569 0 5px,transparent 5px 8px)"></i>計画（FCST を作業時間に均等割り：日勤 8:00〜20:00・夜勤 20:00〜5:00）</span><span><i class="bx" style="background:#94a3b8;opacity:.5"></i>1時間ごとの実績</span>${D.live ? '<span><i style="background:repeating-linear-gradient(90deg,#64748b 0 2px,transparent 2px 5px)"></i>直近1時間のペースのままの見込み</span>' : ''}</div>
-      <div class="pg-tw"><table class="pg-t"><thead><tr><th>時間帯</th><th>計画</th>${G.cats.map((c) => `<th>${c}</th><th>差</th>`).join('')}</tr></thead><tbody>${rows ? tot : ''}${rows || `<tr><td colspan="${2 + G.cats.length * 2}" class="hint">まだ実績がありません</td></tr>`}</tbody></table></div></div>`;
+      <div class="pg-tw"><table class="pg-t"><thead><tr><th>時間帯</th><th>計画</th>${G.cats.map((c) => `<th>${c}</th><th>UPH</th>`).join('')}</tr></thead><tbody>${rows ? tot : ''}${rows || `<tr><td colspan="${2 + G.cats.length * 2}" class="hint">まだ実績がありません</td></tr>`}</tbody></table></div></div>`;
   }
   function pgDayHtml() {
     const D = pgData;
