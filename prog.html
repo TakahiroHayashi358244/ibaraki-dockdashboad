@@ -371,8 +371,6 @@
         <div class="pg-k"><span>IN 平均達成率</span><b style="color:${uc(avg('in'))}">${avg('in') == null ? '—' : Math.round(avg('in') * 100) + '%'}</b></div>
         <div class="pg-k"><span>IN 達成した回数</span><b>${hit('in')}<small> / ${cnt('in')}</small></b></div>
         <div class="pg-k"><span>IN 多かったボトルネック</span><b style="font-size:15px">${bnCnt('in')}</b></div></div>
-      ${sh === 'all' ? (() => { const ds = new Set(R.map((r) => r.x.date)), sl = (Hh.list || []).filter((x) => ds.has(x.date)); return `<div class="pg-uts">${pgUphShift(R, sl, 'out')}${pgUphShift(R, sl, 'in')}</div>`; })() : ''}
-      ${sh !== 'all' ? '' : `<p class="hint" style="margin:2px 0 10px">UPH＝その日（シフト）の実績 ÷ 作業時間。工程ごとに縦軸を値の範囲に合わせています（0からではありません）。点線は表示している期間の平均（合計の個数 ÷ 合計の時間）、白抜きの点は平均より低い日。棒は処理数（右の目盛り・0から）。点・棒にマウスを合わせると個数と時間が出ます。</p>`}
       <div class="pg-tw"><table class="pg-t pg-ht"><thead><tr><th rowspan="2">日付</th><th rowspan="2">シフト</th><th colspan="9" class="g" style="border-color:#0f766e;color:#0f766e">OUT</th><th colspan="9" class="g" style="border-color:#ca8a04;color:#a16207">IN</th></tr>
         <tr><th>FCST</th>${PG_GRP.out.cats.map((c) => `<th>${c}</th><th>UPH</th><th class="ub"></th>`).join('')}<th>達成率</th><th title="CPT の時刻を過ぎても C4 に残っていたユニット数。残った CPT だけを1行ずつ">Late Slam</th><th>FCST</th>${PG_GRP.in.cats.map((c) => `<th>${c}</th><th>UPH</th><th class="ub"></th>`).join('')}<th>達成率</th><th>ボトルネック</th></tr></thead><tbody>
         ${R.map((r) => `<tr class="r" data-d="${r.x.date}" data-s="${r.x.shift}" title="押すとこの日の進捗を開きます"><td><b>${pgMd(r.x.date)}</b></td><td>${shTag(r.x.shift)}</td>
