@@ -59,11 +59,58 @@
   header .r{display:flex;flex-direction:column;align-items:flex-end;gap:.3vh}
   header .wl{font-size:min(1.7vh,.95vw);font-weight:800;padding:.1vh .7vw;border-radius:99px;white-space:nowrap;cursor:pointer}
   header .wl.on{background:#14532d;color:#bbf7d0}header .wl.off{background:#7f1d1d;color:#fecaca}
+
+  /* 工程の枠は1行にまとめて高さを抑え、そのぶん円グラフを大きくする */
+  .rows{gap:1vw}
+  .pr{height:8.4vh;padding:0 1vw;grid-template-columns:auto auto minmax(0,1fr);grid-template-rows:1fr;align-items:center;gap:0 .7vw;border-radius:1.2vh;padding:0 .8vw}
+  .pr .n{font-size:min(2.8vh,1.3vw)}
+  .pr .p{font-size:min(4.6vh,1.9vw);line-height:1;text-align:left}
+  .pr .d > span{max-width:100%}
+  .pr .d{grid-column:auto;flex-direction:column;align-items:flex-end;justify-content:center;gap:.2vh;font-size:min(1.9vh,.9vw);line-height:1.15}
+  .ft{height:7vh;margin-top:1vh}
+  .ft b{font-size:min(3.6vh,1.9vw)}.ft span{font-size:min(1.9vh,1vw)}
+  .card{padding:1.4vh 1.6vw}
+  .ring{margin:.2vh 0}
+
+  /* 工程の枠は円グラフの上の左右の角に置き、円グラフを避ける。円グラフはカードの高さいっぱいまで大きくする */
+  .card{position:relative}
+  .rows{position:absolute;top:8vh;left:1vw;right:1vw;width:auto;display:flex;justify-content:space-between;gap:0;pointer-events:none}
+  .pr{width:max-content;max-width:24%;flex:none;height:auto;padding:.8vh .8vw;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;align-items:baseline;gap:.4vh .6vw}
+  .pr .n{font-size:min(2.3vh,1.05vw)}
+  .pr .p{font-size:min(3.8vh,1.75vw);text-align:right}
+  .pr .d{grid-column:1/3;flex-direction:column;align-items:flex-start;gap:.1vh;font-size:min(1.8vh,.85vw)}
+  .ring{margin:.4vh 0 0}
+
+  /* 下の数字も円グラフの下の左右の角へ：FCST と時点の計画は左に縦並び、着地見込みは右。円グラフはカードの下まで使う */
+  .ft{position:absolute;bottom:1.2vh;left:1.2vw;right:1.2vw;width:auto;height:auto;margin:0;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;gap:.8vh 0;align-items:end;pointer-events:none}
+  .ft > div{text-align:left}
+  .ft > div:nth-child(1){grid-column:1;grid-row:1}
+  .ft > div:nth-child(2){grid-column:1;grid-row:2}
+  .ft > div:nth-child(3){grid-column:3;grid-row:1/3;text-align:right;align-self:end}
+  .ft span{font-size:min(1.8vh,.9vw)}
+  .ft b{font-size:min(3.2vh,1.6vw);line-height:1.1}
+  .ft > div:nth-child(3) b{font-size:min(4.6vh,2.3vw)}
+  .ft > div:nth-child(3) small{display:block;font-size:min(2.2vh,1.1vw)}
+  .ring{margin:.4vh 0 .6vh}
+
+  /* OUT・IN のタグを大きく */
+  .ttl .tag{font-size:min(3.4vh,1.8vw);font-weight:900;padding:.3vh 1.2vw;border-radius:99px;line-height:1.2}
+
+  /* ===== CPT 別進捗（下の段） ===== */
+  .cpc{flex:none;height:26vh;margin:0 .6vw .6vw;background:#fff;border-radius:1.2vh;box-shadow:0 2px 8px rgba(15,23,42,.18);padding:1vh 1.4vw;display:flex;flex-direction:column}
+  .cpc[hidden]{display:none}
+  .cpc h2{margin:0;font-size:min(3vh,1.6vw);font-weight:900;display:flex;gap:1.2vw;align-items:center;white-space:nowrap}
+  .cpc h2 .warn{font-size:min(1.9vh,1vw);color:#b91c1c;font-weight:800}
+  .cpc .lgd{display:flex;gap:1vw;font-size:min(1.9vh,1vw);font-weight:800;color:#334155;margin-left:auto}
+  .cpc .lgd i{display:inline-block;width:2.2vh;height:1.4vh;border-radius:.3vh;margin-right:.3vw;vertical-align:-.1vh}
+  .cpc svg{flex:1;width:100%;min-height:0}
+  .cpc .none{flex:1;display:flex;align-items:center;justify-content:center;font-size:min(2.6vh,1.4vw);font-weight:800;color:#64748b}
 </style>
 </head>
 <body>
 <header><div class="l"><h1>進捗モニター</h1><span class="sh" id="sh">—</span></div><span class="clk" id="clk">--:--</span><div class="r"><span class="at" id="at"></span><span class="wl off" id="wl" title="画面スリープ防止の状態。OFFのときは画面を一度クリックするとONになります">スリープ防止 OFF</span></div></header>
 <main id="main"></main>
+<section class="cpc" id="cpt"><h2>CPT別 進捗</h2><div class="none">読み込み中…</div></section>
 <script>
 (() => {
   const API = 'https://indirect-relay-hfo1.takahiro884.workers.dev', KEY = '1540850d9c168e02e13c9c10c06d8bed';
@@ -100,11 +147,17 @@
         // 100% を超えたら：1周目は輪いっぱい、2周目も同じ色で上に重ねて伸ばす。白い境界線で重なりを見せる（最大200%まで）
         const r2 = Math.min(r - 1, 0.9999);
         s += `<circle cx="180" cy="180" r="${R[k]}" fill="none" stroke="${COL[c]}" stroke-width="${W}"/>`;
-        if (r2 > 0.01) {
+        if (r2 > 0) {
           // 境界線は伸びている先端（と両脇）だけ。2周目の始まり（0の位置）には線を出さない
-          const d = arc(180, 180, R[k], 0.006, r2), d0 = arc(180, 180, R[k], -0.004, r2), ea = r2 * 2 * Math.PI, ex = 180 + R[k] * Math.sin(ea), ey = 180 - R[k] * Math.cos(ea);
-          s += `<path d="${d}" fill="none" stroke="#fff" stroke-width="${W + 6}" stroke-linecap="butt"/><circle cx="${ex}" cy="${ey}" r="${W / 2 + 3}" fill="#fff"/>`;
-          s += `<path d="${d0}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="butt"/><circle cx="${ex}" cy="${ey}" r="${W / 2}" fill="${COL[c]}"/>`;
+          // 100% を少しだけ超えたとき（伸びがごく短いとき）も、先端の丸と白い境界線は他と同じように出す
+          const ea = r2 * 2 * Math.PI, ex = 180 + R[k] * Math.sin(ea), ey = 180 - R[k] * Math.cos(ea);
+          if (r2 > 0.006) s += `<path d="${arc(180, 180, R[k], 0.006, r2)}" fill="none" stroke="#fff" stroke-width="${W + 6}" stroke-linecap="butt"/>`;
+          // 先端の丸が 0 の位置より左（2周目の始まりより前）にはみ出す分は切り落とす
+          const cid = `cap-${G.tag}-${k}`, near = r2 < 0.12;
+          if (near) s += `<clipPath id="${cid}"><rect x="180" y="-20" width="220" height="400"/></clipPath>`;
+          const cp = near ? ` clip-path="url(#${cid})"` : '';
+          s += `<circle cx="${ex}" cy="${ey}" r="${W / 2 + 3}" fill="#fff"${cp}/>`;
+          s += `<path d="${arc(180, 180, R[k], -0.004, r2)}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="butt"/><circle cx="${ex}" cy="${ey}" r="${W / 2}" fill="${COL[c]}"${cp}/>`;
         }
       } else if (r > 0) s += `<path d="${arc(180, 180, R[k], 0, r)}" fill="none" stroke="${COL[c]}" stroke-width="${W}" stroke-linecap="round"/>`;
     });
@@ -138,6 +191,61 @@
       document.getElementById('main').innerHTML = card(D, 'out') + card(D, 'in');
     } catch (e) { document.getElementById('at').textContent = '読み込めませんでした（' + e.message + '）'; }
   }
+
+  // ===== CPT 別進捗（Rodeo の Work Pool by ExSD から、間接打刻管理の /api/cpt で読む） =====
+  //  ・CPT は等間隔に並べる。今の時刻（15分単位に切り捨て）を左から3番目の位置に固定し、前後の CPT の間を時間の割合で進む
+  //    → 15分ごとに少しずつ左へずれ、左端は隠れ、右端から次の CPT が出てくる
+  //  ・棒は CPT ごとに左＝Pick、右＝Pack。高さ＝その CPT の総数、色の部分＝処理済み（Pick＝ピック済み、Pack＝パック済み）
+  //  ・終わった CPT は実績の高さのまま残し、今に近いほど濃く、離れるほど薄くする
+  //  ・日勤・夜勤の区切りとは関係なく続いていく
+  const CPT_SLOTS = 11, PK = COL.Pick, PC = COL.Pack;
+  const jstYmd = (t) => new Date(t + 9 * H).toISOString().slice(0, 10);
+  function cptSvg(list, nowF) {
+    const W = 1800, Hh = 236, base = 176, w = W / CPT_SLOTS;
+    let ip = -1; list.forEach((c, i) => { if (c.t <= nowF) ip = i; });
+    const fNow = ip < 0 ? (list.length ? -0.5 : 0) : ip + 1 >= list.length ? ip + 0.5 : ip + (nowF - list[ip].t) / (list[ip + 1].t - list[ip].t);
+    const xNow = 2.5 * w, X = (i) => xNow + (i - fNow) * w;
+    const vis = list.map((c, i) => ({ ...c, i })).filter((c) => X(c.i) > -w && X(c.i) < W + w);
+    const mx = Math.max(1, ...vis.map((c) => c.tot)), k = 96 / mx, bw = 30, today = jstYmd(nowF);
+    let s = `<defs><clipPath id="cpw"><rect x="0" y="-20" width="${W}" height="${Hh + 40}"/></clipPath><linearGradient id="cpfl" x1="0" x2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><g clip-path="url(#cpw)">`;
+    s += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="#94a3b8" stroke-width="2"/>`;
+    const placed = [], pb = [], pb2 = [];
+    for (const c of vis) {
+      const x = X(c.i), ht = Math.max(4, c.tot * k), fin = c.done || !(c.np + c.pp);
+      const op = !fin ? 1 : (x > xNow - w * 1.2 ? 0.6 : x > xNow - w * 2.2 ? 0.32 : 0.18);
+      s += `<g opacity="${op}">`;
+      s += `<rect x="${x - bw - 1}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e2e8f0"/><rect x="${x + 1}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e2e8f0"/>`;
+      const tot = Math.max(1, c.tot), hp = Math.max(0, (c.tot - c.np) / tot) * ht, hk = Math.max(0, (c.tot - c.np - c.pp) / tot) * ht;
+      s += `<rect x="${x - bw - 1}" y="${base - hp}" width="${bw}" height="${hp}" rx="3" fill="${PK}"/><rect x="${x + 1}" y="${base - hk}" width="${bw}" height="${hk}" rx="3" fill="${PC}"/>`;
+      // 文字が重なるときは、重ならない高さまで上へずらす（下の時刻は下の段へ）
+      const lh = fin ? 22 : 44; let yb = base - ht - 6;
+      while (placed.some((p) => Math.abs(p.x - x) < 120 && yb > p.y0 && yb - lh < p.y1)) yb -= lh;
+      placed.push({ x, y0: yb - lh, y1: yb });
+      s += fin ? `<text x="${x}" y="${yb - 4}" text-anchor="middle" font-size="18" font-weight="800" fill="#64748b">実績 ${nf(c.tot)}</text>`
+        : `<text x="${x}" y="${yb - 26}" text-anchor="middle" font-size="18" font-weight="800" fill="${PK}">Pick ${nf(c.np)}</text><text x="${x}" y="${yb - 4}" text-anchor="middle" font-size="18" font-weight="800" fill="${PC}">Pack ${nf(c.pp)}</text>`;
+      const row = pb.some((p) => Math.abs(p - x) < 95) && !pb2.some((p) => Math.abs(p - x) < 95) ? 1 : 0; (row ? pb2 : pb).push(x);
+      const dd = Math.round((Date.parse(jstYmd(c.t)) - Date.parse(today)) / 86400000), pre = dd === 1 ? '翌' : dd === -1 ? '前日' : dd ? `${Number(jstYmd(c.t).slice(5, 7))}/${Number(jstYmd(c.t).slice(8))} ` : '';
+      s += `<text x="${x}" y="${base + 30 + row * 26}" text-anchor="middle" font-size="24" font-weight="900" fill="#020617">${pre ? `<tspan font-size="17" fill="#64748b">${pre}</tspan>` : ''}${hm(c.t).replace(/^0/, '')}</text></g>`;
+    }
+    s += `<line x1="${xNow}" x2="${xNow}" y1="28" y2="${base + 8}" stroke="#020617" stroke-width="3" stroke-dasharray="6 5"/><rect x="${xNow - 40}" y="0" width="80" height="28" rx="14" fill="#0f172a"/><text x="${xNow}" y="21" text-anchor="middle" font-size="19" font-weight="900" fill="#fff">${hm(nowF).replace(/^0/, '')}</text>`;
+    s += `<rect x="0" y="-20" width="70" height="${Hh + 40}" fill="url(#cpfl)"/></g>`;
+    return `<svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${s}</svg>`;
+  }
+  async function loadCpt() {
+    const el = document.getElementById('cpt');
+    const lg = `<span class="lgd"><span><i style="background:${PK}"></i>Pick（ピック済み）</span><span><i style="background:${PC}"></i>Pack（パック済み）</span><span><i style="background:#e2e8f0;border:1px solid #cbd5e1"></i>残り</span></span>`;
+    try {
+      const r = await fetch(`${API}/api/cpt?k=${KEY}`, { cache: 'no-store' });
+      const D = await r.json(); if (!D.ok) throw new Error(D.error || 'error');
+      const nowF = Math.floor(Date.now() / (15 * 60000)) * 15 * 60000;
+      // Rodeo からの更新が30分以上止まっていたら知らせる
+      const stale = !D.syncAt || Date.now() - D.syncAt > 30 * 60000;
+      const warn = stale ? `<span class="warn">${D.syncAt ? `Rodeo からの更新が止まっています（最終 ${hm(D.syncAt)}）` : 'Rodeo からのデータがまだありません'}</span>` : '';
+      el.innerHTML = `<h2>CPT別 進捗${warn}${lg}</h2>` + (D.cpts.length ? cptSvg(D.cpts, nowF) : '<div class="none">表示できる CPT がありません（Rodeo の画面とスクリプトを確認してください）</div>');
+    } catch (e) {
+      el.innerHTML = `<h2>CPT別 進捗${lg}</h2><div class="none">読み込めませんでした（${String(e.message || e)}）</div>`;
+    }
+  }
   const tick = () => { document.getElementById('clk').textContent = new Date(Date.now() + 9 * H).toISOString().slice(11, 16); };
 
   // ===== 画面スリープ防止 =====
@@ -168,7 +276,7 @@
   document.addEventListener('keydown', () => wakeOn());
   setInterval(() => { if (document.visibilityState === 'visible' && (!wl || wl.released) && !(vid && !vid.paused)) wakeOn(); }, 60000);
   wakeOn();
-  tick(); setInterval(tick, 10000); load(); setInterval(load, 2 * 60000);
+  tick(); setInterval(tick, 10000); load(); setInterval(load, 2 * 60000); loadCpt(); setInterval(loadCpt, 2 * 60000);
 })();
 </script>
 <script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="monitor"></script>
