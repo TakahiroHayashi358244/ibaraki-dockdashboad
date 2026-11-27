@@ -118,6 +118,27 @@
 
   /* OUT・IN の札はカードの左上に寄せる（見出しと状態は中央のまま） */
   .ttl .tag{position:absolute;left:1.2vw;top:2vh}
+
+  /* ===== OUT のフロア別オーダー（C4） ===== */
+  .card .ttl.hsw{align-self:stretch;justify-content:flex-start;padding-left:calc(min(3.4vh,1.8vw) * 3.6);min-width:0;font-size:min(3.6vh,1.75vw);gap:.8vw}
+  .card .ttl.hsw .st{font-size:min(3vh,1.5vw);padding:.3vh 1.6vw}
+  .ttl .sw{margin-left:auto;display:flex;border:2px solid #cbd5e1;border-radius:99px;overflow:hidden;font-size:min(1.9vh,.9vw);font-weight:800;flex:none;cursor:pointer;user-select:none}
+  .ttl .sw span{padding:.4vh .8vw;color:#64748b}.ttl .sw span.on{background:#0f172a;color:#fff}
+  .flw{position:absolute;left:1.4vw;right:1.4vw;top:8.6vh;bottom:1.4vh;display:flex;flex-direction:column;gap:1.1vh}
+  .flw .cp{display:grid;gap:.6vw}
+  .flw .cp div{border-radius:1vh;padding:.6vh .6vw;background:#f1f5f9;border-bottom:.6vh solid var(--c);min-width:0;overflow:hidden}
+  .flw .cp span{display:block;font-size:min(1.9vh,.95vw);font-weight:800;color:#334155;white-space:nowrap}
+  .flw .cp b{font-size:min(3.4vh,1.7vw);font-weight:900;font-variant-numeric:tabular-nums}
+  .flw .cp .al{background:#fff;color:#020617;border:2px solid #64748b;border-bottom-width:.6vh}.flw .cp .al span{color:#475569}
+  .flw .frs{flex:1;display:grid;gap:.9vh;min-height:0}
+  .flw .fr{display:grid;grid-template-columns:5.2vw 9vw minmax(0,1fr);align-items:center;gap:1vw;border-bottom:1px solid #e2e8f0;min-height:0}
+  .flw .fn{font-size:min(4.4vh,2.3vw);font-weight:900}
+  .flw .ft2{text-align:right;line-height:1.05}.flw .ft2 b{display:block;font-size:min(4.8vh,2.5vw);font-weight:900;font-variant-numeric:tabular-nums}
+  .flw .ft2 small{font-size:min(1.7vh,.85vw);font-weight:800;color:#64748b}
+  .flw .fb{height:62%;display:flex;border-radius:.8vh;overflow:hidden;background:#f1f5f9}
+  .flw .fb i{display:flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:min(2vh,1vw);font-weight:900;white-space:nowrap;overflow:hidden;border-right:2px solid #fff}
+  .flw .msg{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:min(2.4vh,1.3vw);font-weight:800;color:#64748b}
+  .flw .stl{font-size:min(1.7vh,.85vw);font-weight:800;color:#b91c1c;text-align:right;margin-top:-.6vh}
 </style>
 </head>
 <body>
@@ -189,11 +210,15 @@
     const stc = { ok: '#15803d', wn: '#ea580c', ng: '#dc2626', na: '#020617' }[st[0]];
     const lb = Math.min(...G.cats.map((c) => land[c]));
     const uph = (c) => { const o = D.recent[c]; return o && o.h > 0.05 ? Math.round(o.u / o.h) : '—'; };
-    return `<div class="card" style="--c:${G.c}"><div class="ttl"><span class="tag">${G.tag}</span>${G.name}<span class="st ${st[0]}">${st[1]}${fc ? `　${sg(diff)}` : ''}</span></div>
+    const sw = g === 'out' ? `<span class="sw" onclick="setOutView('toggle')"><span class="${OUTV === 'floor' ? '' : 'on'}">全体</span><span class="${OUTV === 'floor' ? 'on' : ''}">フロア別</span></span>` : '';
+    const head = `<div class="card" style="--c:${G.c}"><div class="ttl${sw ? ' hsw' : ''}"><span class="tag">${G.tag}</span>${G.name}<span class="st ${st[0]}">${st[1]}${fc ? `　${sg(diff)}` : ''}</span>${sw}</div>`;
+    if (g === 'out' && OUTV === 'floor') return head + `<div class="flw" id="flw">${floorHtml()}</div></div>`;
+    return head + `
       <div class="ring">${ring(G, done, fc, pr, stc)}</div>
       <div class="rows">${G.cats.map((c) => `<div class="pr" style="--pc:${COL[c]}"><span class="n">● ${c}</span><span class="p">${fc ? Math.round(done[c] / fc * 100) + '%' : '—'}</span><span class="d"><span><b>${nf(done[c])}</b> / ${fc ? nf(fc) : '—'}</span><span>UPH <b>${uph(c)}</b>・${D.recent[c].n}名</span></span></div>`).join('')}</div>
       <div class="ft"><div><span>FCST</span><b>${fc ? nf(fc) : '—'}</b></div><div><span>${hm(D.dataTo || D.start)} 時点の計画</span><b>${fc ? nf(pn) : '—'}</b></div><div><span>着地見込み</span><b style="color:${fc ? (lb >= fc ? '#15803d' : '#dc2626') : ''}">${nf(lb)}</b>${fc ? `<small style="color:${lb >= fc ? '#16a34a' : '#dc2626'}">${sg(lb - fc)}</small>` : ''}</div></div></div>`;
   }
+  let LASTD = null;
   async function load() {
     const { sh, d } = cur();
     try {
@@ -201,7 +226,9 @@
       const D = await r.json(); if (!D.ok) throw new Error(D.error || 'error');
       document.getElementById('sh').textContent = `${Number(d.slice(5, 7))}/${Number(d.slice(8))} ${sh === 'day' ? '日勤 8:00〜20:00' : '夜勤 20:00〜5:00'}`;
       document.getElementById('at').textContent = D.dataTo ? `${hm(D.dataTo)} までの実績` : '実績はまだありません';
+      LASTD = D;
       document.getElementById('main').innerHTML = card(D, 'out') + card(D, 'in');
+      if (OUTV === 'floor') loadOrders();
     } catch (e) { document.getElementById('at').textContent = '読み込めませんでした（' + e.message + '）'; }
   }
 
@@ -264,6 +291,57 @@
     } catch (e) {
       el.innerHTML = `<h2>CPT別 残数${lg}</h2><div class="none">読み込めませんでした（${String(e.message || e)}）</div>`;
     }
+  }
+
+  // ===== OUT のフロア別オーダー（C4 の階層別・CPT 別オーダー数。モバイル版の「オーダー」と同じデータ）=====
+  //  ・見出しの「全体｜フロア別」で切り替える（この端末に記憶）
+  //  ・数えるのはシフト内の CPT（日勤＝当日20:00まで、夜勤＝翌朝8:00まで）と Passed。Future などシフト外は数えない
+  let OUTV = 'all'; try { if (localStorage.getItem('mon_out_view') === 'floor') OUTV = 'floor'; } catch (e) { /* 無視 */ }
+  let ORD = null, ORDERR = '';
+  const ORD_CC = ['#0f766e', '#2563eb', '#7c3aed', '#d97706', '#db2777', '#0891b2', '#65a30d'];
+  window.setOutView = (v) => setOutView(v);
+  function setOutView(v) { if (v === 'toggle') v = OUTV === 'floor' ? 'all' : 'floor'; OUTV = v; try { localStorage.setItem('mon_out_view', v); } catch (e) { /* 無視 */ } if (LASTD) document.getElementById('main').innerHTML = card(LASTD, 'out') + card(LASTD, 'in'); if (v === 'floor') loadOrders(); }
+  function ordCut() {
+    const j = new Date(Date.now() + 9 * H), hh = j.getUTCHours(), base = Date.parse(j.toISOString().slice(0, 10) + 'T00:00:00+09:00');
+    if (hh >= 8 && hh < 20) return base + 20 * H;            // 日勤：当日 20:00 まで
+    return hh >= 20 ? base + 32 * H : base + 8 * H;           // 夜勤：翌朝 8:00 まで
+  }
+  function ordCols() {
+    if (!ORD) return [];
+    const now = Date.now(), cut = ordCut();
+    return ORD.header.map((h, i) => {
+      if (i === ORD.iPP || i === ORD.iPA || !String(h).trim()) return null;
+      const m = String(h).match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
+      const t = m ? Date.parse(`${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}T${m[4].padStart(2, '0')}:${m[5]}:00+09:00`) : null;
+      const passed = /passed/i.test(h), future = /future/i.test(h);
+      const inShift = !future && (passed || t == null || t <= cut);
+      const label = passed ? 'Passed' : future ? 'Future' : t ? hm(t).replace(/^0/, '') : (String(h).split(/\n/)[0].replace(/\s*CPT\s*/i, '').trim() || String(h));
+      return { i, t, passed, label, inShift, late: passed || (t != null && t < now) };
+    }).filter((x) => x && x.inShift);
+  }
+  function floorHtml() {
+    if (!ORD) return `<div class="msg">${ORDERR ? 'フロア別オーダーを読み込めませんでした（' + ORDERR + '）' : '読み込み中…'}</div>`;
+    if (!ORD.floors.length) return '<div class="msg">オーダーのデータがありません<br>（C4 の画面からの送信を待っています）</div>';
+    const L = ordCols();
+    let k = 0; L.forEach((x) => { x.c = x.passed ? '#dc2626' : ORD_CC[k++ % ORD_CC.length]; });
+    const fl = ORD.floors.map((f) => ({ f: f.f, v: L.map((x) => f.sum[x.i] || 0), air: L.reduce((s, x) => s + (f.air[x.i] || 0), 0) }));
+    fl.forEach((x) => { x.t = x.v.reduce((a, b) => a + b, 0); });
+    const mx = Math.max(1, ...fl.map((x) => x.t)), all = fl.reduce((s, x) => s + x.t, 0);
+    const age = ORD.at ? (Date.now() - ORD.at) / 60000 : null;
+    let h = `<div class="cp" style="grid-template-columns:repeat(${L.length},minmax(0,1fr)) minmax(0,1.1fr)">${L.map((x) => `<div style="--c:${x.c}"><span>${x.label}</span><b>${nf(fl.reduce((s, f) => s + f.v[L.indexOf(x)], 0))}</b></div>`).join('')}<div class="al"><span>合計</span><b>${nf(all)}</b></div></div>`;
+    if (age == null || age > 10) h += `<div class="stl">C4 からの更新が止まっています${ORD.at ? `（最終 ${hm(ORD.at)}）` : ''}</div>`;
+    h += `<div class="frs" style="grid-template-rows:repeat(${fl.length},1fr)">${fl.map((x) => `<div class="fr"><span class="fn">${x.f}</span><span class="ft2"><b>${nf(x.t)}</b><small>Air ${nf(x.air)}</small></span>
+      <div class="fb" style="width:${Math.max(x.t ? 2 : 0, x.t / mx * 100).toFixed(1)}%">${x.v.map((v, j) => v ? `<i style="width:${(v / x.t * 100).toFixed(2)}%;background:${L[j].c}">${v / mx > 0.07 ? nf(v) : ''}</i>` : '').join('')}</div></div>`).join('')}</div>`;
+    return h;
+  }
+  async function loadOrders() {
+    if (OUTV !== 'floor') return;
+    try {
+      const r = await fetch(`${API}/api/orders?k=${KEY}`, { cache: 'no-store' });
+      const j = await r.json(); if (!j.ok) throw new Error(j.error || 'error');
+      ORD = j; ORDERR = '';
+    } catch (e) { ORDERR = String(e.message || e); }
+    const el = document.getElementById('flw'); if (el) el.innerHTML = floorHtml();
   }
   const tick = () => { document.getElementById('clk').textContent = new Date(Date.now() + 9 * H).toISOString().slice(11, 16); };
 
