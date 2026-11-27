@@ -128,8 +128,8 @@
   .flw .cp{display:grid;gap:.6vw}
   .flw .cp div{border-radius:1vh;padding:.6vh .6vw;background:#f1f5f9;border-bottom:.6vh solid var(--c);min-width:0;overflow:hidden}
   .flw .cp span{display:block;font-size:min(1.9vh,.95vw);font-weight:800;color:#334155;white-space:nowrap}
-  .flw .cp b{font-size:min(3.4vh,1.7vw);font-weight:900;font-variant-numeric:tabular-nums}
-  .flw .cp .al{background:#fff;color:#020617;border:2px solid #64748b;border-bottom-width:.6vh}.flw .cp .al span{color:#475569}
+  .flw .cp b{display:block;white-space:nowrap;font-size:min(3.4vh,1.7vw);font-weight:900;font-variant-numeric:tabular-nums}
+  .flw .cp .al{overflow:visible;padding-right:.9vw;background:#fff;color:#020617;border:2px solid #64748b;border-bottom-width:.6vh}.flw .cp .al span{color:#475569}
   .flw .frs{flex:1;display:grid;gap:.9vh;min-height:0}
   .flw .fr{display:grid;grid-template-columns:5.2vw 9vw minmax(0,1fr);align-items:center;gap:1vw;border-bottom:1px solid #e2e8f0;min-height:0}
   .flw .fn{font-size:min(4.4vh,2.3vw);font-weight:900}
@@ -273,7 +273,7 @@
       document.getElementById('sh').textContent = `${Number(d.slice(5, 7))}/${Number(d.slice(8))} ${sh === 'day' ? '日勤 8:00〜20:00' : '夜勤 20:00〜5:00'}`;
       document.getElementById('at').textContent = D.dataTo ? `${hm(D.dataTo)} までの実績` : '実績はまだありません';
       LASTD = D;
-      document.getElementById('main').innerHTML = mainHtml(D);
+      document.getElementById('main').innerHTML = mainHtml(D); fitCp();
       if (OUTV === 'floor') loadOrders();
     } catch (e) { document.getElementById('at').textContent = '読み込めませんでした（' + e.message + '）'; }
   }
@@ -370,6 +370,9 @@
       return { i, t, passed, label, inShift, late: passed || (t != null && t < now) };
     }).filter((x) => x && x.inShift);
   }
+
+  function fitCp() { const bs = [...document.querySelectorAll('.flw .cp b')]; if (!bs.length) return; bs.forEach((b) => { b.style.fontSize = ''; }); let f = parseFloat(getComputedStyle(bs[0]).fontSize), n = 0; while (n++ < 25 && f > 8 && bs.some((b) => b.scrollWidth > b.clientWidth + 1)) { f *= 0.94; bs.forEach((b) => { b.style.fontSize = f + 'px'; }); } }
+  window.addEventListener('resize', () => fitCp());
   function floorHtml() {
     if (!ORD) return `<div class="msg">${ORDERR ? 'フロア別オーダーを読み込めませんでした（' + ORDERR + '）' : '読み込み中…'}</div>`;
     if (!ORD.floors.length) return '<div class="msg">オーダーのデータがありません<br>（C4 の画面からの送信を待っています）</div>';
@@ -379,7 +382,7 @@
     fl.forEach((x) => { x.t = x.v.reduce((a, b) => a + b, 0); });
     const mx = Math.max(1, ...fl.map((x) => x.t)), all = fl.reduce((s, x) => s + x.t, 0);
     const age = ORD.at ? (Date.now() - ORD.at) / 60000 : null;
-    let h = `<div class="cp" style="grid-template-columns:repeat(${L.length},minmax(0,1fr)) minmax(0,1.1fr)">${L.map((x) => `<div style="--c:${x.c}"><span>${x.label}</span><b>${nf(fl.reduce((s, f) => s + f.v[L.indexOf(x)], 0))}</b></div>`).join('')}<div class="al"><span>合計</span><b>${nf(all)}</b></div></div>`;
+    let h = `<div class="cp" style="grid-template-columns:repeat(${L.length},minmax(0,1fr)) auto">${L.map((x) => `<div style="--c:${x.c}"><span>${x.label}</span><b>${nf(fl.reduce((s, f) => s + f.v[L.indexOf(x)], 0))}</b></div>`).join('')}<div class="al"><span>合計</span><b>${nf(all)}</b></div></div>`;
     if (age == null || age > 10) h += `<div class="stl">C4 からの更新が止まっています${ORD.at ? `（最終 ${hm(ORD.at)}）` : ''}</div>`;
     h += `<div class="frs" style="grid-template-rows:repeat(${fl.length},1fr)">${fl.map((x) => `<div class="fr"><span class="fn">${x.f}</span><span class="ft2"><b>${nf(x.t)}</b><small>Air ${nf(x.air)}</small></span>
       <div class="fb" style="width:${Math.max(x.t ? 2 : 0, x.t / mx * 100).toFixed(1)}%">${x.v.map((v, j) => v ? `<i style="width:${(v / x.t * 100).toFixed(2)}%;background:${L[j].c}">${v / mx > 0.07 ? nf(v) : ''}</i>` : '').join('')}</div></div>`).join('')}</div>`;
@@ -392,7 +395,7 @@
       const j = await r.json(); if (!j.ok) throw new Error(j.error || 'error');
       ORD = j; ORDERR = '';
     } catch (e) { ORDERR = String(e.message || e); }
-    const el = document.getElementById('flw'); if (el) el.innerHTML = floorHtml();
+    const el = document.getElementById('flw'); if (el) el.innerHTML = floorHtml(); fitCp();
   }
   const tick = () => { document.getElementById('clk').textContent = new Date(Date.now() + 9 * H).toISOString().slice(11, 16); };
 
