@@ -123,7 +123,7 @@
 <body>
 <header><div class="l"><h1>進捗モニター</h1><span class="sh" id="sh">—</span></div><span class="clk" id="clk">--:--</span><div class="r"><span class="at" id="at"></span><span class="wl off" id="wl" title="画面スリープ防止の状態。OFFのときは画面を一度クリックするとONになります">スリープ防止 OFF</span></div></header>
 <main id="main"></main>
-<section class="cpc" id="cpt"><h2>CPT別 進捗</h2><div class="none">読み込み中…</div></section>
+<section class="cpc" id="cpt"><h2>CPT別 残数</h2><div class="none">読み込み中…</div></section>
 <script>
 (() => {
   const API = 'https://indirect-relay-hfo1.takahiro884.workers.dev', KEY = '1540850d9c168e02e13c9c10c06d8bed';
@@ -239,8 +239,9 @@
         s += `<text x="${xl}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pick</text><text x="${xl}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="#020617">${nf(c.np)}</text>`;
         s += `<text x="${xr}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pack</text><text x="${xr}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="#020617">${nf(c.np + c.pp)}</text>`;
       }
-      // 時刻と棒の間：その CPT の処理数（パック済み＝総数 − Pick 残 − Pack 残）
-      s += `<text x="${x}" y="${base + 22}" text-anchor="middle" font-size="19" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np - c.pp))}</text>`;
+      // 時刻と棒の間：処理数。左の棒の下＝Pick 済み（総数 − Pick 残）、右の棒の下＝Pack 済み（総数 − Pick 残 − Pack 残）
+      const xl2 = x - bw / 2 - gp / 2, xr2 = x + bw / 2 + gp / 2;
+      s += `<text x="${xl2}" y="${base + 22}" text-anchor="middle" font-size="18" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np))}</text><text x="${xr2}" y="${base + 22}" text-anchor="middle" font-size="18" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np - c.pp))}</text>`;
       const row = 0;
       const dd = Math.round((Date.parse(jstYmd(c.t)) - Date.parse(today)) / 86400000), pre = dd === 1 ? '翌' : dd === -1 ? '前日' : dd ? `${Number(jstYmd(c.t).slice(5, 7))}/${Number(jstYmd(c.t).slice(8))} ` : '';
       s += `<text x="${x}" y="${base + 52 + row * 26}" text-anchor="middle" font-size="24" font-weight="900" fill="#020617">${pre ? `<tspan font-size="17" fill="#64748b">${pre}</tspan>` : ''}${hm(c.t).replace(/^0/, '')}</text></g>`;
@@ -259,9 +260,9 @@
       // Rodeo からの更新が30分以上止まっていたら知らせる
       const stale = !D.syncAt || Date.now() - D.syncAt > 30 * 60000;
       const warn = stale ? `<span class="warn">${D.syncAt ? `Rodeo からの更新が止まっています（最終 ${hm(D.syncAt)}）` : 'Rodeo からのデータがまだありません'}</span>` : '';
-      el.innerHTML = `<h2>CPT別 進捗${warn}${lg}</h2>` + (D.cpts.length ? cptSvg(D.cpts, nowF) : '<div class="none">表示できる CPT がありません（Rodeo の画面とスクリプトを確認してください）</div>');
+      el.innerHTML = `<h2>CPT別 残数${warn}${lg}</h2>` + (D.cpts.length ? cptSvg(D.cpts, nowF) : '<div class="none">表示できる CPT がありません（Rodeo の画面とスクリプトを確認してください）</div>');
     } catch (e) {
-      el.innerHTML = `<h2>CPT別 進捗${lg}</h2><div class="none">読み込めませんでした（${String(e.message || e)}）</div>`;
+      el.innerHTML = `<h2>CPT別 残数${lg}</h2><div class="none">読み込めませんでした（${String(e.message || e)}）</div>`;
     }
   }
   const tick = () => { document.getElementById('clk').textContent = new Date(Date.now() + 9 * H).toISOString().slice(11, 16); };
