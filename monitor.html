@@ -104,6 +104,7 @@
   .cpc .lgd{display:flex;gap:1vw;font-size:min(1.9vh,1vw);font-weight:800;color:#334155;margin-left:auto}
   .cpc .lgd i{display:inline-block;width:2.2vh;height:1.4vh;border-radius:.3vh;margin-right:.3vw;vertical-align:-.1vh}
   .cpc svg{flex:1;width:100%;min-height:0}
+  .cpc .lgd .lgn{color:#020617;border-left:2px solid #cbd5e1;padding-left:1vw}
   .cpc .none{flex:1;display:flex;align-items:center;justify-content:center;font-size:min(2.6vh,1.4vw);font-weight:800;color:#64748b}
 
   /* 工程の枠：数字の桁が増えても切れないよう、枠は中身の幅に合わせる（文字は画面幅に合わせて小さくする） */
@@ -213,12 +214,12 @@
   const CPT_SLOTS = 11, PK = COL.Pick, PC = COL.Pack;
   const jstYmd = (t) => new Date(t + 9 * H).toISOString().slice(0, 10);
   function cptSvg(list, nowF) {
-    const W = 1800, Hh = 236, base = 176, w = W / CPT_SLOTS;
+    const W = 1800, Hh = 252, base = 162, w = W / CPT_SLOTS;
     let ip = -1; list.forEach((c, i) => { if (c.t <= nowF) ip = i; });
     const fNow = ip < 0 ? (list.length ? -0.5 : 0) : ip + 1 >= list.length ? ip + 0.5 : ip + (nowF - list[ip].t) / (list[ip + 1].t - list[ip].t);
     const xNow = 2.5 * w, X = (i) => xNow + (i - fNow) * w;
     const vis = list.map((c, i) => ({ ...c, i })).filter((c) => X(c.i) > -w && X(c.i) < W + w);
-    const mx = Math.max(1, ...vis.map((c) => c.tot)), k = 96 / mx, bw = 30, today = jstYmd(nowF);
+    const mx = Math.max(1, ...vis.map((c) => c.tot)), k = 80 / mx, bw = 38, gp = 24, today = jstYmd(nowF);
     let s = `<defs><clipPath id="cpw"><rect x="0" y="-20" width="${W}" height="${Hh + 40}"/></clipPath><linearGradient id="cpfl" x1="0" x2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><g clip-path="url(#cpw)">`;
     s += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="#94a3b8" stroke-width="2"/>`;
     const placed = [], pb = [], pb2 = [];
@@ -226,18 +227,23 @@
       const x = X(c.i), ht = Math.max(4, c.tot * k), fin = c.done || !(c.np + c.pp);
       const op = !fin ? 1 : (x > xNow - w * 1.2 ? 0.6 : x > xNow - w * 2.2 ? 0.32 : 0.18);
       s += `<g opacity="${op}">`;
-      s += `<rect x="${x - bw - 1}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e2e8f0"/><rect x="${x + 1}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e2e8f0"/>`;
+      s += `<rect x="${x - bw - gp / 2}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e5e7eb"/><rect x="${x + gp / 2}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e5e7eb"/>`;
       const tot = Math.max(1, c.tot), hp = Math.max(0, (c.tot - c.np) / tot) * ht, hk = Math.max(0, (c.tot - c.np - c.pp) / tot) * ht;
-      s += `<rect x="${x - bw - 1}" y="${base - hp}" width="${bw}" height="${hp}" rx="3" fill="${PK}"/><rect x="${x + 1}" y="${base - hk}" width="${bw}" height="${hk}" rx="3" fill="${PC}"/>`;
-      // 文字が重なるときは、重ならない高さまで上へずらす（下の時刻は下の段へ）
-      const lh = fin ? 22 : 44; let yb = base - ht - 6;
-      while (placed.some((p) => Math.abs(p.x - x) < 120 && yb > p.y0 && yb - lh < p.y1)) yb -= lh;
-      placed.push({ x, y0: yb - lh, y1: yb });
-      s += fin ? `<text x="${x}" y="${yb - 4}" text-anchor="middle" font-size="18" font-weight="800" fill="#64748b">実績 ${nf(c.tot)}</text>`
-        : `<text x="${x}" y="${yb - 26}" text-anchor="middle" font-size="18" font-weight="800" fill="${PK}">Pick ${nf(c.np)}</text><text x="${x}" y="${yb - 4}" text-anchor="middle" font-size="18" font-weight="800" fill="${PC}">Pack ${nf(c.pp)}</text>`;
-      const row = pb.some((p) => Math.abs(p - x) < 95) && !pb2.some((p) => Math.abs(p - x) < 95) ? 1 : 0; (row ? pb2 : pb).push(x);
+      // 残りを色で（棒の上側から）：左＝Pick 残（未ピック）、右＝Pack 残（未ピック＋ピック済みでパック待ち＝まだパックしていない数）
+      const rp = (c.np / tot) * ht, rk = ((c.np + c.pp) / tot) * ht;
+      if (rp > 0) s += `<rect x="${x - bw - gp / 2}" y="${base - ht}" width="${bw}" height="${Math.max(3, rp)}" rx="3" fill="${PK}"/>`;
+      if (rk > 0) s += `<rect x="${x + gp / 2}" y="${base - ht}" width="${bw}" height="${Math.max(3, rk)}" rx="3" fill="${PC}"/>`;
+      // 残数：左の棒の上に Pick、右の棒の上に Pack（見出しと数字の2段）。棒の色とは別の色（黒・グレー）で書く
+      if (!fin) {
+        const yb = base - ht - 6, xl = x - bw / 2 - gp / 2, xr = x + bw / 2 + gp / 2;
+        s += `<text x="${xl}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pick</text><text x="${xl}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="#020617">${nf(c.np)}</text>`;
+        s += `<text x="${xr}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pack</text><text x="${xr}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="#020617">${nf(c.np + c.pp)}</text>`;
+      }
+      // 時刻と棒の間：その CPT の処理数（パック済み＝総数 − Pick 残 − Pack 残）
+      s += `<text x="${x}" y="${base + 22}" text-anchor="middle" font-size="19" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np - c.pp))}</text>`;
+      const row = 0;
       const dd = Math.round((Date.parse(jstYmd(c.t)) - Date.parse(today)) / 86400000), pre = dd === 1 ? '翌' : dd === -1 ? '前日' : dd ? `${Number(jstYmd(c.t).slice(5, 7))}/${Number(jstYmd(c.t).slice(8))} ` : '';
-      s += `<text x="${x}" y="${base + 30 + row * 26}" text-anchor="middle" font-size="24" font-weight="900" fill="#020617">${pre ? `<tspan font-size="17" fill="#64748b">${pre}</tspan>` : ''}${hm(c.t).replace(/^0/, '')}</text></g>`;
+      s += `<text x="${x}" y="${base + 52 + row * 26}" text-anchor="middle" font-size="24" font-weight="900" fill="#020617">${pre ? `<tspan font-size="17" fill="#64748b">${pre}</tspan>` : ''}${hm(c.t).replace(/^0/, '')}</text></g>`;
     }
     s += `<line x1="${xNow}" x2="${xNow}" y1="28" y2="${base + 8}" stroke="#020617" stroke-width="3" stroke-dasharray="6 5"/><rect x="${xNow - 40}" y="0" width="80" height="28" rx="14" fill="#0f172a"/><text x="${xNow}" y="21" text-anchor="middle" font-size="19" font-weight="900" fill="#fff">${hm(nowF).replace(/^0/, '')}</text>`;
     s += `<rect x="0" y="-20" width="70" height="${Hh + 40}" fill="url(#cpfl)"/></g>`;
@@ -245,7 +251,7 @@
   }
   async function loadCpt() {
     const el = document.getElementById('cpt');
-    const lg = `<span class="lgd"><span><i style="background:${PK}"></i>Pick（ピック済み）</span><span><i style="background:${PC}"></i>Pack（パック済み）</span><span><i style="background:#e2e8f0;border:1px solid #cbd5e1"></i>残り</span></span>`;
+    const lg = `<span class="lgd"><span><i style="background:${PK}"></i>Pick 残</span><span><i style="background:${PC}"></i>Pack 残（未Pick含む）</span><span><i style="background:#e5e7eb;border:1px solid #cbd5e1"></i>処理済み</span><span class="lgn">棒の上＝残数・下＝<span style="color:#1d4ed8">処理数</span></span></span>`;
     try {
       const r = await fetch(`${API}/api/cpt?k=${KEY}`, { cache: 'no-store' });
       const D = await r.json(); if (!D.ok) throw new Error(D.error || 'error');
