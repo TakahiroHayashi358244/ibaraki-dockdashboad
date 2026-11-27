@@ -139,6 +139,25 @@
   .flw .fb i{display:flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:min(2vh,1vw);font-weight:900;white-space:nowrap;overflow:hidden;border-right:2px solid #fff}
   .flw .msg{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:min(2.4vh,1.3vw);font-weight:800;color:#64748b}
   .flw .stl{font-size:min(1.7vh,.85vw);font-weight:800;color:#b91c1c;text-align:right;margin-top:-.6vh}
+
+  /* フロア別のときの右の枠：OUT・IN の円グラフを縦に2つ */
+  .card.stk{padding:1vh 1.4vw;gap:.8vh;align-items:stretch}
+  .mn{flex:1;min-height:0;display:flex;flex-direction:column}
+  .mn + .mn{border-top:2px solid #e2e8f0;padding-top:.8vh}
+  .mh{display:flex;align-items:center;gap:.8vw;white-space:nowrap;flex:none}
+  .mh .tag{font-size:min(2.6vh,1.3vw);font-weight:900;color:#fff;background:var(--c);padding:.1vh .9vw;border-radius:99px}
+  .mh .nm{font-size:min(2.8vh,1.4vw);font-weight:900}
+  .mh .st{font-size:min(2.4vh,1.2vw);padding:.2vh 1.2vw}
+  .mb{flex:1;min-height:0;display:flex;align-items:center;gap:1.2vw}
+  .mr{height:100%;aspect-ratio:1;flex:none;display:flex;align-items:center;justify-content:center}
+  .mr svg{height:100%;width:auto}
+  .ms{flex:1;min-width:0;display:flex;flex-direction:column;gap:.8vh}
+  .mp{display:grid;grid-template-columns:auto 1fr;align-items:baseline;gap:0 .6vw;border-radius:1vh;background:#f1f5f9;border:2px solid #cbd5e1;padding:.6vh .8vw}
+  .mp .n{font-size:min(2.2vh,1.05vw);font-weight:900;color:var(--pc)}
+  .mp b{font-size:min(3.8vh,1.8vw);font-weight:900;text-align:right;font-variant-numeric:tabular-nums}
+  .mp small{grid-column:1/3;font-size:min(1.7vh,.85vw);font-weight:800;color:#334155;font-variant-numeric:tabular-nums}
+  .ml{text-align:right;line-height:1.1}.ml span{display:block;font-size:min(1.8vh,.9vw);font-weight:800;color:#334155}
+  .ml b{font-size:min(4vh,2vw);font-weight:900;font-variant-numeric:tabular-nums}.ml small{display:block;font-size:min(2vh,1vw);font-weight:800}
 </style>
 </head>
 <body>
@@ -201,6 +220,22 @@
     s += `<text x="180" y="226" text-anchor="middle" font-size="22" font-weight="800" fill="#1e293b">${fc ? `計画 ${Math.round(pr * 100)}%` : 'FCST なし'}</text>`;
     return `<svg viewBox="-20 -20 400 400">${s}</svg>`;
   }
+
+  // フロア別のとき、右の枠に OUT・IN の円グラフを縦に並べる（円グラフ＋工程ごとの％・着地見込み）
+  function mini(D, g) {
+    const G = GRP[g], fc = D.plan[g + 'Sum'], u = upto(D), pn = planTo(D.plan[g], u), pr = fc ? Math.min(1, pn / fc) : null;
+    const done = {}, land = {};
+    G.cats.forEach((c) => { done[c] = D.hours.reduce((s, h) => s + h[c].u, 0); land[c] = D.live ? done[c] + (D.recent[c].u / Math.max(0.25, (D.recentTo - D.recentFrom) / H)) * left(D, u) : done[c]; });
+    const bn = G.cats.reduce((a, b) => (done[b] < done[a] ? b : a)), diff = done[bn] - pn;
+    const st = !fc ? ['na', 'FCST なし'] : diff >= 0 ? ['ok', '計画どおり'] : diff > -pn * 0.06 ? ['wn', 'やや遅れ'] : ['ng', '遅れ'];
+    const stc = { ok: '#15803d', wn: '#ea580c', ng: '#dc2626', na: '#020617' }[st[0]];
+    const lb = Math.min(...G.cats.map((c) => land[c]));
+    return `<div class="mn" style="--c:${G.c}"><div class="mh"><span class="tag">${G.tag}</span><span class="nm">${G.name}</span><span class="st ${st[0]}">${st[1]}${fc ? `　${sg(diff)}` : ''}</span></div>
+      <div class="mb"><div class="mr">${ring(G, done, fc, pr, stc)}</div><div class="ms">
+        ${G.cats.map((c) => `<div class="mp" style="--pc:${COL[c]}"><span class="n">● ${c}</span><b>${fc ? Math.round(done[c] / fc * 100) + '%' : '—'}</b><small>${nf(done[c])} / ${fc ? nf(fc) : '—'}</small></div>`).join('')}
+        <div class="ml"><span>着地見込み</span><b style="color:${fc ? (lb >= fc ? '#15803d' : '#dc2626') : ''}">${nf(lb)}</b>${fc ? `<small style="color:${lb >= fc ? '#16a34a' : '#dc2626'}">${sg(lb - fc)}</small>` : ''}</div>
+      </div></div></div>`;
+  }
   function card(D, g) {
     const G = GRP[g], fc = D.plan[g + 'Sum'], u = upto(D), pn = planTo(D.plan[g], u), pr = fc ? Math.min(1, pn / fc) : null;
     const done = {}, land = {};
@@ -212,13 +247,14 @@
     const uph = (c) => { const o = D.recent[c]; return o && o.h > 0.05 ? Math.round(o.u / o.h) : '—'; };
     const sw = g === 'out' ? `<span class="sw" onclick="setOutView('toggle')"><span class="${OUTV === 'floor' ? '' : 'on'}">全体</span><span class="${OUTV === 'floor' ? 'on' : ''}">フロア別</span></span>` : '';
     const head = `<div class="card" style="--c:${G.c}"><div class="ttl${sw ? ' hsw' : ''}"><span class="tag">${G.tag}</span>${G.name}<span class="st ${st[0]}">${st[1]}${fc ? `　${sg(diff)}` : ''}</span>${sw}</div>`;
-    if (g === 'out' && OUTV === 'floor') return head + `<div class="flw" id="flw">${floorHtml()}</div></div>`;
+    if (g === 'out' && OUTV === 'floor') return head.replace(/<span class="st [^"]*">[\s\S]*?<\/span>(?=<span class="sw")/, '') + `<div class="flw" id="flw">${floorHtml()}</div></div>`;
     return head + `
       <div class="ring">${ring(G, done, fc, pr, stc)}</div>
       <div class="rows">${G.cats.map((c) => `<div class="pr" style="--pc:${COL[c]}"><span class="n">● ${c}</span><span class="p">${fc ? Math.round(done[c] / fc * 100) + '%' : '—'}</span><span class="d"><span><b>${nf(done[c])}</b> / ${fc ? nf(fc) : '—'}</span><span>UPH <b>${uph(c)}</b>・${D.recent[c].n}名</span></span></div>`).join('')}</div>
       <div class="ft"><div><span>FCST</span><b>${fc ? nf(fc) : '—'}</b></div><div><span>${hm(D.dataTo || D.start)} 時点の計画</span><b>${fc ? nf(pn) : '—'}</b></div><div><span>着地見込み</span><b style="color:${fc ? (lb >= fc ? '#15803d' : '#dc2626') : ''}">${nf(lb)}</b>${fc ? `<small style="color:${lb >= fc ? '#16a34a' : '#dc2626'}">${sg(lb - fc)}</small>` : ''}</div></div></div>`;
   }
   let LASTD = null;
+  const mainHtml = (D) => OUTV === 'floor' ? card(D, 'out') + `<div class="card stk">${mini(D, 'out')}${mini(D, 'in')}</div>` : card(D, 'out') + card(D, 'in');
   async function load() {
     const { sh, d } = cur();
     try {
@@ -227,7 +263,7 @@
       document.getElementById('sh').textContent = `${Number(d.slice(5, 7))}/${Number(d.slice(8))} ${sh === 'day' ? '日勤 8:00〜20:00' : '夜勤 20:00〜5:00'}`;
       document.getElementById('at').textContent = D.dataTo ? `${hm(D.dataTo)} までの実績` : '実績はまだありません';
       LASTD = D;
-      document.getElementById('main').innerHTML = card(D, 'out') + card(D, 'in');
+      document.getElementById('main').innerHTML = mainHtml(D);
       if (OUTV === 'floor') loadOrders();
     } catch (e) { document.getElementById('at').textContent = '読み込めませんでした（' + e.message + '）'; }
   }
@@ -300,7 +336,7 @@
   let ORD = null, ORDERR = '';
   const ORD_CC = ['#0f766e', '#2563eb', '#7c3aed', '#d97706', '#db2777', '#0891b2', '#65a30d'];
   window.setOutView = (v) => setOutView(v);
-  function setOutView(v) { if (v === 'toggle') v = OUTV === 'floor' ? 'all' : 'floor'; OUTV = v; try { localStorage.setItem('mon_out_view', v); } catch (e) { /* 無視 */ } if (LASTD) document.getElementById('main').innerHTML = card(LASTD, 'out') + card(LASTD, 'in'); if (v === 'floor') loadOrders(); }
+  function setOutView(v) { if (v === 'toggle') v = OUTV === 'floor' ? 'all' : 'floor'; OUTV = v; try { localStorage.setItem('mon_out_view', v); } catch (e) { /* 無視 */ } if (LASTD) document.getElementById('main').innerHTML = mainHtml(LASTD); if (v === 'floor') loadOrders(); }
   function ordCut() {
     const j = new Date(Date.now() + 9 * H), hh = j.getUTCHours(), base = Date.parse(j.toISOString().slice(0, 10) + 'T00:00:00+09:00');
     if (hh >= 8 && hh < 20) return base + 20 * H;            // 日勤：当日 20:00 まで
