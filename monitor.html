@@ -303,24 +303,24 @@
     s += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="#94a3b8" stroke-width="2"/>`;
     const placed = [], pb = [], pb2 = [];
     for (const c of vis) {
-      const x = X(c.i), ht = Math.max(4, c.tot * k), fin = c.done || !(c.np + c.pp);
+      const x = X(c.i), ht = Math.max(4, c.tot * k), nk = c.pp < 0, fin = c.done || (!nk && !(c.np + c.pp)); // nk＝Pack 残の記録がない（スプレッドシートから復元した過去分）
       const op = !fin ? 1 : (x > xNow - w * 1.2 ? 0.6 : x > xNow - w * 2.2 ? 0.32 : 0.18);
       s += `<g opacity="${op}">`;
       s += `<rect x="${x - bw - gp / 2}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e5e7eb"/><rect x="${x + gp / 2}" y="${base - ht}" width="${bw}" height="${ht}" rx="3" fill="#e5e7eb"/>`;
       const tot = Math.max(1, c.tot), hp = Math.max(0, (c.tot - c.np) / tot) * ht, hk = Math.max(0, (c.tot - c.np - c.pp) / tot) * ht;
       // 残りを色で（棒の上側から）：左＝Pick 残（未ピック）、右＝Pack 残（未ピック＋ピック済みでパック待ち＝まだパックしていない数）
-      const rp = (c.np / tot) * ht, rk = ((c.np + c.pp) / tot) * ht;
+      const rp = (c.np / tot) * ht, rk = nk ? 0 : ((c.np + c.pp) / tot) * ht;
       if (rp > 0) s += `<rect x="${x - bw - gp / 2}" y="${base - ht}" width="${bw}" height="${Math.max(3, rp)}" rx="3" fill="${PK}"/>`;
       if (rk > 0) s += `<rect x="${x + gp / 2}" y="${base - ht}" width="${bw}" height="${Math.max(3, rk)}" rx="3" fill="${PC}"/>`;
       // 残数：左の棒の上に Pick、右の棒の上に Pack（見出しと数字の2段）。棒の色とは別の色（黒・グレー）で書く
       if (!fin) {
         const yb = base - ht - 6, xl = x - bw / 2 - gp / 2, xr = x + bw / 2 + gp / 2;
         s += `<text x="${xl}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pick</text><text x="${xl}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="#020617">${nf(c.np)}</text>`;
-        s += `<text x="${xr}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pack</text><text x="${xr}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="#020617">${nf(c.np + c.pp)}</text>`;
+        s += `<text x="${xr}" y="${yb - 24}" text-anchor="middle" font-size="15" font-weight="800" fill="#64748b">Pack</text><text x="${xr}" y="${yb - 3}" text-anchor="middle" font-size="20" font-weight="900" fill="${nk ? '#94a3b8' : '#020617'}">${nk ? '—' : nf(c.np + c.pp)}</text>`;
       }
       // 時刻と棒の間：処理数。左の棒の下＝Pick 済み（総数 − Pick 残）、右の棒の下＝Pack 済み（総数 − Pick 残 − Pack 残）
       const xl2 = x - bw / 2 - gp / 2, xr2 = x + bw / 2 + gp / 2;
-      s += `<text x="${xl2}" y="${base + 22}" text-anchor="middle" font-size="18" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np))}</text><text x="${xr2}" y="${base + 22}" text-anchor="middle" font-size="18" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np - c.pp))}</text>`;
+      s += `<text x="${xl2}" y="${base + 22}" text-anchor="middle" font-size="18" font-weight="800" fill="#1d4ed8">${nf(Math.max(0, c.tot - c.np))}</text><text x="${xr2}" y="${base + 22}" text-anchor="middle" font-size="18" font-weight="800" fill="${nk ? '#94a3b8' : '#1d4ed8'}">${nk ? '—' : nf(Math.max(0, c.tot - c.np - c.pp))}</text>`;
       const row = 0;
       const dd = Math.round((Date.parse(jstYmd(c.t)) - Date.parse(today)) / 86400000), pre = dd === 1 ? '翌' : dd === -1 ? '前日' : dd ? `${Number(jstYmd(c.t).slice(5, 7))}/${Number(jstYmd(c.t).slice(8))} ` : '';
       s += `<text x="${x}" y="${base + 52 + row * 26}" text-anchor="middle" font-size="24" font-weight="900" fill="#020617">${pre ? `<tspan font-size="17" fill="#64748b">${pre}</tspan>` : ''}${hm(c.t).replace(/^0/, '')}</text></g>`;
@@ -360,7 +360,7 @@
       // Rodeo からの更新が30分以上止まっていたら知らせる（履歴の表示中は出さない）
       const stale = !at && (!D.syncAt || Date.now() - D.syncAt > 30 * 60000);
       const warn = stale ? `<span class="warn">${D.syncAt ? `Rodeo からの更新が止まっています（最終 ${hm(D.syncAt)}）` : 'Rodeo からのデータがまだありません'}</span>` : '';
-      const hl = at ? `<span class="hl">${md(at)} ${hm(at).replace(/^0/, '')} 時点の記録</span>` : '';
+      const hl = at ? `<span class="hl">${md(at)} ${hm(at).replace(/^0/, '')} 時点の記録${D.cpts.some((c) => c.pp < 0) ? '（Pack は記録なし）' : ''}</span>` : '';
       el.classList.toggle('hist', !!at);
       el.innerHTML = `<h2>CPT別 残数${cptNav()}${hl}${warn}${lg}</h2>` + (D.cpts.length ? cptSvg(D.cpts, nowF) : `<div class="none">${at ? 'この時点の記録がありません' : '表示できる CPT がありません（Rodeo の画面とスクリプトを確認してください）'}</div>`);
     } catch (e) {
