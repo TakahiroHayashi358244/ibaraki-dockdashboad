@@ -100,6 +100,12 @@
   .cpc{flex:none;height:26vh;margin:0 .6vw .6vw;background:#fff;border-radius:1.2vh;box-shadow:0 2px 8px rgba(15,23,42,.18);padding:1vh 1.4vw;display:flex;flex-direction:column}
   .cpc[hidden]{display:none}
   .cpc h2{margin:0;font-size:min(3vh,1.6vw);font-weight:900;display:flex;gap:1.2vw;align-items:center;white-space:nowrap}
+  .cpc .cnav{display:inline-flex;align-items:center;gap:.3vw;font-size:min(2vh,1.05vw)}
+  .cpc .cnav button{border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;border-radius:.8vh;font:inherit;font-weight:900;padding:.2vh .7vw;cursor:pointer}
+  .cpc .cnav select{border:1px solid #cbd5e1;border-radius:.8vh;font:inherit;font-weight:800;padding:.2vh .4vw;background:#fff;color:#0f172a}
+  .cpc .cnav .back{background:#0f172a;color:#fff;border-color:#0f172a}
+  .cpc.hist{background:#fffbeb;box-shadow:0 0 0 .4vh #f59e0b inset,0 2px 8px rgba(15,23,42,.18)}
+  .cpc .hl{font-size:min(1.9vh,1vw);color:#92400e;font-weight:900}
   .cpc h2 .warn{font-size:min(1.9vh,1vw);color:#b91c1c;font-weight:800}
   .cpc .lgd{display:flex;gap:1vw;font-size:min(1.9vh,1vw);font-weight:800;color:#334155;margin-left:auto}
   .cpc .lgd i{display:inline-block;width:2.2vh;height:1.4vh;border-radius:.3vh;margin-right:.3vw;vertical-align:-.1vh}
@@ -293,7 +299,7 @@
     const xNow = 2.5 * w, X = (i) => xNow + (i - fNow) * w;
     const vis = list.map((c, i) => ({ ...c, i })).filter((c) => X(c.i) > -w && X(c.i) < W + w);
     const mx = Math.max(1, ...vis.map((c) => c.tot)), k = 80 / mx, bw = 38, gp = 24, today = jstYmd(nowF);
-    let s = `<defs><clipPath id="cpw"><rect x="0" y="-20" width="${W}" height="${Hh + 40}"/></clipPath><linearGradient id="cpfl" x1="0" x2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><g clip-path="url(#cpw)">`;
+    let s = `<defs><clipPath id="cpw"><rect x="0" y="-20" width="${W}" height="${Hh + 40}"/></clipPath><linearGradient id="cpfl" x1="0" x2="1"><stop offset="0" stop-color="${CPTAT ? '#fffbeb' : '#fff'}"/><stop offset="1" stop-color="${CPTAT ? '#fffbeb' : '#fff'}" stop-opacity="0"/></linearGradient></defs><g clip-path="url(#cpw)">`;
     s += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="#94a3b8" stroke-width="2"/>`;
     const placed = [], pb = [], pb2 = [];
     for (const c of vis) {
@@ -323,19 +329,42 @@
     s += `<rect x="0" y="-20" width="70" height="${Hh + 40}" fill="url(#cpfl)"/></g>`;
     return `<svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${s}</svg>`;
   }
+  // CPT別残数の履歴：Worker が30分ごと（:00・:30）に残した様子を、さかのぼって表示する（7日分）
+  //  ・見出しの ◀ ▶ で30分ずつ、時刻の一覧で好きな時点へ。「いまに戻る」か10分操作がなければ、いまの表示に戻る
+  let CPTAT = 0, CSLOTS = [], cptIdle = null;
+  const md = (t) => { const d = new Date(t + 9 * 3600000); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+  function cptGo(v) {
+    if (v === 'prev') { const n = CSLOTS.find((x) => x < (CPTAT || Infinity)); if (n) CPTAT = n; }
+    else if (v === 'next') { const o = CSLOTS.filter((x) => x > CPTAT); CPTAT = CPTAT && o.length ? o[o.length - 1] : 0; }
+    else CPTAT = Number(v) || 0;
+    clearTimeout(cptIdle); if (CPTAT) cptIdle = setTimeout(() => cptGo(0), 10 * 60000);
+    loadCpt();
+  }
+  window.cptGo = cptGo;
+  function cptNav() {
+    if (!CSLOTS.length) return '';
+    const opt = `<option value="0"${CPTAT ? '' : ' selected'}>いま</option>` + CSLOTS.map((x) => `<option value="${x}"${x === CPTAT ? ' selected' : ''}>${md(x)} ${hm(x).replace(/^0/, '')}</option>`).join('');
+    const hasPrev = CSLOTS.some((x) => x < (CPTAT || Infinity));
+    return `<span class="cnav"><button onclick="cptGo('prev')"${hasPrev ? '' : ' disabled'} title="30分前">◀</button><select onchange="cptGo(this.value)" title="さかのぼって見る時点">${opt}</select><button onclick="cptGo('next')"${CPTAT ? '' : ' disabled'} title="30分後">▶</button>${CPTAT ? '<button class="back" onclick="cptGo(0)">いまに戻る</button>' : ''}</span>`;
+  }
   async function loadCpt() {
     const el = document.getElementById('cpt');
     const lg = `<span class="lgd"><span><i style="background:${PK}"></i>Pick 残</span><span><i style="background:${PC}"></i>Pack 残（未Pick含む）</span><span><i style="background:#e5e7eb;border:1px solid #cbd5e1"></i>処理済み</span><span class="lgn">棒の上＝残数・下＝<span style="color:#1d4ed8">処理数</span></span></span>`;
+    const at = CPTAT;
     try {
-      const r = await fetch(`${API}/api/cpt?k=${KEY}`, { cache: 'no-store' });
+      const r = await fetch(`${API}/api/cpt?k=${KEY}${at ? `&at=${at}` : ''}`, { cache: 'no-store' });
       const D = await r.json(); if (!D.ok) throw new Error(D.error || 'error');
-      const nowF = Math.floor(Date.now() / (15 * 60000)) * 15 * 60000;
-      // Rodeo からの更新が30分以上止まっていたら知らせる
-      const stale = !D.syncAt || Date.now() - D.syncAt > 30 * 60000;
+      if (at !== CPTAT) return; // 読み込み中に時点が変わった
+      CSLOTS = D.slots || [];
+      const nowF = at || Math.floor(Date.now() / (15 * 60000)) * 15 * 60000;
+      // Rodeo からの更新が30分以上止まっていたら知らせる（履歴の表示中は出さない）
+      const stale = !at && (!D.syncAt || Date.now() - D.syncAt > 30 * 60000);
       const warn = stale ? `<span class="warn">${D.syncAt ? `Rodeo からの更新が止まっています（最終 ${hm(D.syncAt)}）` : 'Rodeo からのデータがまだありません'}</span>` : '';
-      el.innerHTML = `<h2>CPT別 残数${warn}${lg}</h2>` + (D.cpts.length ? cptSvg(D.cpts, nowF) : '<div class="none">表示できる CPT がありません（Rodeo の画面とスクリプトを確認してください）</div>');
+      const hl = at ? `<span class="hl">${md(at)} ${hm(at).replace(/^0/, '')} 時点の記録</span>` : '';
+      el.classList.toggle('hist', !!at);
+      el.innerHTML = `<h2>CPT別 残数${cptNav()}${hl}${warn}${lg}</h2>` + (D.cpts.length ? cptSvg(D.cpts, nowF) : `<div class="none">${at ? 'この時点の記録がありません' : '表示できる CPT がありません（Rodeo の画面とスクリプトを確認してください）'}</div>`);
     } catch (e) {
-      el.innerHTML = `<h2>CPT別 残数${lg}</h2><div class="none">読み込めませんでした（${String(e.message || e)}）</div>`;
+      el.innerHTML = `<h2>CPT別 残数${cptNav()}${lg}</h2><div class="none">読み込めませんでした（${String(e.message || e)}）</div>`;
     }
   }
 
@@ -427,7 +456,7 @@
   document.addEventListener('keydown', () => wakeOn());
   setInterval(() => { if (document.visibilityState === 'visible' && (!wl || wl.released) && !(vid && !vid.paused)) wakeOn(); }, 60000);
   wakeOn();
-  tick(); setInterval(tick, 10000); load(); setInterval(load, 2 * 60000); loadCpt(); setInterval(loadCpt, 2 * 60000);
+  tick(); setInterval(tick, 10000); load(); setInterval(load, 2 * 60000); loadCpt(); setInterval(() => { if (!CPTAT) loadCpt(); }, 2 * 60000);
 })();
 </script>
 <script src="https://takahirohayashi358244.github.io/ibaraki-dockdashboad/appnav.js" data-app="monitor"></script>
